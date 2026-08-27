@@ -11,7 +11,7 @@ import {
   Calendar,
   Layers
 } from 'lucide-react';
-import { EmergencyReport, EmergencyKey } from '../types';
+import { EmergencyReport, EmergencyKey, AppUser } from '../types';
 import { generateEmergencyReportPDF } from '../utils/pdfGenerator';
 
 interface ReportListViewProps {
@@ -21,6 +21,7 @@ interface ReportListViewProps {
   onEditReport: (report: EmergencyReport) => void;
   onViewReport: (report: EmergencyReport) => void;
   onDeleteReport: (reportId: string) => void;
+  currentUser?: AppUser | null;
 }
 
 export const ReportListView: React.FC<ReportListViewProps> = ({
@@ -30,6 +31,7 @@ export const ReportListView: React.FC<ReportListViewProps> = ({
   onEditReport,
   onViewReport,
   onDeleteReport,
+  currentUser,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
@@ -62,190 +64,198 @@ export const ReportListView: React.FC<ReportListViewProps> = ({
     await generateEmergencyReportPDF(report);
   };
 
+  const canCreate = currentUser ? currentUser.permissions?.canCreateReports : true;
+  const canEdit = currentUser ? currentUser.permissions?.canEditReports : true;
+  const canDelete = currentUser ? currentUser.permissions?.canDeleteReports : true;
+
   return (
-    <div className="space-y-4 pb-12">
-      {/* Header and Controls */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-4 space-y-3 transition-colors">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-          {/* Search Box */}
-          <div className="relative flex-1">
+    <div className="space-y-4">
+      {/* Top Filter and Search Bar */}
+      <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 space-y-3 transition-colors">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="relative w-full sm:w-80">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Buscar por folio, correlativo comandancia, dirección, clave radial..."
+              placeholder="Buscar por folio, clave, sector, oficial..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs sm:text-sm text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-red-600 focus:outline-none placeholder-slate-400"
+              className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-600 transition"
             />
           </div>
 
-          <button
-            onClick={onNewReport}
-            className="flex items-center justify-center space-x-1.5 bg-red-700 hover:bg-red-800 text-white text-xs sm:text-sm font-bold px-4 py-2 rounded-lg shadow-sm transition active:scale-95 border border-red-600/40"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Emitir Nuevo Parte</span>
-          </button>
+          <div className="flex items-center space-x-2 w-full sm:w-auto justify-end">
+            {canCreate && (
+              <button
+                onClick={onNewReport}
+                className="flex items-center space-x-1.5 bg-red-700 hover:bg-red-800 text-white font-black text-xs px-3.5 py-2 rounded-xl shadow-md transition active:scale-95 border border-red-500/40"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Emitir Parte</span>
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Filters Row */}
-        <div className="flex flex-wrap items-center gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
-          <div className="flex items-center space-x-1 text-slate-500 dark:text-slate-400 font-semibold">
-            <Filter className="w-3.5 h-3.5" />
-            <span>Filtros:</span>
+        {/* Filters Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+          {/* Category Filter */}
+          <div>
+            <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+              Clasificación:
+            </label>
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-slate-800 dark:text-slate-200 font-bold focus:outline-none focus:ring-2 focus:ring-red-600"
+            >
+              <option value="ALL">Todas las clasificaciones</option>
+              <option value="Emergencias">🚨 Emergencias (10-X)</option>
+              <option value="Academias">📚 Academias (A)</option>
+              <option value="Entrenamiento Estandar">🏋️ Entrenamiento Estándar (ES)</option>
+              <option value="Reuniones de Compañía">🏛️ Reuniones de Compañía (RC)</option>
+              <option value="Reuniones de Fundacion">🎖️ Reuniones de Fundación (RF)</option>
+              <option value="Citaciones Varias">📋 Citaciones Varias (V)</option>
+            </select>
           </div>
 
-          <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            className="bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-md px-2.5 py-1 focus:ring-1 focus:ring-red-600 focus:outline-none"
-          >
-            <option value="ALL">Todas las Categorías</option>
-            <option value="Emergencias">Emergencias (10-X)</option>
-            <option value="Academias">Academias (A)</option>
-            <option value="Entrenamiento Estandar">Entrenamiento Estándar (ES)</option>
-            <option value="Reuniones de Compañía">Reuniones de Cía (RC)</option>
-            <option value="Reuniones de Fundacion">Reuniones Fundación (RF)</option>
-            <option value="Citaciones Varias">Citaciones Varias (V)</option>
-          </select>
-
-          <select
-            value={selectedKey}
-            onChange={(e) => setSelectedKey(e.target.value)}
-            className="bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-md px-2.5 py-1 focus:ring-1 focus:ring-red-600 focus:outline-none max-w-xs truncate"
-          >
-            <option value="ALL">Todas las Claves Radiales</option>
-            {keys.map(k => (
-              <option key={k.code} value={k.code}>{k.code} - {k.description}</option>
-            ))}
-          </select>
-
-          <select
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-            className="bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-md px-2.5 py-1 focus:ring-1 focus:ring-red-600 focus:outline-none"
-          >
-            <option value="ALL">Todos los Estados</option>
-            <option value="BORRADOR">Borrador</option>
-            <option value="ENVIADO">Enviado</option>
-            <option value="APROBADO">Aprobado</option>
-            <option value="CERRADO">Cerrado</option>
-          </select>
-
-          {(searchTerm || selectedCategory !== 'ALL' || selectedKey !== 'ALL' || selectedStatus !== 'ALL') && (
-            <button
-              onClick={() => {
-                setSearchTerm('');
-                setSelectedCategory('ALL');
-                setSelectedKey('ALL');
-                setSelectedStatus('ALL');
-              }}
-              className="text-red-700 dark:text-red-400 hover:underline font-bold ml-auto"
+          {/* Key Code Filter */}
+          <div>
+            <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+              Clave de Acto:
+            </label>
+            <select
+              value={selectedKey}
+              onChange={(e) => setSelectedKey(e.target.value)}
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-slate-800 dark:text-slate-200 font-bold focus:outline-none focus:ring-2 focus:ring-red-600"
             >
-              Limpiar filtros
-            </button>
-          )}
+              <option value="ALL">Todas las claves</option>
+              {keys.map((k) => (
+                <option key={k.code} value={k.code}>
+                  {k.code} - {k.description}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Status Filter */}
+          <div>
+            <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+              Estado Administrativo:
+            </label>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-slate-800 dark:text-slate-200 font-bold focus:outline-none focus:ring-2 focus:ring-red-600"
+            >
+              <option value="ALL">Todos los estados</option>
+              <option value="APROBADO">Aprobado</option>
+              <option value="ENVIADO">Enviado</option>
+              <option value="BORRADOR">Borrador</option>
+            </select>
+          </div>
         </div>
       </div>
 
       {/* Reports Table */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden transition-colors">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden transition-colors">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-900 dark:bg-slate-950 text-white text-[11px] font-bold uppercase tracking-wider">
-                <th className="py-3 px-3 text-center">Folios</th>
-                <th className="py-3 px-3">Fecha y Tiempos</th>
-                <th className="py-3 px-3">Clave Radial</th>
-                <th className="py-3 px-3">Dirección / Sector</th>
-                <th className="py-3 px-3">Oficial al Mando (OBAC)</th>
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-900 text-white dark:bg-slate-950 text-[10px] font-black uppercase tracking-wider border-b border-red-800/80">
+              <tr>
+                <th className="py-3 px-3.5">Folio / N°</th>
+                <th className="py-3 px-3">Fecha</th>
+                <th className="py-3 px-3">Clave & Tipo</th>
+                <th className="py-3 px-3">Dirección & Sector</th>
+                <th className="py-3 px-3">Mando a Cargo</th>
                 <th className="py-3 px-3 text-center">Carros</th>
                 <th className="py-3 px-3 text-center">Dotación</th>
                 <th className="py-3 px-3 text-center">Estado</th>
                 <th className="py-3 px-3.5 text-right">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs text-slate-800 dark:text-slate-200">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {filteredReports.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-400">
-                    <FileText className="w-8 h-8 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
-                    <p className="font-semibold">No se encontraron partes de emergencia registrados.</p>
+                  <td colSpan={9} className="py-8 text-center text-slate-400">
+                    No se encontraron partes de asistencia registrados con los filtros seleccionados.
                   </td>
                 </tr>
               ) : (
                 filteredReports.map((report) => (
-                  <tr 
+                  <tr
                     key={report.id}
                     onClick={() => onViewReport(report)}
-                    className="hover:bg-red-50/40 dark:hover:bg-slate-800/60 transition cursor-pointer group"
+                    className="hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition"
                   >
-                    {/* Folios */}
-                    <td className="py-3 px-3 text-center">
-                      <div className="font-black text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-900 px-2 py-0.5 rounded text-[11px]">
-                        Cía: #{report.correlativoCompania || report.fullFolio}
+                    {/* Folio */}
+                    <td className="py-3 px-3.5 whitespace-nowrap">
+                      <div className="font-black text-red-700 dark:text-red-400 text-xs">
+                        #{report.correlativoCompania || report.fullFolio}
                       </div>
-                      {report.correlativoComandancia && (
-                        <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                          Com: {report.correlativoComandancia}
-                        </div>
-                      )}
+                      <div className="text-[10px] text-slate-400 font-mono">
+                        Folio: {report.fullFolio}
+                      </div>
                     </td>
 
-                    {/* Fecha y Tiempos */}
+                    {/* Fecha */}
+                    <td className="py-3 px-3 whitespace-nowrap">
+                      <div className="font-bold text-slate-900 dark:text-white">
+                        {report.incidentDate}
+                      </div>
+                      <div className="text-[10px] text-slate-400">
+                        {report.incidentTime ? `${report.incidentTime} hrs` : ''}
+                      </div>
+                    </td>
+
+                    {/* Clave */}
                     <td className="py-3 px-3">
-                      <div className="flex items-center space-x-1.5 font-bold text-slate-900 dark:text-white">
-                        <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                        <span>{report.incidentDate}</span>
-                      </div>
-                      <div className="flex items-center space-x-2 text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                        <span>Desp: {report.alertTime}</span>
-                        <span>•</span>
-                        <span className="text-emerald-700 dark:text-emerald-400 font-bold">6-0: {report.time6_0}</span>
-                      </div>
-                    </td>
-
-                    {/* Clave Radial */}
-                    <td className="py-3 px-3 max-w-[200px]">
-                      <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                        <span className="bg-slate-800 text-amber-300 font-black px-1.5 py-0.5 rounded text-[10px]">
+                      <div className="flex items-center space-x-1.5">
+                        <span className="bg-red-100 dark:bg-red-950/80 text-red-800 dark:text-red-300 font-black px-1.5 py-0.5 rounded text-[10px] border border-red-200 dark:border-red-800">
                           {report.keyCode}
                         </span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200 truncate max-w-[140px]" title={report.keyDescription}>
+                          {report.keyDescription}
+                        </span>
                       </div>
-                      <p className="text-[11px] text-slate-600 dark:text-slate-400 truncate mt-0.5" title={report.keyDescription}>
-                        {report.keyDescription}
-                      </p>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">
+                        {report.category}
+                      </span>
                     </td>
 
                     {/* Dirección */}
-                    <td className="py-3 px-3 max-w-[220px]">
-                      <p className="font-semibold text-slate-800 dark:text-slate-200 truncate" title={report.address}>
-                        {report.address}
-                      </p>
-                      <p className="text-[10px] text-slate-400 truncate">
-                        {report.sector ? `${report.sector}, ` : ''}{report.commune || 'Calle Larga'}
-                      </p>
-                    </td>
-
-                    {/* Oficial al Mando */}
                     <td className="py-3 px-3">
-                      <p className="font-bold text-slate-900 dark:text-slate-100">{report.officerInChargeName}</p>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400">{report.officerInChargeRank}</p>
+                      <div className="font-bold text-slate-900 dark:text-white truncate max-w-[180px]">
+                        {report.address}
+                      </div>
+                      <div className="text-[10px] text-slate-400">
+                        {report.sector}, {report.commune}
+                      </div>
                     </td>
 
-                    {/* Material Mayor */}
+                    {/* Mando */}
+                    <td className="py-3 px-3 whitespace-nowrap">
+                      <div className="font-bold text-slate-800 dark:text-slate-200">
+                        {report.officerInChargeName}
+                      </div>
+                      <div className="text-[10px] text-red-600 dark:text-red-400 font-medium">
+                        {report.officerInChargeRank}
+                      </div>
+                    </td>
+
+                    {/* Carros */}
                     <td className="py-3 px-3 text-center">
-                      {report.units.length > 0 ? (
-                        <div className="flex items-center justify-center flex-wrap gap-1">
-                          {report.units.map(u => (
-                            <span key={u.unitCode} className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold px-1.5 py-0.5 rounded text-[10px] border border-slate-300 dark:border-slate-700">
+                      <div className="flex items-center justify-center space-x-1">
+                        {report.units && report.units.length > 0 ? (
+                          report.units.map(u => (
+                            <span key={u.unitCode} className="bg-slate-800 text-amber-300 font-black text-[10px] px-1.5 py-0.5 rounded">
                               {u.unitCode}
                             </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-slate-400 text-[10px]">Sin Carros</span>
-                      )}
+                          ))
+                        ) : (
+                          <span className="text-slate-400 text-[10px]">-</span>
+                        )}
+                      </div>
                     </td>
 
                     {/* Dotación */}
@@ -271,33 +281,37 @@ export const ReportListView: React.FC<ReportListViewProps> = ({
                     <td className="py-3 px-3.5 text-right space-x-1 whitespace-nowrap">
                       <button
                         onClick={(e) => handleDownloadPDF(e, report)}
-                        title="Descargar PDF Oficial"
-                        className="p-1.5 text-slate-600 dark:text-slate-300 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 rounded transition"
+                        title="Descargar PDF Oficial Firmado"
+                        className="p-1.5 text-slate-600 dark:text-slate-300 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-lg transition"
                       >
                         <Printer className="w-4 h-4" />
                       </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onEditReport(report);
-                        }}
-                        title="Editar Parte"
-                        className="p-1.5 text-slate-600 dark:text-slate-300 hover:text-blue-700 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded transition"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (confirm(`¿Estás seguro de eliminar el parte #${report.fullFolio}?`)) {
-                            onDeleteReport(report.id);
-                          }
-                        }}
-                        title="Eliminar Parte"
-                        className="p-1.5 text-slate-400 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 rounded transition"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {canEdit && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onEditReport(report);
+                          }}
+                          title="Editar Parte"
+                          className="p-1.5 text-slate-600 dark:text-slate-300 hover:text-blue-700 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-lg transition"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm(`¿Estás seguro de eliminar el parte #${report.correlativoCompania || report.fullFolio}?`)) {
+                              onDeleteReport(report.id);
+                            }
+                          }}
+                          title="Eliminar Parte"
+                          className="p-1.5 text-slate-400 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-lg transition"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))

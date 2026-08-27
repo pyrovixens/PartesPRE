@@ -2,10 +2,10 @@ import { EmergencyReport, Volunteer, Unit, EmergencyKey } from '../types';
 import { EMERGENCY_KEYS, INITIAL_VOLUNTEERS, INITIAL_UNITS, INITIAL_REPORTS } from '../data/initialData';
 
 const STORAGE_KEYS = {
-  REPORTS: 'bomberos_partes_emergencia_v1',
-  VOLUNTEERS: 'bomberos_voluntarios_v1',
-  UNITS: 'bomberos_unidades_v1',
-  KEYS: 'bomberos_claves_v1',
+  REPORTS: 'bomberos_partes_emergencia_v4',
+  VOLUNTEERS: 'bomberos_voluntarios_v4',
+  UNITS: 'bomberos_unidades_v4',
+  KEYS: 'bomberos_claves_v4',
 };
 
 export const getStoredReports = (): EmergencyReport[] => {
@@ -16,7 +16,8 @@ export const getStoredReports = (): EmergencyReport[] => {
       localStorage.setItem(STORAGE_KEYS.REPORTS, JSON.stringify(INITIAL_REPORTS));
       return INITIAL_REPORTS;
     }
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_REPORTS;
   } catch (e) {
     console.error('Error loading reports from localStorage:', e);
     return INITIAL_REPORTS;
@@ -40,7 +41,8 @@ export const getStoredVolunteers = (): Volunteer[] => {
       localStorage.setItem(STORAGE_KEYS.VOLUNTEERS, JSON.stringify(INITIAL_VOLUNTEERS));
       return INITIAL_VOLUNTEERS;
     }
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    return Array.isArray(parsed) && parsed.length >= 25 ? parsed : INITIAL_VOLUNTEERS;
   } catch (e) {
     console.error('Error loading volunteers:', e);
     return INITIAL_VOLUNTEERS;
@@ -64,7 +66,8 @@ export const getStoredUnits = (): Unit[] => {
       localStorage.setItem(STORAGE_KEYS.UNITS, JSON.stringify(INITIAL_UNITS));
       return INITIAL_UNITS;
     }
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_UNITS;
   } catch (e) {
     console.error('Error loading units:', e);
     return INITIAL_UNITS;
@@ -88,7 +91,8 @@ export const getStoredKeys = (): EmergencyKey[] => {
       localStorage.setItem(STORAGE_KEYS.KEYS, JSON.stringify(EMERGENCY_KEYS));
       return EMERGENCY_KEYS;
     }
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : EMERGENCY_KEYS;
   } catch (e) {
     console.error('Error loading keys:', e);
     return EMERGENCY_KEYS;
@@ -104,37 +108,42 @@ export const saveKeys = (keys: EmergencyKey[]): void => {
   }
 };
 
-export const resetToInitialData = (): void => {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(STORAGE_KEYS.REPORTS, JSON.stringify(INITIAL_REPORTS));
-  localStorage.setItem(STORAGE_KEYS.VOLUNTEERS, JSON.stringify(INITIAL_VOLUNTEERS));
-  localStorage.setItem(STORAGE_KEYS.UNITS, JSON.stringify(INITIAL_UNITS));
-  localStorage.setItem(STORAGE_KEYS.KEYS, JSON.stringify(EMERGENCY_KEYS));
-};
+// -------------------------------------------------------------------
+// BACKUP & RESTORE HELPERS
+// -------------------------------------------------------------------
 
 export const exportAllDataBackup = (): string => {
-  const payload = {
-    version: '1.0',
+  const backup = {
+    version: '4.0',
     exportDate: new Date().toISOString(),
-    institution: '4ta Compañía Calle Larga - Cuerpo de Bomberos Los Andes',
+    company: '4ª Compañía Calle Larga - C.B. Los Andes',
     reports: getStoredReports(),
     volunteers: getStoredVolunteers(),
     units: getStoredUnits(),
     keys: getStoredKeys(),
   };
-  return JSON.stringify(payload, null, 2);
+
+  return JSON.stringify(backup, null, 2);
 };
 
-export const importDataBackup = (jsonString: string): boolean => {
+export const importDataBackup = (jsonData: string): boolean => {
   try {
-    const data = JSON.parse(jsonString);
-    if (data.reports) saveReports(data.reports);
-    if (data.volunteers) saveVolunteers(data.volunteers);
-    if (data.units) saveUnits(data.units);
-    if (data.keys) saveKeys(data.keys);
+    const data = JSON.parse(jsonData);
+    if (data.reports && Array.isArray(data.reports)) saveReports(data.reports);
+    if (data.volunteers && Array.isArray(data.volunteers)) saveVolunteers(data.volunteers);
+    if (data.units && Array.isArray(data.units)) saveUnits(data.units);
+    if (data.keys && Array.isArray(data.keys)) saveKeys(data.keys);
     return true;
   } catch (e) {
     console.error('Error importing backup:', e);
     return false;
   }
+};
+
+export const resetToInitialData = (): void => {
+  if (typeof window === 'undefined') return;
+  saveReports(INITIAL_REPORTS);
+  saveVolunteers(INITIAL_VOLUNTEERS);
+  saveUnits(INITIAL_UNITS);
+  saveKeys(EMERGENCY_KEYS);
 };

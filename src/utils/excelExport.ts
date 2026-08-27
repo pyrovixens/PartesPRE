@@ -75,52 +75,36 @@ export const exportReportsToExcel = (
   const activos = volunteers.filter(v => v.category === 'Activo');
   addVolunteerGroup('Bomberos Activos', activos);
 
-  // Recuento Subtotal (Activos + Honorarios + Fundadores)
-  const nonAspirantes = [...fundadores, ...honorarios, ...activos];
-  const recuentoRow1: (string | number)[] = ['RECUENTO PERSONAL POR EMERGENCIA (BOMBEROS)', '', '', ''];
-  sortedReports.forEach(r => {
-    const count = r.attendees.filter(a => nonAspirantes.some(na => na.id === a.volunteerId)).length;
-    recuentoRow1.push(count);
-  });
-  recuentoRow1.push('', '');
-  matrixAoA.push(recuentoRow1);
-
   // Group 4: Aspirantes
   const aspirantes = volunteers.filter(v => v.category === 'Aspirante');
-  addVolunteerGroup('Aspirantes', aspirantes);
+  if (aspirantes.length > 0) {
+    addVolunteerGroup('Aspirantes a Bombero', aspirantes);
+  }
 
-  // Recuento Total General
-  const recuentoTotalRow: (string | number)[] = ['RECUENTO TOTAL GENERAL ASISTENTES', '', '', ''];
-  sortedReports.forEach(r => {
-    recuentoTotalRow.push(r.totalFirefighters || r.attendees.length);
-  });
-  recuentoTotalRow.push('', '');
-  matrixAoA.push(recuentoTotalRow);
+  // Summary Row: Total Asistentes por Acto
+  const totalRow: (string | number)[] = ['TOTAL ASISTENTES POR ACTO', '', '', ''];
+  sortedReports.forEach(r => totalRow.push(r.totalFirefighters));
+  const grandTotal = sortedReports.reduce((sum, r) => sum + r.totalFirefighters, 0);
+  totalRow.push(grandTotal, '100%');
+  matrixAoA.push(totalRow);
 
   const wsMatrix = XLSX.utils.aoa_to_sheet(matrixAoA);
   XLSX.utils.book_append_sheet(wb, wsMatrix, 'Matriz de Asistencias');
 
   // -------------------------------------------------------------
-  // Sheet 2: Partes de Emergencia (Detallado fila por fila)
+  // Sheet 2: Libro de Partes Detallado
   // -------------------------------------------------------------
   const reportsData = reports.map(r => ({
-    'Folio Anual': r.fullFolio,
-    'Correlativo Cía': r.correlativoCompania || r.fullFolio,
-    'Correlativo Comandancia': r.correlativoComandancia || '',
+    'N° Cía': r.correlativoCompania || r.fullFolio,
+    'N° Comandancia': r.correlativoComandancia || '',
     'Fecha': r.incidentDate,
+    'Hora': r.incidentTime || '14:00',
     'Clave Radial': r.keyCode,
     'Descripción': r.keyDescription,
     'Categoría': r.category,
     'Dirección': r.address,
     'Sector': r.sector,
     'Comuna': r.commune,
-    'Hora Despacho': r.alertTime,
-    'Hora 6-0 (Llegada)': r.time6_0,
-    'Hora 6-7 (Control)': r.time6_7 || '',
-    'Hora 6-8 (Término)': r.time6_8 || '',
-    'Hora 6-10 (Cuartel)': r.time6_10 || '',
-    'Tiempo Respuesta (min)': r.responseTimeMinutes,
-    'Duración Total (min)': r.totalDurationMinutes,
     'Oficial a Cargo (OBAC)': `${r.officerInChargeRank} ${r.officerInChargeName}`,
     'Carros y Maquinistas': r.units.map(u => `${u.unitCode} (${u.driverName || 'S/C'})`).join(', ') || 'Ninguno',
     'Total Bomberos Asistentes': r.totalFirefighters,
@@ -195,14 +179,12 @@ export const exportMatrixToExcel = (
       totalEmergencies: reports.filter(r => r.category === 'Emergencias').length,
       totalActivities: reports.filter(r => r.category !== 'Emergencias').length,
       avgFirefightersPerCall: reports.length > 0 ? Number((reports.reduce((s, r) => s + r.totalFirefighters, 0) / reports.length).toFixed(1)) : 0,
-      avgResponseTimeMinutes: reports.length > 0 ? Number((reports.reduce((s, r) => s + r.responseTimeMinutes, 0) / reports.length).toFixed(1)) : 0,
       totalPumpHours: 0,
       totalDistanceKm: 0,
       callsByKeyCode: {},
       callsByMonth: [],
       attendancesByVolunteer: [],
     },
-    `Planilla_Asistencia_${year}_4taCia_CalleLarga.xlsx`
+    `Matriz_Asistencias_${year}_4taCia_CalleLarga.xlsx`
   );
 };
-

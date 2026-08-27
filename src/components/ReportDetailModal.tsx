@@ -2,14 +2,21 @@ import React from 'react';
 import { 
   X, 
   Printer, 
-  Edit, 
   MapPin, 
   Clock, 
   Truck, 
   Users, 
-  FileText
+  FileText, 
+  AlertTriangle, 
+  ShieldCheck, 
+  Check, 
+  Shield, 
+  Edit,
+  Building,
+  Award,
+  Calendar
 } from 'lucide-react';
-import { EmergencyReport, AttendanceRecord } from '../types';
+import { EmergencyReport } from '../types';
 import { generateEmergencyReportPDF } from '../utils/pdfGenerator';
 
 interface ReportDetailModalProps {
@@ -25,34 +32,29 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
 }) => {
   if (!report) return null;
 
-  const handleDownloadPDF = async () => {
-    await generateEmergencyReportPDF(report);
+  const handleDownloadPDF = () => {
+    generateEmergencyReportPDF(report);
   };
 
-  const getArrivalBadge = (record: AttendanceRecord) => {
-    switch (record.arrivalStatus) {
+  const getArrivalStatusBadge = (status: string, unitCode?: string) => {
+    switch (status) {
       case 'TRIPULO_CARRO':
         return (
-          <span className="bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 px-2 py-0.5 rounded font-bold text-[10px] border border-blue-200 dark:border-blue-800">
-            🚒 Tripuló {record.unitCode ? `Carro ${record.unitCode}` : 'Carro'}
+          <span className="bg-red-100 dark:bg-red-950/80 text-red-800 dark:text-red-300 font-black px-2 py-0.5 rounded text-[10px] border border-red-200 dark:border-red-800">
+            🚒 Tripuló {unitCode || 'Carro'}
           </span>
         );
       case '6_3_LUGAR':
         return (
-          <span className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 px-2 py-0.5 rounded font-bold text-[10px] border border-emerald-200 dark:border-emerald-800">
-            📍 6-3 Llegó al Lugar
+          <span className="bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 font-bold px-2 py-0.5 rounded text-[10px] border border-blue-200 dark:border-blue-800">
+            📍 6-3 en el Lugar
           </span>
         );
       case 'CUBRE_CUARTEL':
-        return (
-          <span className="bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 px-2 py-0.5 rounded font-bold text-[10px] border border-purple-200 dark:border-purple-800">
-            🏢 Cubre Cuartel
-          </span>
-        );
       default:
         return (
-          <span className="bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300 px-2 py-0.5 rounded text-[10px]">
-            Presente
+          <span className="bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 font-bold px-2 py-0.5 rounded text-[10px] border border-amber-200 dark:border-amber-800">
+            🏢 Cubre Cuartel
           </span>
         );
     }
@@ -128,12 +130,12 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
               <p className="font-extrabold text-slate-900 dark:text-white mt-0.5">{report.incidentDate}</p>
             </div>
             <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase">Tiempo de Respuesta</p>
-              <p className="font-extrabold text-red-700 dark:text-red-400 mt-0.5">{report.responseTimeMinutes} minutos</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase">Hora del Acto</p>
+              <p className="font-extrabold text-red-700 dark:text-red-400 mt-0.5">{report.incidentTime || '14:00'} hrs</p>
             </div>
             <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase">Duración de Operaciones</p>
-              <p className="font-extrabold text-blue-900 dark:text-blue-400 mt-0.5">{report.totalDurationMinutes} minutos</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase">Categoría</p>
+              <p className="font-extrabold text-blue-900 dark:text-blue-400 mt-0.5">{report.category}</p>
             </div>
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase">Dotación Total</p>
@@ -170,103 +172,164 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
             </div>
           </div>
 
-          {/* Section 2: Cronometría Radial */}
-          <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
-            <div className="bg-slate-800 dark:bg-slate-900 text-white px-4 py-2 font-bold text-xs flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-amber-400" />
-              <span>2. Cronometría Radial</span>
-            </div>
-            <div className="p-4 grid grid-cols-2 sm:grid-cols-5 gap-3 text-center text-xs">
-              <div className="bg-slate-50 dark:bg-slate-800 p-2.5 rounded-lg border border-slate-100 dark:border-slate-700">
-                <p className="text-[10px] text-slate-400 font-bold uppercase">Despacho</p>
-                <p className="font-black text-slate-900 dark:text-white text-sm mt-1">{report.alertTime || '--:--'}</p>
-              </div>
-              <div className="bg-red-50 dark:bg-red-950/60 p-2.5 rounded-lg border border-red-100 dark:border-red-900">
-                <p className="text-[10px] text-red-600 dark:text-red-400 font-bold uppercase">6-0 (Llegada)</p>
-                <p className="font-black text-red-700 dark:text-red-300 text-sm mt-1">{report.time6_0 || '--:--'}</p>
-              </div>
-              <div className="bg-slate-50 dark:bg-slate-800 p-2.5 rounded-lg border border-slate-100 dark:border-slate-700">
-                <p className="text-[10px] text-slate-400 font-bold uppercase">6-7 (Control)</p>
-                <p className="font-black text-slate-900 dark:text-white text-sm mt-1">{report.time6_7 || '--:--'}</p>
-              </div>
-              <div className="bg-slate-50 dark:bg-slate-800 p-2.5 rounded-lg border border-slate-100 dark:border-slate-700">
-                <p className="text-[10px] text-slate-400 font-bold uppercase">6-8 (Término)</p>
-                <p className="font-black text-slate-900 dark:text-white text-sm mt-1">{report.time6_8 || '--:--'}</p>
-              </div>
-              <div className="bg-slate-50 dark:bg-slate-800 p-2.5 rounded-lg border border-slate-100 dark:border-slate-700">
-                <p className="text-[10px] text-slate-400 font-bold uppercase">6-10 (Cuartel)</p>
-                <p className="font-black text-slate-900 dark:text-white text-sm mt-1">{report.time6_10 || '--:--'}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Section 3: Material Mayor (Solo Unidad + Maquinista) */}
+          {/* Section 2: Material Mayor */}
           <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
             <div className="bg-slate-800 dark:bg-slate-900 text-white px-4 py-2 font-bold text-xs flex items-center gap-1.5">
               <Truck className="w-3.5 h-3.5 text-amber-400" />
-              <span>3. Material Mayor Concurrente</span>
+              <span>2. Material Mayor Despachado</span>
             </div>
-            {report.units.length > 0 ? (
-              <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                {report.units.map(u => (
-                  <div key={u.unitCode} className="bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
-                    <span className="text-sm font-black text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-950 px-2 py-0.5 rounded">
-                      Unidad {u.unitCode}
-                    </span>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2 font-bold">Maquinista / Conductor:</p>
-                    <p className="text-xs font-extrabold text-slate-900 dark:text-white">{u.driverName}</p>
+            <div className="p-4">
+              {report.units && report.units.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {report.units.map(u => (
+                    <div key={u.unitCode} className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 flex items-center justify-between">
+                      <div className="flex items-center space-x-2.5">
+                        <span className="bg-red-700 text-white text-xs font-black px-2.5 py-1 rounded">
+                          {u.unitCode}
+                        </span>
+                        <div>
+                          <p className="text-[10px] text-slate-400 font-semibold">Maquinista Asignado:</p>
+                          <p className="font-bold text-slate-900 dark:text-white text-xs">{u.driverName || 'No asignado'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400 italic">No se despacharon unidades de material mayor para esta citación/reunión.</p>
+              )}
+            </div>
+          </div>
+
+          {/* Section 3: Asistencia */}
+          <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+            <div className="bg-slate-800 dark:bg-slate-900 text-white px-4 py-2 font-bold text-xs flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-amber-400" />
+                <span>3. Registro Oficial de Asistencia</span>
+              </div>
+              <span className="bg-red-700 text-white text-[10px] font-black px-2 py-0.5 rounded">
+                Total: {report.attendees.length} Voluntarios
+              </span>
+            </div>
+            <div className="p-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                {report.attendees.map((att) => (
+                  <div 
+                    key={att.volunteerId}
+                    className="p-2 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-lg text-xs flex items-center justify-between"
+                  >
+                    <div className="truncate mr-2">
+                      <p className="font-bold text-slate-900 dark:text-white truncate">{att.volunteerName}</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400">{att.rank}</p>
+                    </div>
+                    <div>
+                      {getArrivalStatusBadge(att.arrivalStatus, att.unitCode)}
+                    </div>
                   </div>
                 ))}
               </div>
-            ) : (
-              <p className="p-4 text-xs text-slate-400 italic">Sin concurrencia de material mayor.</p>
-            )}
+            </div>
           </div>
 
-          {/* Section 4: Nómina de Asistencia con Modalidad y Unidad */}
+          {/* Section 4: Afectados y Daños */}
           <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
-            <div className="bg-red-800 dark:bg-red-950 text-white px-4 py-2 font-bold text-xs flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <Users className="w-3.5 h-3.5 text-amber-300" />
-                <span>4. Nómina de Asistencia ({report.totalFirefighters} Voluntarios)</span>
+            <div className="bg-slate-800 dark:bg-slate-900 text-white px-4 py-2 font-bold text-xs flex items-center gap-1.5">
+              <Building className="w-3.5 h-3.5 text-amber-400" />
+              <span>4. Afectados, Daños e Inmueble</span>
+            </div>
+            <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div>
+                <p className="text-slate-500 dark:text-slate-400 font-semibold">Tipo de Inmueble / Vehículo:</p>
+                <p className="font-bold text-slate-900 dark:text-white mt-0.5">{report.affectedPropertyType || 'No especificado'}</p>
+                <p className="text-slate-500 dark:text-slate-400 mt-2 font-semibold">Nivel de Daños:</p>
+                <p className="font-black text-red-700 dark:text-red-400 mt-0.5">{report.damageLevel || 'Leve'}</p>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="bg-slate-50 dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700">
+                  <p className="text-[10px] text-slate-400 font-bold">Civiles Lesionados</p>
+                  <p className="text-base font-black text-slate-900 dark:text-white mt-1">{report.civilianInjuredCount || 0}</p>
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700">
+                  <p className="text-[10px] text-slate-400 font-bold">Bomberos Lesionados</p>
+                  <p className="text-base font-black text-slate-900 dark:text-white mt-1">{report.firefighterInjuredCount || 0}</p>
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700">
+                  <p className="text-[10px] text-slate-400 font-bold">Fallecidos</p>
+                  <p className="text-base font-black text-red-600 mt-1">{report.fatalCount || 0}</p>
+                </div>
               </div>
             </div>
-            <div className="max-h-60 overflow-y-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-bold uppercase sticky top-0">
-                  <tr>
-                    <th className="py-2 px-3 text-center">#</th>
-                    <th className="py-2 px-3">Reg.</th>
-                    <th className="py-2 px-3">Nombre del Voluntario</th>
-                    <th className="py-2 px-3">Escalafón / Cargo</th>
-                    <th className="py-2 px-3 text-center">Modalidad / Carro</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {report.attendees.map((a, idx) => (
-                    <tr key={a.volunteerId} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                      <td className="py-2 px-3 text-center text-slate-400 font-bold">{idx + 1}</td>
-                      <td className="py-2 px-3 text-slate-500 font-mono text-[11px]">{a.registrationNumber}</td>
-                      <td className="py-2 px-3 font-bold text-slate-900 dark:text-white">{a.volunteerName}</td>
-                      <td className="py-2 px-3 text-slate-600 dark:text-slate-300">{a.category} • {a.rank}</td>
-                      <td className="py-2 px-3 text-center">
-                        {getArrivalBadge(a)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          </div>
+
+          {/* Section 5: Organismos Concurrentes */}
+          <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+            <div className="bg-slate-800 dark:bg-slate-900 text-white px-4 py-2 font-bold text-xs flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+              <span>5. Organismos Concurrentes</span>
+            </div>
+            <div className="p-4">
+              <div className="flex flex-wrap gap-2">
+                {report.externalAgencies?.carabineros && (
+                  <span className="bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-bold px-2.5 py-1 rounded-lg border border-emerald-300 dark:border-emerald-800 text-xs">
+                    ✓ Carabineros {report.externalAgencies.carabinerosUnit ? `(${report.externalAgencies.carabinerosUnit})` : ''}
+                  </span>
+                )}
+                {report.externalAgencies?.samu && (
+                  <span className="bg-red-100 dark:bg-red-950 text-red-800 dark:text-red-300 font-bold px-2.5 py-1 rounded-lg border border-red-300 dark:border-red-800 text-xs">
+                    ✓ SAMU {report.externalAgencies.samuUnit ? `(${report.externalAgencies.samuUnit})` : ''}
+                  </span>
+                )}
+                {report.externalAgencies?.conaf && (
+                  <span className="bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-bold px-2.5 py-1 rounded-lg border border-amber-300 dark:border-amber-800 text-xs">
+                    ✓ CONAF
+                  </span>
+                )}
+                {report.externalAgencies?.cgeChilquinta && (
+                  <span className="bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 font-bold px-2.5 py-1 rounded-lg border border-blue-300 dark:border-blue-800 text-xs">
+                    ✓ CGE / Chilquinta
+                  </span>
+                )}
+                {report.externalAgencies?.municipalidad && (
+                  <span className="bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 font-bold px-2.5 py-1 rounded-lg border border-purple-300 dark:border-purple-800 text-xs">
+                    ✓ Municipalidad de Calle Larga
+                  </span>
+                )}
+                {report.externalAgencies?.seguridadCiudadana && (
+                  <span className="bg-cyan-100 dark:bg-cyan-950 text-cyan-800 dark:text-cyan-300 font-bold px-2.5 py-1 rounded-lg border border-cyan-300 dark:border-cyan-800 text-xs">
+                    ✓ Seguridad Ciudadana
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Section 5: Relato Operativo */}
+          {/* Section 6: Relato Operativo */}
           <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
             <div className="bg-slate-800 dark:bg-slate-900 text-white px-4 py-2 font-bold text-xs flex items-center gap-1.5">
               <FileText className="w-3.5 h-3.5 text-amber-400" />
-              <span>5. Relato Operativo y Novedades</span>
+              <span>6. Relato Operativo de los Hechos</span>
             </div>
-            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 text-slate-800 dark:text-slate-200 text-xs leading-relaxed whitespace-pre-wrap">
-              {report.summaryNotes || 'Sin observaciones adicionales registradas.'}
+            <div className="p-4 bg-slate-50 dark:bg-slate-800/40 text-xs leading-relaxed text-slate-800 dark:text-slate-200">
+              <p className="whitespace-pre-wrap">{report.summaryNotes || 'Sin observaciones registradas.'}</p>
+            </div>
+          </div>
+
+          {/* Signatures & Approvals */}
+          <div className="pt-4 border-t border-slate-200 dark:border-slate-700 grid grid-cols-2 gap-8 text-center text-xs">
+            <div className="space-y-1">
+              <div className="border-b border-slate-400 dark:border-slate-600 pb-8 font-serif italic text-slate-400">
+                Firma Oficial a Cargo
+              </div>
+              <p className="font-bold text-slate-900 dark:text-white pt-1">{report.officerInChargeName}</p>
+              <p className="text-[10px] text-slate-400">{report.officerInChargeRank} • Oficial a Cargo (OBAC)</p>
+            </div>
+            <div className="space-y-1">
+              <div className="border-b border-slate-400 dark:border-slate-600 pb-8 font-serif italic text-slate-400">
+                V°B° Comandancia / Capitán
+              </div>
+              <p className="font-bold text-slate-900 dark:text-white pt-1">{report.approvedBy || 'Gabriel Bianchini Frost'}</p>
+              <p className="text-[10px] text-slate-400">Capitán 4ª Cía. Calle Larga</p>
             </div>
           </div>
         </div>

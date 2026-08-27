@@ -3,6 +3,7 @@ import {
   X, 
   Save, 
   Clock, 
+  Calendar,
   MapPin, 
   Flame, 
   Truck, 
@@ -57,12 +58,8 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
   const [correlativoComandancia, setCorrelativoComandancia] = useState<string>('');
   const [incidentDate, setIncidentDate] = useState<string>(new Date().toISOString().substring(0, 10));
   
-  // Tiempos
-  const [alertTime, setAlertTime] = useState<string>('14:00:00');
-  const [time6_0, setTime6_0] = useState<string>('14:05:00');
-  const [time6_7, setTime6_7] = useState<string>('14:30:00');
-  const [time6_8, setTime6_8] = useState<string>('15:00:00');
-  const [time6_10, setTime6_10] = useState<string>('15:15:00');
+  // Hora del Acto
+  const [incidentTime, setIncidentTime] = useState<string>('14:00');
 
   // Clasificación y Ubicación
   const [keyCode, setKeyCode] = useState<string>('10-0-1');
@@ -135,11 +132,7 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
       setCorrelativoCompania(editingReport.correlativoCompania || String(editingReport.folioNumber).padStart(3, '0'));
       setCorrelativoComandancia(editingReport.correlativoComandancia || '');
       setIncidentDate(editingReport.incidentDate);
-      setAlertTime(editingReport.alertTime || '');
-      setTime6_0(editingReport.time6_0 || '');
-      setTime6_7(editingReport.time6_7 || '');
-      setTime6_8(editingReport.time6_8 || '');
-      setTime6_10(editingReport.time6_10 || '');
+      setIncidentTime(editingReport.incidentTime || '14:00');
       setKeyCode(editingReport.keyCode);
       setAddress(editingReport.address);
       setCornerOrReference(editingReport.cornerOrReference || '');
@@ -174,12 +167,7 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
       setIncidentDate(new Date().toISOString().substring(0, 10));
       const now = new Date();
       const pad = (n: number) => String(n).padStart(2, '0');
-      const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}:00`;
-      setAlertTime(timeStr);
-      setTime6_0(timeStr);
-      setTime6_7('');
-      setTime6_8('');
-      setTime6_10('');
+      setIncidentTime(`${pad(now.getHours())}:${pad(now.getMinutes())}`);
       setKeyCode('10-0-1');
       setAddress('');
       setCornerOrReference('');
@@ -217,32 +205,6 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
   const selectedOBAC = useMemo(() => {
     return volunteers.find(v => v.id === officerInChargeId) || volunteers[0];
   }, [volunteers, officerInChargeId]);
-
-  // Time Calculation
-  const timeDifferenceInMinutes = (start: string, end: string): number => {
-    if (!start || !end) return 0;
-    try {
-      const [sh, sm] = start.split(':').map(Number);
-      const [eh, em] = end.split(':').map(Number);
-      let diff = (eh * 60 + em) - (sh * 60 + sm);
-      if (diff < 0) diff += 24 * 60;
-      return diff;
-    } catch {
-      return 0;
-    }
-  };
-
-  const responseTimeMinutes = useMemo(() => {
-    return timeDifferenceInMinutes(alertTime, time6_0);
-  }, [alertTime, time6_0]);
-
-  const controlTimeMinutes = useMemo(() => {
-    return timeDifferenceInMinutes(time6_0, time6_7);
-  }, [time6_0, time6_7]);
-
-  const totalDurationMinutes = useMemo(() => {
-    return timeDifferenceInMinutes(alertTime, time6_8 || time6_10);
-  }, [alertTime, time6_8, time6_10]);
 
   // Unit toggles
   const handleToggleUnit = (unitCode: string) => {
@@ -386,14 +348,7 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
       correlativoCompania: correlativoCompania || String(folioNumber).padStart(3, '0'),
       correlativoComandancia: correlativoComandancia.trim(),
       incidentDate,
-      alertTime,
-      time6_0,
-      time6_7,
-      time6_8,
-      time6_10,
-      responseTimeMinutes,
-      controlTimeMinutes,
-      totalDurationMinutes,
+      incidentTime,
       keyCode: selectedKeyObj.code,
       keyDescription: selectedKeyObj.description,
       category: selectedKeyObj.category,
@@ -471,7 +426,7 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
         {/* Step Tabs */}
         <div className="bg-slate-100 dark:bg-slate-800/70 px-4 py-2 border-b border-slate-200 dark:border-slate-700 flex items-center space-x-1 overflow-x-auto text-xs no-scrollbar">
           {[
-            { step: 1, label: '1. Cronometría & Folios', icon: Clock },
+            { step: 1, label: '1. Identificación & Fecha', icon: Calendar },
             { step: 2, label: '2. Clave & Ubicación', icon: MapPin },
             { step: 3, label: '3. Material Mayor (Carros)', icon: Truck },
             { step: 4, label: `4. Asistencia (${attendees.length})`, icon: Users },
@@ -495,21 +450,11 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
 
         {/* Form Content */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-5 text-slate-800 dark:text-slate-200 text-xs sm:text-sm">
-          {/* STEP 1: FOLIOS Y TIEMPOS */}
+          {/* STEP 1: FOLIOS Y FECHA */}
           {activeStep === 1 && (
             <div className="space-y-4">
-              <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between text-xs text-amber-900 dark:text-amber-300 gap-2">
-                <div className="flex items-center space-x-2">
-                  <Clock className="w-4 h-4 text-amber-700 dark:text-amber-400" />
-                  <span className="font-bold">Cálculo de Tiempos Radiales:</span>
-                </div>
-                <div className="flex items-center space-x-4 font-bold">
-                  <span>Tiempo Respuesta (6-0): <span className="text-red-700 dark:text-red-400 font-black">{responseTimeMinutes} min</span></span>
-                  <span>Duración Total: <span className="text-blue-900 dark:text-blue-400 font-black">{totalDurationMinutes} min</span></span>
-                </div>
-              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Año</label>
                   <input
@@ -549,63 +494,14 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
                     className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 font-bold focus:ring-2 focus:ring-red-600 focus:outline-none"
                   />
                 </div>
-              </div>
-
-              <div className="border-t border-slate-200 dark:border-slate-700 pt-3">
-                <h4 className="text-xs font-extrabold uppercase text-slate-500 dark:text-slate-400 tracking-wider mb-3">Cronometría Radial</h4>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">1. Despacho (Alerta)</label>
-                    <input
-                      type="time"
-                      step="1"
-                      value={alertTime}
-                      onChange={(e) => setAlertTime(e.target.value)}
-                      required
-                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-semibold focus:ring-2 focus:ring-red-600 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">2. 6-0 (Llegada)</label>
-                    <input
-                      type="time"
-                      step="1"
-                      value={time6_0}
-                      onChange={(e) => setTime6_0(e.target.value)}
-                      required
-                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-semibold focus:ring-2 focus:ring-red-600 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">3. 6-7 (Control)</label>
-                    <input
-                      type="time"
-                      step="1"
-                      value={time6_7}
-                      onChange={(e) => setTime6_7(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-semibold focus:ring-2 focus:ring-red-600 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">4. 6-8 (Término)</label>
-                    <input
-                      type="time"
-                      step="1"
-                      value={time6_8}
-                      onChange={(e) => setTime6_8(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-semibold focus:ring-2 focus:ring-red-600 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">5. 6-10 (Cuartel)</label>
-                    <input
-                      type="time"
-                      step="1"
-                      value={time6_10}
-                      onChange={(e) => setTime6_10(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-semibold focus:ring-2 focus:ring-red-600 focus:outline-none"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Hora del Acto</label>
+                  <input
+                    type="time"
+                    value={incidentTime}
+                    onChange={(e) => setIncidentTime(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 font-bold focus:ring-2 focus:ring-red-600 focus:outline-none"
+                  />
                 </div>
               </div>
             </div>

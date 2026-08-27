@@ -43,14 +43,7 @@ export const fetchReports = async (): Promise<EmergencyReport[]> => {
       correlativoCompania: row.correlativo_compania,
       correlativoComandancia: row.correlativo_comandancia || '',
       incidentDate: row.incident_date,
-      alertTime: row.alert_time,
-      time6_0: row.time_6_0,
-      time6_7: row.time_6_7,
-      time6_8: row.time_6_8,
-      time6_10: row.time_6_10,
-      responseTimeMinutes: Number(row.response_time_minutes || 0),
-      controlTimeMinutes: Number(row.control_time_minutes || 0),
-      totalDurationMinutes: Number(row.total_duration_minutes || 0),
+      incidentTime: row.incident_time || '12:00',
       keyCode: row.key_code,
       keyDescription: row.key_description,
       category: row.category,
@@ -120,14 +113,7 @@ export const saveReportToDatabase = async (report: EmergencyReport): Promise<boo
       correlativo_compania: report.correlativoCompania,
       correlativo_comandancia: report.correlativoComandancia,
       incident_date: report.incidentDate,
-      alert_time: report.alertTime,
-      time_6_0: report.time6_0,
-      time_6_7: report.time6_7,
-      time_6_8: report.time6_8,
-      time_6_10: report.time6_10,
-      response_time_minutes: report.responseTimeMinutes,
-      control_time_minutes: report.controlTimeMinutes,
-      total_duration_minutes: report.totalDurationMinutes,
+      incident_time: report.incidentTime || '12:00',
       key_code: report.keyCode,
       key_description: report.keyDescription,
       category: report.category,
@@ -153,10 +139,9 @@ export const saveReportToDatabase = async (report: EmergencyReport): Promise<boo
       summary_notes: report.summaryNotes,
       status: report.status,
       created_by: report.createdBy,
-      created_at: report.createdAt,
-      updated_at: new Date().toISOString(),
       approved_by: report.approvedBy,
       approved_at: report.approvedAt,
+      updated_at: new Date().toISOString(),
     };
 
     const { error } = await supabase
@@ -164,10 +149,9 @@ export const saveReportToDatabase = async (report: EmergencyReport): Promise<boo
       .upsert(dbPayload, { onConflict: 'id' });
 
     if (error) {
-      console.error('Error upserting report to Supabase:', error.message);
+      console.error('Error saving report to Supabase:', error.message);
       return false;
     }
-
     return true;
   } catch (err) {
     console.error('Exception saving report to Supabase:', err);
@@ -176,8 +160,9 @@ export const saveReportToDatabase = async (report: EmergencyReport): Promise<boo
 };
 
 export const deleteReportFromDatabase = async (reportId: string): Promise<boolean> => {
-  const currentLocal = getStoredReports().filter(r => r.id !== reportId);
-  saveReports(currentLocal);
+  const current = getStoredReports();
+  const updated = current.filter(r => r.id !== reportId);
+  saveReports(updated);
 
   if (!isSupabaseConfigured() || !supabase) {
     return true;
@@ -215,14 +200,19 @@ export const fetchVolunteers = async (): Promise<Volunteer[]> => {
       .select('*')
       .order('registration_number', { ascending: true });
 
-    if (error || !data || data.length === 0) {
+    if (error) {
+      console.warn('Supabase volunteers fetch error:', error.message);
+      return getStoredVolunteers();
+    }
+
+    if (!data || data.length === 0) {
       return getStoredVolunteers();
     }
 
     const mapped: Volunteer[] = data.map(row => ({
       id: row.id,
-      rut: row.rut,
       registrationNumber: row.registration_number,
+      rut: row.rut,
       fullName: row.full_name,
       shortName: row.short_name,
       category: row.category,
@@ -235,14 +225,15 @@ export const fetchVolunteers = async (): Promise<Volunteer[]> => {
     saveVolunteers(mapped);
     return mapped;
   } catch (err) {
+    console.error('Error fetching volunteers from Supabase:', err);
     return getStoredVolunteers();
   }
 };
 
 export const saveVolunteerToDatabase = async (volunteer: Volunteer): Promise<boolean> => {
-  const currentLocal = getStoredVolunteers();
-  const exists = currentLocal.some(v => v.id === volunteer.id);
-  const updated = exists ? currentLocal.map(v => v.id === volunteer.id ? volunteer : v) : [...currentLocal, volunteer];
+  const current = getStoredVolunteers();
+  const exists = current.some(v => v.id === volunteer.id);
+  const updated = exists ? current.map(v => v.id === volunteer.id ? volunteer : v) : [...current, volunteer];
   saveVolunteers(updated);
 
   if (!isSupabaseConfigured() || !supabase) {
@@ -250,47 +241,61 @@ export const saveVolunteerToDatabase = async (volunteer: Volunteer): Promise<boo
   }
 
   try {
-    const dbPayload = {
-      id: volunteer.id,
-      rut: volunteer.rut,
-      registration_number: volunteer.registrationNumber,
-      full_name: volunteer.fullName,
-      short_name: volunteer.shortName,
-      category: volunteer.category,
-      rank: volunteer.rank,
-      status: volunteer.status,
-      phone: volunteer.phone,
-      email: volunteer.email,
-    };
-
     const { error } = await supabase
       .from('volunteers')
-      .upsert(dbPayload, { onConflict: 'id' });
+      .upsert({
+        id: volunteer.id,
+        registration_number: volunteer.registrationNumber,
+        rut: volunteer.rut,
+        full_name: volunteer.fullName,
+        short_name: volunteer.shortName,
+        category: volunteer.category,
+        rank: volunteer.rank,
+        status: volunteer.status,
+        phone: volunteer.phone,
+        email: volunteer.email,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' });
 
-    return !error;
+    if (error) {
+      console.error('Error saving volunteer to Supabase:', error.message);
+      return false;
+    }
+    return true;
   } catch (err) {
+    console.error('Exception saving volunteer to Supabase:', err);
     return false;
   }
 };
 
 export const deleteVolunteerFromDatabase = async (volunteerId: string): Promise<boolean> => {
-  const currentLocal = getStoredVolunteers().filter(v => v.id !== volunteerId);
-  saveVolunteers(currentLocal);
+  const current = getStoredVolunteers();
+  const updated = current.filter(v => v.id !== volunteerId);
+  saveVolunteers(updated);
 
   if (!isSupabaseConfigured() || !supabase) {
     return true;
   }
 
   try {
-    const { error } = await supabase.from('volunteers').delete().eq('id', volunteerId);
-    return !error;
+    const { error } = await supabase
+      .from('volunteers')
+      .delete()
+      .eq('id', volunteerId);
+
+    if (error) {
+      console.error('Error deleting volunteer from Supabase:', error.message);
+      return false;
+    }
+    return true;
   } catch (err) {
+    console.error('Exception deleting volunteer from Supabase:', err);
     return false;
   }
 };
 
 // -------------------------------------------------------------------
-// REALTIME SUBSCRIPTIONS (Live updates across all devices)
+// REALTIME SUBSCRIPTION
 // -------------------------------------------------------------------
 
 export const subscribeToRealtimeChanges = (
@@ -301,25 +306,30 @@ export const subscribeToRealtimeChanges = (
     return () => {};
   }
 
-  const channel = supabase
-    .channel('bomberos_realtime_sync')
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'emergency_reports' },
-      () => {
-        onReportsChange();
-      }
-    )
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'volunteers' },
-      () => {
-        onVolunteersChange();
-      }
-    )
-    .subscribe();
+  try {
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'emergency_reports' },
+        () => {
+          onReportsChange();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'volunteers' },
+        () => {
+          onVolunteersChange();
+        }
+      )
+      .subscribe();
 
-  return () => {
-    supabase?.removeChannel(channel);
-  };
+    return () => {
+      supabase?.removeChannel(channel);
+    };
+  } catch (err) {
+    console.error('Error setting up Realtime subscription:', err);
+    return () => {};
+  }
 };

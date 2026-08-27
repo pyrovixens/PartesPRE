@@ -7,24 +7,16 @@ const getBase64ImageFromUrl = async (imageUrl: string): Promise<string> => {
   try {
     const res = await fetch(imageUrl);
     const blob = await res.blob();
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = reject;
+      reader.onloadend = () => {
+        resolve(reader.result as string);
+      };
+      reader.onerror = () => resolve('');
       reader.readAsDataURL(blob);
     });
-  } catch (e) {
-    console.warn('Could not load logo for PDF:', e);
+  } catch {
     return '';
-  }
-};
-
-const formatArrivalStatus = (status: string, unitCode?: string) => {
-  switch (status) {
-    case 'TRIPULO_CARRO': return unitCode ? `Tripuló ${unitCode}` : 'Tripuló Carro';
-    case '6_3_LUGAR': return '6-3 Llegó al Lugar';
-    case 'CUBRE_CUARTEL': return 'Cubre Cuartel';
-    default: return 'Presente';
   }
 };
 
@@ -45,27 +37,26 @@ export const generateEmergencyReportPDF = async (report: EmergencyReport): Promi
   const slateDark = [30, 41, 59] as [number, number, number];
   const grayLight = [241, 245, 249] as [number, number, number];
 
-  // Try to load logo
+  // Try to load crest logo
   try {
     const logoBase64 = await getBase64ImageFromUrl('/logo_4ta_calle_larga.png');
     if (logoBase64) {
       doc.addImage(logoBase64, 'PNG', margin, 10, 22, 22);
     }
   } catch {
-    // Continue
+    // Continue without logo if unavailable
   }
 
-  // Header Title
+  // Header Titles
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
+  doc.setFontSize(10);
   doc.setTextColor(...darkRed);
-  doc.text('CUERPO DE BOMBEROS DE LOS ANDES', margin + 26, 15);
+  doc.text('CUERPO DE BOMBEROS DE LOS ANDES', margin + 26, 14);
   doc.setFontSize(13);
   doc.setTextColor(...slateDark);
-  doc.text('CUARTA COMPAÑÍA "CALLE LARGA"', margin + 26, 21);
-  
-  doc.setFont('helvetica', 'italic');
+  doc.text('4ª COMPAÑÍA "CALLE LARGA"', margin + 26, 20);
   doc.setFontSize(8);
+  doc.setFont('helvetica', 'italic');
   doc.setTextColor(100, 116, 139);
   doc.text('Lema: "Unión, Lealtad y Servicio" • Fundada el 21 de Agosto de 1985', margin + 26, 26);
   doc.text('Calle Larga, Región de Valparaíso, Chile', margin + 26, 30);
@@ -103,8 +94,8 @@ export const generateEmergencyReportPDF = async (report: EmergencyReport): Promi
     head: [[{ content: '1. CLASIFICACIÓN Y UBICACIÓN DEL SERVICIO', colSpan: 4, styles: { fillColor: darkRed, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 } }]],
     body: [
       [
-        { content: 'Fecha:', styles: { fontStyle: 'bold', cellWidth: 26, fontSize: 8 } },
-        { content: report.incidentDate, styles: { cellWidth: 50, fontSize: 8 } },
+        { content: 'Fecha / Hora:', styles: { fontStyle: 'bold', cellWidth: 26, fontSize: 8 } },
+        { content: `${report.incidentDate} (${report.incidentTime || '14:00'} hrs)`, styles: { cellWidth: 50, fontSize: 8 } },
         { content: 'Clave Radial:', styles: { fontStyle: 'bold', cellWidth: 30, fontSize: 8 } },
         { content: `${report.keyCode} - ${report.keyDescription}`, styles: { fontStyle: 'bold', fontSize: 8, textColor: darkRed } },
       ],
@@ -128,28 +119,20 @@ export const generateEmergencyReportPDF = async (report: EmergencyReport): Promi
 
   currentY = (doc as any).lastAutoTable.finalY + 3;
 
-  // Section 2: Cronometría Radial
+  // Section 2: Material Mayor (Carros y Maquinistas)
+  const unitsText = report.units && report.units.length > 0
+    ? report.units.map(u => `${u.unitCode} (Maquinista: ${u.driverName || 'No asignado'})`).join('  |  ')
+    : 'No se despachó material mayor.';
+
   autoTable(doc, {
     startY: currentY,
     margin: { left: margin, right: margin },
     theme: 'grid',
-    head: [[{ content: '2. CRONOMETRÍA RADIAL Y TIEMPOS OPERATIVOS', colSpan: 6, styles: { fillColor: slateDark, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 } }]],
+    head: [[{ content: '2. MATERIAL MAYOR DESPACHADO', colSpan: 2, styles: { fillColor: slateDark, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 } }]],
     body: [
       [
-        { content: 'Despacho:', styles: { fontStyle: 'bold', fontSize: 7.5 } },
-        { content: report.alertTime || '--:--', styles: { fontSize: 8, halign: 'center' } },
-        { content: '6-0 (Llegada):', styles: { fontStyle: 'bold', fontSize: 7.5 } },
-        { content: report.time6_0 || '--:--', styles: { fontSize: 8, halign: 'center', fontStyle: 'bold' } },
-        { content: '6-7 (Control):', styles: { fontStyle: 'bold', fontSize: 7.5 } },
-        { content: report.time6_7 || '--:--', styles: { fontSize: 8, halign: 'center' } },
-      ],
-      [
-        { content: '6-8 (Término):', styles: { fontStyle: 'bold', fontSize: 7.5 } },
-        { content: report.time6_8 || '--:--', styles: { fontSize: 8, halign: 'center' } },
-        { content: '6-10 (Cuartel):', styles: { fontStyle: 'bold', fontSize: 7.5 } },
-        { content: report.time6_10 || '--:--', styles: { fontSize: 8, halign: 'center' } },
-        { content: 'Tiempo Resp. / Duración:', styles: { fontStyle: 'bold', fontSize: 7.5 } },
-        { content: `${report.responseTimeMinutes} min / ${report.totalDurationMinutes} min`, styles: { fontSize: 8, halign: 'center', fontStyle: 'bold', textColor: darkRed } },
+        { content: 'Carros y Conductores:', styles: { fontStyle: 'bold', cellWidth: 35, fontSize: 8 } },
+        { content: unitsText, styles: { fontSize: 8 } },
       ],
     ],
     styles: { cellPadding: 1.5 },
@@ -157,95 +140,93 @@ export const generateEmergencyReportPDF = async (report: EmergencyReport): Promi
 
   currentY = (doc as any).lastAutoTable.finalY + 3;
 
-  // Section 3: Material Mayor (Carros y Maquinistas)
-  const unitRows = report.units.length > 0
-    ? report.units.map(u => [
-        u.unitCode,
-        u.driverName || 'Sin conductor asignado',
-      ])
-    : [['Sin concurrencia de material mayor', '']];
+  // Section 3: Asistencia (Material Humano)
+  const attendeeRows: any[][] = [];
+  const attendees = report.attendees || [];
 
-  autoTable(doc, {
-    startY: currentY,
-    margin: { left: margin, right: margin },
-    theme: 'grid',
-    head: [
-      [{ content: '3. MATERIAL MAYOR Y MAQUINISTAS', colSpan: 2, styles: { fillColor: slateDark, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 } }],
-      ['Unidad Despachada', 'Maquinista / Conductor a Cargo'],
-    ],
-    body: unitRows,
-    headStyles: { fillColor: [51, 65, 85], textColor: [255, 255, 255], fontSize: 7.5, halign: 'center' },
-    styles: { cellPadding: 1.5, fontSize: 8 },
-    columnStyles: {
-      0: { cellWidth: 35, fontStyle: 'bold', halign: 'center' },
-      1: { cellWidth: 147 },
-    },
-  });
+  for (let i = 0; i < attendees.length; i += 2) {
+    const a1 = attendees[i];
+    const a2 = attendees[i + 1];
 
-  currentY = (doc as any).lastAutoTable.finalY + 3;
+    const formatAtt = (a: any) => {
+      if (!a) return '';
+      const statusLabel = a.arrivalStatus === 'TRIPULO_CARRO' 
+        ? `Tripuló ${a.unitCode || ''}` 
+        : a.arrivalStatus === '6_3_LUGAR' 
+        ? '6-3 en el Lugar' 
+        : 'Cubre Cuartel';
+      return `${a.volunteerName} (${a.rank || a.category}) - [${statusLabel}]`;
+    };
 
-  // Section 4: Nómina de Personal Asistente con Modalidad
-  const attendeeRows = report.attendees.map((a, idx) => [
-    (idx + 1).toString(),
-    a.registrationNumber || `VOL-${String(idx + 1).padStart(3, '0')}`,
-    a.volunteerName,
-    `${a.category} • ${a.rank}`,
-    formatArrivalStatus(a.arrivalStatus, a.unitCode),
-  ]);
+    attendeeRows.push([
+      { content: `${i + 1}. ${formatAtt(a1)}`, styles: { fontSize: 7.5 } },
+      { content: a2 ? `${i + 2}. ${formatAtt(a2)}` : '', styles: { fontSize: 7.5 } },
+    ]);
+  }
 
   autoTable(doc, {
     startY: currentY,
     margin: { left: margin, right: margin },
     theme: 'striped',
     head: [
-      [{ content: `4. NÓMINA DE ASISTENCIA (${report.totalFirefighters} Bomberos Asistentes)`, colSpan: 5, styles: { fillColor: darkRed, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 } }],
-      ['#', 'Reg.', 'Nombre del Voluntario', 'Escalafón / Cargo', 'Modalidad de Asistencia'],
+      [{ content: `3. REGISTRO OFICIAL DE ASISTENCIA (${attendees.length} BOMBEROS ASISTENTES)`, colSpan: 2, styles: { fillColor: darkRed, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 } }],
     ],
-    body: attendeeRows,
-    headStyles: { fillColor: [71, 85, 105], textColor: [255, 255, 255], fontSize: 7.5, halign: 'center' },
-    styles: { cellPadding: 1.2, fontSize: 7.5 },
-    columnStyles: {
-      0: { cellWidth: 8, halign: 'center' },
-      1: { cellWidth: 22, halign: 'center' },
-      2: { cellWidth: 68 },
-      3: { cellWidth: 44 },
-      4: { cellWidth: 40, halign: 'center', fontStyle: 'bold' },
-    },
+    body: attendeeRows.length > 0 ? attendeeRows : [[{ content: 'Sin registro de asistencia.', colSpan: 2, styles: { fontStyle: 'italic', fontSize: 8 } }]],
+    styles: { cellPadding: 1.2 },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
   });
 
   currentY = (doc as any).lastAutoTable.finalY + 3;
 
-  if (currentY > pageHeight - 65) {
-    doc.addPage();
-    currentY = 15;
-  }
+  // Section 4: Afectados y Daños
+  autoTable(doc, {
+    startY: currentY,
+    margin: { left: margin, right: margin },
+    theme: 'grid',
+    head: [[{ content: '4. AFECTADOS, DAÑOS E INMUEBLE', colSpan: 4, styles: { fillColor: slateDark, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 } }]],
+    body: [
+      [
+        { content: 'Tipo Inmueble / Vehículo:', styles: { fontStyle: 'bold', fontSize: 7.5 } },
+        { content: report.affectedPropertyType || 'No especificado', styles: { fontSize: 7.5 } },
+        { content: 'Nivel de Daños:', styles: { fontStyle: 'bold', fontSize: 7.5 } },
+        { content: report.damageLevel || 'Leve', styles: { fontSize: 7.5, fontStyle: 'bold' } },
+      ],
+      [
+        { content: 'Civiles Lesionados:', styles: { fontStyle: 'bold', fontSize: 7.5 } },
+        { content: `${report.civilianInjuredCount || 0} personas`, styles: { fontSize: 7.5 } },
+        { content: 'Bomberos Lesionados:', styles: { fontStyle: 'bold', fontSize: 7.5 } },
+        { content: `${report.firefighterInjuredCount || 0} voluntarios`, styles: { fontSize: 7.5 } },
+      ],
+      [
+        { content: 'Fallecidos:', styles: { fontStyle: 'bold', fontSize: 7.5 } },
+        { content: `${report.fatalCount || 0} personas`, styles: { fontSize: 7.5, fontStyle: 'bold', textColor: report.fatalCount ? [220, 38, 38] : slateDark } },
+        { content: 'Denunciante / Teléfono:', styles: { fontStyle: 'bold', fontSize: 7.5 } },
+        { content: `${report.callerName || 'No registrado'} ${report.callerPhone ? `(${report.callerPhone})` : ''}`, styles: { fontSize: 7.5 } },
+      ],
+    ],
+    styles: { cellPadding: 1.5 },
+  });
 
-  // Section 5: Organismos e Inmueble Afectado
-  const agenciesList = [];
-  if (report.externalAgencies.carabineros) agenciesList.push(`Carabineros (${report.externalAgencies.carabinerosUnit || 'Sí'})`);
-  if (report.externalAgencies.samu) agenciesList.push(`SAMU (${report.externalAgencies.samuUnit || 'Sí'})`);
-  if (report.externalAgencies.conaf) agenciesList.push('CONAF');
-  if (report.externalAgencies.cgeChilquinta) agenciesList.push('CGE / Chilquinta');
-  if (report.externalAgencies.municipalidad) agenciesList.push('Municipalidad');
-  if (report.externalAgencies.seguridadCiudadana) agenciesList.push('Seguridad Ciudadana');
+  currentY = (doc as any).lastAutoTable.finalY + 3;
+
+  // Section 5: Organismos Concurrentes
+  const agencies: string[] = [];
+  if (report.externalAgencies?.carabineros) agencies.push(`Carabineros ${report.externalAgencies.carabinerosUnit ? `(${report.externalAgencies.carabinerosUnit})` : ''}`);
+  if (report.externalAgencies?.samu) agencies.push(`SAMU ${report.externalAgencies.samuUnit ? `(${report.externalAgencies.samuUnit})` : ''}`);
+  if (report.externalAgencies?.conaf) agencies.push('CONAF');
+  if (report.externalAgencies?.cgeChilquinta) agencies.push('CGE / Chilquinta');
+  if (report.externalAgencies?.municipalidad) agencies.push('Municipalidad Calle Larga');
+  if (report.externalAgencies?.seguridadCiudadana) agencies.push('Seguridad Ciudadana');
 
   autoTable(doc, {
     startY: currentY,
     margin: { left: margin, right: margin },
     theme: 'grid',
-    head: [[{ content: '5. ANTECEDENTES DEL LUGAR Y ORGANISMOS CONCURRENTES', colSpan: 4, styles: { fillColor: slateDark, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 } }]],
+    head: [[{ content: '5. ORGANISMOS CONCURRENTES Y APOYOS', colSpan: 2, styles: { fillColor: slateDark, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 } }]],
     body: [
       [
-        { content: 'Inmueble / Bien Afectado:', styles: { fontStyle: 'bold', cellWidth: 42, fontSize: 7.5 } },
-        { content: report.affectedPropertyType || 'No especificado', styles: { fontSize: 7.5 } },
-        { content: 'Magnitud de Daños:', styles: { fontStyle: 'bold', cellWidth: 35, fontSize: 7.5 } },
-        { content: report.damageLevel || 'Leve', styles: { fontSize: 7.5, fontStyle: 'bold' } },
-      ],
-      [
-        { content: 'Víctimas / Lesionados:', styles: { fontStyle: 'bold', fontSize: 7.5 } },
-        { content: `Lesionados Civiles: ${report.civilianInjuredCount} | Lesionados Bomberos: ${report.firefighterInjuredCount} | Fallecidos: ${report.fatalCount}`, styles: { fontSize: 7.5 } },
-        { content: 'Organismos de Apoyo:', styles: { fontStyle: 'bold', fontSize: 7.5 } },
-        { content: agenciesList.length > 0 ? agenciesList.join(', ') : 'Ninguno', styles: { fontSize: 7.5 } },
+        { content: 'Instituciones en el Lugar:', styles: { fontStyle: 'bold', cellWidth: 35, fontSize: 7.5 } },
+        { content: agencies.length > 0 ? agencies.join('  •  ') : 'No se registraron otros organismos.', styles: { fontSize: 7.5 } },
       ],
     ],
     styles: { cellPadding: 1.5 },
@@ -366,7 +347,7 @@ export const generateMonthlyExecutivePDF = async (reports: EmergencyReport[], su
       [
         { content: 'Promedio Voluntarios / Acto:', styles: { fontStyle: 'bold', fontSize: 8.5 } },
         { content: `${summary.avgFirefightersPerCall.toFixed(1)} bomberos`, styles: { fontStyle: 'bold', fontSize: 9 } },
-        { content: `Tiempo Respuesta Prom. (6-0): ${summary.avgResponseTimeMinutes.toFixed(1)} min`, styles: { fontSize: 8.5 } },
+        { content: `Total Asistencias Registradas: ${reports.reduce((acc, r) => acc + r.totalFirefighters, 0)}`, styles: { fontSize: 8.5 } },
       ],
     ],
     styles: { cellPadding: 2 },

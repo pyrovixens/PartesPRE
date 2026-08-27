@@ -190,16 +190,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600" />
         </div>
 
-        {/* Card 3: Tiempo Respuesta 6-0 */}
+        {/* Card 3: Dotación de Padrón */}
         <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-4 relative overflow-hidden group hover:border-amber-400 transition-colors">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Tiempo Resp. 6-0</p>
-              <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">{stats.avgResponseTimeMinutes} <span className="text-sm font-semibold text-slate-500">min</span></h3>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Despacho a llegada</p>
+              <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Dotación de Padrón</p>
+              <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">{volunteers.length} <span className="text-sm font-semibold text-slate-500">bomberos</span></h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Padrón oficial 4ª Cía.</p>
             </div>
             <div className="w-11 h-11 bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 rounded-xl flex items-center justify-center font-bold">
-              <Clock className="w-6 h-6" />
+              <Award className="w-6 h-6" />
             </div>
           </div>
           <div className="absolute bottom-0 left-0 right-0 h-1 bg-amber-500" />

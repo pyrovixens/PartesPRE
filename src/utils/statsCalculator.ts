@@ -13,9 +13,6 @@ export const calculateStats = (
   const totalFirefightersSum = reports.reduce((acc, r) => acc + (r.totalFirefighters || 0), 0);
   const avgFirefightersPerCall = totalCalls > 0 ? totalFirefightersSum / totalCalls : 0;
 
-  const totalResponseTime = emergencies.reduce((acc, r) => acc + (r.responseTimeMinutes || 0), 0);
-  const avgResponseTimeMinutes = emergencies.length > 0 ? totalResponseTime / emergencies.length : 0;
-
   // Calls by key code
   const callsByKeyCode: Record<string, number> = {};
   allKeys.forEach(k => {
@@ -25,7 +22,7 @@ export const calculateStats = (
     callsByKeyCode[r.keyCode] = (callsByKeyCode[r.keyCode] || 0) + 1;
   });
 
-  // Monthly stats (Jan to Dec of current year or present months)
+  // Monthly stats (Jan to Dec)
   const monthNames = [
     'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
     'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'
@@ -83,7 +80,6 @@ export const calculateStats = (
     totalEmergencies: emergencies.length,
     totalActivities: activities.length,
     avgFirefightersPerCall: Number(avgFirefightersPerCall.toFixed(1)),
-    avgResponseTimeMinutes: Number(avgResponseTimeMinutes.toFixed(1)),
     totalPumpHours: 0,
     totalDistanceKm: 0,
     callsByKeyCode,

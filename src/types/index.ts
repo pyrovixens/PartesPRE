@@ -36,6 +36,7 @@ export interface Volunteer {
   phone?: string;
   email?: string;
   joinDate?: string;
+  pin?: string;
 }
 
 export interface Unit {
@@ -78,18 +79,7 @@ export interface EmergencyReport {
   correlativoCompania: string; // "001", "002"
   correlativoComandancia?: string; // "C-014", "102"
   incidentDate: string; // YYYY-MM-DD
-  
-  // Tiempos Radiales
-  alertTime: string; // HH:mm:ss (Despacho)
-  time6_0: string;   // HH:mm:ss (Llegada al lugar / 6-0)
-  time6_7?: string;  // HH:mm:ss (Bajo control / 6-7)
-  time6_8?: string;  // HH:mm:ss (Término de operaciones / 6-8)
-  time6_10?: string; // HH:mm:ss (Disponible en cuartel / 6-10)
-  
-  // Cálculos automáticos (minutos)
-  responseTimeMinutes: number; // diff alertTime -> 6_0
-  controlTimeMinutes: number;  // diff 6_0 -> 6_7
-  totalDurationMinutes: number; // diff alertTime -> 6_8 / 6_10
+  incidentTime?: string; // HH:mm (Hora del Acto)
 
   // Clasificación
   keyCode: string; // "10-0-1", "A", "ES", "RC", "RF", "V"
@@ -112,7 +102,7 @@ export interface EmergencyReport {
   // Material Mayor
   units: DispatchedUnit[];
 
-  // Asistencia (Material Humano: Tripuló Carro [Unidad] / 6-3 Llegó al Lugar / Cubre Cuartel)
+  // Asistencia
   attendees: AttendanceRecord[];
   totalFirefighters: number;
 
@@ -159,7 +149,6 @@ export interface StatsSummary {
   totalEmergencies: number;
   totalActivities: number;
   avgFirefightersPerCall: number;
-  avgResponseTimeMinutes: number;
   totalPumpHours: number;
   totalDistanceKm: number;
   callsByKeyCode: Record<string, number>;
@@ -167,10 +156,73 @@ export interface StatsSummary {
   attendancesByVolunteer: { volunteerId: string; name: string; category: VolunteerCategory; rank: string; total: number; percentage: number }[];
 }
 
-export interface UserProfile {
+// -------------------------------------------------------------
+// SISTEMA DE USUARIOS, ROLES Y PERMISOS GRANULARES
+// -------------------------------------------------------------
+export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'OFICIAL' | 'VOLUNTARIO';
+
+export type UserStatus = 'ACTIVO' | 'INVITADO' | 'PENDIENTE' | 'SUSPENDIDO';
+
+export interface UserPermissions {
+  canCreateReports: boolean;
+  canEditReports: boolean;
+  canDeleteReports: boolean;
+  canApproveReports: boolean;
+  canManageVolunteers: boolean;
+  canManageUnits: boolean;
+  canManageUsers: boolean;
+  canExportReports: boolean;
+}
+
+export interface AppUser {
   id: string;
   email: string;
   fullName: string;
+  volunteerId?: string;
   rank: VolunteerRank;
-  role: 'ADMIN' | 'OFICIAL' | 'VOLUNTARIO';
+  registrationNumber: string;
+  role: UserRole;
+  status: UserStatus;
+  permissions: UserPermissions;
+  pin?: string;
+  password?: string;
+  invitedBy?: string;
+  invitedAt?: string;
+  lastLogin?: string;
+  createdAt: string;
+}
+
+export interface UserInvitation {
+  id: string;
+  email: string;
+  fullName: string;
+  volunteerId?: string;
+  rank: VolunteerRank;
+  registrationNumber: string;
+  role: UserRole;
+  permissions: UserPermissions;
+  token: string;
+  status: 'PENDING' | 'ACCEPTED' | 'EXPIRED';
+  invitedBy: string;
+  invitedAt: string;
+  expiresAt: string;
+}
+
+export type UserProfile = AppUser;
+
+export interface ToastNotification {
+  id: string;
+  type: 'success' | 'info' | 'warning' | 'error';
+  title: string;
+  message: string;
+  duration?: number;
+}
+
+export interface CompanyBranding {
+  companyName: string;
+  fireDepartment: string;
+  motto: string;
+  logoUrl: string;
+  primaryColor: string;
+  accentColor: string;
 }
