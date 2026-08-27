@@ -449,6 +449,7 @@ export default function Home() {
         onNewReport={handleOpenNewReport}
         onExportExcel={handleExportExcel}
         onLogout={handleLogout}
+        onOpenLogoManager={() => setIsLogoManagerOpen(true)}
         currentUser={currentUser}
       />
 

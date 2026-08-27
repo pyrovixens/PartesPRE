@@ -215,17 +215,28 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Admin / Super Admin Users Management Tab */}
           {isSuperAdminOrAdmin && (
-            <button
-              onClick={() => setActiveTab('users')}
-              className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl font-bold transition whitespace-nowrap ${
-                activeTab === 'users'
-                  ? 'bg-red-700 text-white shadow-md'
-                  : 'text-amber-300 bg-amber-950/40 hover:bg-amber-950/70 border border-amber-800/60'
-              }`}
-            >
-              <Shield className="w-4 h-4 text-amber-400" />
-              <span>Usuarios & Permisos</span>
-            </button>
+            <>
+              <button
+                onClick={() => setActiveTab('users')}
+                className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl font-bold transition whitespace-nowrap ${
+                  activeTab === 'users'
+                    ? 'bg-red-700 text-white shadow-md'
+                    : 'text-amber-300 bg-amber-950/40 hover:bg-amber-950/70 border border-amber-800/60'
+                }`}
+              >
+                <Shield className="w-4 h-4 text-amber-400" />
+                <span>Usuarios & Permisos</span>
+              </button>
+
+              <button
+                onClick={onOpenLogoManager}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl font-bold text-slate-300 hover:text-amber-300 hover:bg-slate-800/80 transition whitespace-nowrap border border-dashed border-slate-700 hover:border-amber-500/60"
+                title="Configurar logo de programa, lema institucional y nombre"
+              >
+                <ImageIcon className="w-4 h-4 text-amber-400" />
+                <span>Personalizar Escudo / Logo</span>
+              </button>
+            </>
           )}
         </div>
       </div>

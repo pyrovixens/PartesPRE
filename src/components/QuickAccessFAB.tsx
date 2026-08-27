@@ -20,6 +20,7 @@ interface QuickAccessFABProps {
   onNewReport: () => void;
   onExportExcel: () => void;
   onLogout: () => void;
+  onOpenLogoManager?: () => void;
   currentUser: AppUser;
 }
 
@@ -29,6 +30,7 @@ export const QuickAccessFAB: React.FC<QuickAccessFABProps> = ({
   onNewReport,
   onExportExcel,
   onLogout,
+  onOpenLogoManager,
   currentUser,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -55,7 +57,23 @@ export const QuickAccessFAB: React.FC<QuickAccessFABProps> = ({
               </button>
             )}
 
-            {/* Action 2: Descargar Excel */}
+            {/* Action 2: Personalizar Escudo / Marca */}
+            {(currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'ADMIN') && onOpenLogoManager && (
+              <button
+                onClick={() => {
+                  setIsOpen(false);
+                  onOpenLogoManager();
+                }}
+                className="flex items-center space-x-2 bg-amber-700 hover:bg-amber-800 text-white text-xs font-bold px-3.5 py-2 rounded-full shadow-xl transition active:scale-95 border border-amber-500/50"
+              >
+                <span className="hidden sm:inline">Personalizar Escudo & Marca</span>
+                <div className="w-6 h-6 rounded-full bg-amber-900 flex items-center justify-center">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                </div>
+              </button>
+            )}
+
+            {/* Action 3: Descargar Excel */}
             {currentUser.permissions?.canExportReports && (
               <button
                 onClick={() => {
@@ -71,7 +89,7 @@ export const QuickAccessFAB: React.FC<QuickAccessFABProps> = ({
               </button>
             )}
 
-            {/* Action 3: Cerrar Sesión */}
+            {/* Action 4: Cerrar Sesión */}
             <button
               onClick={() => {
                 setIsOpen(false);
