@@ -150,6 +150,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, branding }) =
               </>
             )}
           </button>
+
+          {/* Create Account Link */}
+          <div className="pt-3 text-center border-t border-slate-800/80">
+            <a
+              href="/crear-cuenta"
+              className="text-[11px] text-slate-400 hover:text-amber-400 font-bold transition inline-flex items-center space-x-1"
+            >
+              <span>¿Cuenta nueva habilitada?</span>
+              <span className="text-red-400 underline underline-offset-2">Crear mi contraseña</span>
+            </a>
+          </div>
         </form>
       </div>
     </div>

@@ -663,22 +663,13 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
                 </p>
               </div>
 
-              {/* Botón de Copiar Enlace Directo */}
-              <button
-                onClick={() => handleCopyLink(invitationResult.activationUrl)}
-                className="w-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-bold py-2.5 px-4 rounded-xl flex items-center justify-center space-x-2 border border-slate-300 dark:border-slate-700 transition active:scale-98"
-              >
-                <Copy className="w-4 h-4 text-slate-500" />
-                <span>Copiar Enlace de Registro</span>
-              </button>
-
               {/* Dispatch options */}
               <div className="grid grid-cols-2 gap-2 pt-1">
                 <a
                   href={invitationResult.gmailUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center justify-center space-x-1.5 bg-red-700 hover:bg-red-800 text-white font-bold p-2.5 rounded-xl text-center shadow-sm transition active:scale-95"
+                  className="flex items-center justify-center space-x-1.5 bg-red-700 hover:bg-red-800 text-white font-bold p-3 rounded-xl text-center shadow-sm transition active:scale-95"
                 >
                   <ExternalLink className="w-4 h-4" />
                   <span>Enviar con Gmail</span>
@@ -686,7 +677,7 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
 
                 <a
                   href={invitationResult.mailtoUrl}
-                  className="flex items-center justify-center space-x-1.5 bg-blue-700 hover:bg-blue-800 text-white font-bold p-2.5 rounded-xl text-center shadow-sm transition active:scale-95"
+                  className="flex items-center justify-center space-x-1.5 bg-blue-700 hover:bg-blue-800 text-white font-bold p-3 rounded-xl text-center shadow-sm transition active:scale-95"
                 >
                   <Mail className="w-4 h-4" />
                   <span>Enviar con Correo</span>

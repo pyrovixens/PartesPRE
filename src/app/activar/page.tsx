@@ -6,15 +6,15 @@ import { useSearchParams, useRouter } from 'next/navigation';
 function RedirectContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const token = searchParams.get('token');
+  const email = searchParams.get('email');
 
   useEffect(() => {
-    if (token) {
-      router.replace(`/registro?token=${token}`);
+    if (email) {
+      router.replace(`/crear-cuenta?email=${encodeURIComponent(email)}`);
     } else {
-      router.replace('/registro');
+      router.replace('/crear-cuenta');
     }
-  }, [token, router]);
+  }, [email, router]);
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white font-sans">

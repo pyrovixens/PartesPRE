@@ -510,80 +510,103 @@ export const createInvitation = async (params: {
   return newInvitation;
 };
 
-export const getInvitationByToken = async (token: string): Promise<UserInvitation | null> => {
-  if (isSupabaseConfigured() && supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('user_invitations')
-        .select('*')
-        .eq('token', token)
-        .single();
-
-      if (!error && data) {
-        return {
-          id: data.id,
-          email: data.email,
-          fullName: data.full_name,
-          rank: data.rank || 'Bombero Activo',
-          registrationNumber: data.registration_number || 'VOL-000',
-          role: data.role,
-          permissions: getDefaultPermissions(data.role),
-          token: data.token,
-          status: data.status,
-          invitedBy: data.invited_by,
-          invitedAt: data.created_at,
-          expiresAt: data.expires_at,
-        };
-      }
-    } catch (e) {
-      console.warn('Could not fetch invitation from Supabase:', e);
-    }
+export const checkUserEmailForRegistration = async (emailInput: string): Promise<{
+  allowed: boolean;
+  user?: AppUser;
+  alreadyActive?: boolean;
+  error?: string;
+}> => {
+  const cleanEmail = emailInput.trim().toLowerCase();
+  if (!cleanEmail) {
+    return { allowed: false, error: 'Por favor ingresa tu correo electrónico.' };
   }
 
-  const list = getStoredInvitations();
-  return list.find(inv => inv.token === token && inv.status === 'PENDING') || null;
+  const users = await fetchAppUsers();
+  const existingUser = users.find(u => u.email.toLowerCase() === cleanEmail);
+
+  if (existingUser) {
+    if (existingUser.status === 'SUSPENDIDO') {
+      return { allowed: false, error: 'Esta cuenta ha sido suspendida. Contacta al Mando Oficial.' };
+    }
+    return {
+      allowed: true,
+      user: existingUser,
+      alreadyActive: existingUser.status === 'ACTIVO' && Boolean(existingUser.passwordHash),
+    };
+  }
+
+  // Check pending invitations
+  const invs = getStoredInvitations();
+  const pendingInv = invs.find(i => i.email.toLowerCase() === cleanEmail);
+  if (pendingInv) {
+    const stagedUser: AppUser = {
+      id: `usr-${Date.now()}`,
+      email: pendingInv.email,
+      fullName: pendingInv.fullName,
+      volunteerId: pendingInv.volunteerId,
+      rank: pendingInv.rank,
+      registrationNumber: pendingInv.registrationNumber,
+      role: pendingInv.role,
+      status: 'INVITADO',
+      permissions: pendingInv.permissions,
+      invitedBy: pendingInv.invitedBy,
+      invitedAt: pendingInv.invitedAt,
+      createdAt: new Date().toISOString(),
+    };
+    return {
+      allowed: true,
+      user: stagedUser,
+      alreadyActive: false,
+    };
+  }
+
+  return {
+    allowed: false,
+    error: 'El correo no se encuentra registrado en el sistema. Solicita a la Oficialidad que habilite tu cuenta.',
+  };
 };
 
-export const activateUserWithPassword = async (
-  token: string,
+export const registerUserPassword = async (
+  emailInput: string,
   passwordInput: string
 ): Promise<{ success: boolean; user?: AppUser; error?: string }> => {
+  const cleanEmail = emailInput.trim().toLowerCase();
+  if (!cleanEmail) {
+    return { success: false, error: 'Correo electrónico no válido.' };
+  }
+
   const strength = validatePasswordStrength(passwordInput);
   if (!strength.isValid) {
     return {
       success: false,
-      error: `La contraseña no cumple con los estándares de seguridad: ${strength.errors.join(', ')}.`,
+      error: `La contraseña no cumple con los requisitos: ${strength.errors.join(', ')}.`,
     };
   }
 
-  const invitation = await getInvitationByToken(token);
-  if (!invitation) {
-    return { success: false, error: 'El enlace de invitación no es válido o ya ha expirado.' };
+  const check = await checkUserEmailForRegistration(cleanEmail);
+  if (!check.allowed || !check.user) {
+    return {
+      success: false,
+      error: check.error || 'El correo no está autorizado para registro.',
+    };
   }
 
   const hashedPassword = await hashPassword(passwordInput);
-  const users = await fetchAppUsers();
-  const existingUser = users.find(u => u.email.toLowerCase() === invitation.email.toLowerCase());
 
-  const activatedUser: AppUser = {
-    id: existingUser ? existingUser.id : `usr-${Date.now()}`,
-    email: invitation.email,
-    fullName: invitation.fullName,
-    volunteerId: invitation.volunteerId,
-    rank: invitation.rank,
-    registrationNumber: invitation.registrationNumber,
-    role: invitation.role,
+  const updatedUser: AppUser = {
+    ...check.user,
     status: 'ACTIVO',
-    permissions: invitation.permissions,
     passwordHash: hashedPassword,
     failedLoginAttempts: 0,
-    createdAt: existingUser ? existingUser.createdAt : new Date().toISOString(),
+    lockedUntil: undefined,
   };
 
-  await saveAppUser(activatedUser);
+  await saveAppUser(updatedUser);
 
-  // Update invitation status
-  const invs = getStoredInvitations().map(i => i.token === token ? { ...i, status: 'ACCEPTED' as const } : i);
+  // Update any matching invitation
+  const invs = getStoredInvitations().map(i => 
+    i.email.toLowerCase() === cleanEmail ? { ...i, status: 'ACCEPTED' as const } : i
+  );
   saveStoredInvitations(invs);
 
   if (isSupabaseConfigured() && supabase) {
@@ -591,16 +614,14 @@ export const activateUserWithPassword = async (
       await supabase
         .from('user_invitations')
         .update({ status: 'ACCEPTED' })
-        .eq('token', token);
+        .eq('email', cleanEmail);
     } catch (e) {
       console.warn('Could not update invitation in Supabase:', e);
     }
   }
 
-  createActiveSession(activatedUser);
-
   return {
     success: true,
-    user: activatedUser,
+    user: updatedUser,
   };
 };

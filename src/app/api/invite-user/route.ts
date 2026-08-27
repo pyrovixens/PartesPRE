@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     }
 
     const hostUrl = origin || 'http://localhost:3003';
-    const activationUrl = `${hostUrl}/registro?token=${token}`;
+    const activationUrl = `${hostUrl}/crear-cuenta?email=${encodeURIComponent(email)}`;
 
     const roleNameFormatted = 
       role === 'SUPER_ADMIN' ? 'Super Administrador (Mando General)' :
