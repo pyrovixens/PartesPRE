@@ -130,6 +130,17 @@ export const BackupModal: React.FC<BackupModalProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Modal Bottom Footer */}
+        <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl font-bold text-xs transition flex items-center space-x-1.5 active:scale-95"
+          >
+            <X className="w-4 h-4" />
+            <span>Cerrar Ventana</span>
+          </button>
+        </div>
       </div>
     </div>
   );

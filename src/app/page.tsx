@@ -14,6 +14,7 @@ import { LogoManagerModal } from '../components/LogoManagerModal';
 import { QuickAccessFAB } from '../components/QuickAccessFAB';
 import { ToastContainer } from '../components/Toast';
 import { LoginScreen } from '../components/LoginScreen';
+import { ScrollToTopButton } from '../components/ScrollToTopButton';
 
 import { 
   EmergencyReport, 
@@ -511,6 +512,9 @@ export default function Home() {
 
       {/* Dynamic Toast Feedback Notifications */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+
+      {/* Floating Scroll To Top Action */}
+      <ScrollToTopButton />
 
       {/* Modals */}
       <ReportFormModal

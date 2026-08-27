@@ -18,7 +18,8 @@ import { AppUser } from '../../types';
 import { 
   checkUserEmailForRegistration, 
   registerUserPassword, 
-  validatePasswordStrength 
+  validatePasswordStrength,
+  clearActiveSession
 } from '../../services/authService';
 
 function CreateAccountContent() {
@@ -37,12 +38,22 @@ function CreateAccountContent() {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
 
+  // Security: Always clear any session when entering create-account flow
+  useEffect(() => {
+    clearActiveSession();
+  }, []);
+
   // Auto-verify if email is passed in URL
   useEffect(() => {
     if (initialEmail.trim()) {
       verifyEmail(initialEmail.trim());
     }
   }, [initialEmail]);
+
+  const handleReturnToLogin = () => {
+    clearActiveSession();
+    router.push('/');
+  };
 
   const verifyEmail = async (emailToTest: string) => {
     if (!emailToTest.trim()) {
@@ -140,6 +151,18 @@ function CreateAccountContent() {
       <div className="absolute bottom-10 right-10 w-80 h-80 bg-amber-600/10 rounded-full blur-3xl pointer-events-none" />
 
       <div className="w-full max-w-md bg-slate-900/90 backdrop-blur-xl border border-slate-800 rounded-3xl shadow-2xl p-6 sm:p-8 relative z-10 space-y-6 animate-in fade-in zoom-in-95 duration-200">
+        {/* Top return action */}
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={handleReturnToLogin}
+            className="text-[11px] text-slate-400 hover:text-white font-bold flex items-center space-x-1.5 bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 px-3 py-1.5 rounded-xl transition active:scale-95"
+          >
+            <span>← Volver al Login</span>
+          </button>
+          <span className="text-[10px] text-slate-500 font-mono font-bold">4ª CIA</span>
+        </div>
+
         {/* Crest & Title */}
         <div className="text-center space-y-3">
           <img
@@ -321,7 +344,7 @@ function CreateAccountContent() {
             <div className="text-center pt-2">
               <button
                 type="button"
-                onClick={() => router.push('/')}
+                onClick={handleReturnToLogin}
                 className="text-slate-500 hover:text-slate-300 text-xs font-bold transition"
               >
                 ← Volver al Inicio de Sesión
