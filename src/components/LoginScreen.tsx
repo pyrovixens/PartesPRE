@@ -1,15 +1,12 @@
 import React, { useState } from 'react';
 import { 
-  Shield, 
   Lock, 
   Mail, 
   Eye, 
   EyeOff, 
   ArrowRight, 
   AlertCircle, 
-  Sparkles, 
   ShieldCheck, 
-  KeyRound,
   CheckCircle2
 } from 'lucide-react';
 import { AppUser, CompanyBranding } from '../types';
@@ -21,8 +18,8 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, branding }) => {
-  const [email, setEmail] = useState<string>('gnunezgonzalez@icloud.com');
-  const [password, setPassword] = useState<string>('Poli2009!');
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -30,6 +27,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, branding }) =
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
+
+    if (!email.trim() || !password.trim()) {
+      setErrorMsg('Por favor ingresa tu correo electrónico y contraseña.');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -40,23 +43,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, branding }) =
         setErrorMsg(result.error || 'Credenciales inválidas. Verifica tu correo y contraseña.');
       }
     } catch {
-      setErrorMsg('Error de conexión con el servicio de autenticación segura.');
+      setErrorMsg('Error de conexión con el servicio de autenticación.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleFillSuperAdmin = () => {
-    setEmail('gnunezgonzalez@icloud.com');
-    setPassword('Poli2009!');
-    setErrorMsg('');
-  };
-
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center p-4 relative overflow-hidden font-sans">
-      {/* Cybersecurity Background Ambience Glow */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-red-900/25 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-10 right-10 w-80 h-80 bg-amber-600/15 rounded-full blur-3xl pointer-events-none" />
+      {/* Background Ambience Glow */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-red-900/20 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-10 right-10 w-80 h-80 bg-amber-600/10 rounded-full blur-3xl pointer-events-none" />
 
       {/* Main Login Card */}
       <div className="w-full max-w-md bg-slate-900/90 backdrop-blur-xl border border-slate-800 rounded-3xl shadow-2xl p-6 sm:p-8 relative z-10 space-y-6 animate-in fade-in zoom-in-95 duration-200">
@@ -86,30 +83,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, branding }) =
           </div>
         </div>
 
-        {/* Quick Fill Super Admin Shortcut */}
-        <button
-          type="button"
-          onClick={handleFillSuperAdmin}
-          className="w-full p-2.5 rounded-2xl bg-slate-950/80 border border-slate-800 hover:border-amber-500/60 text-left transition flex items-center justify-between group"
-        >
-          <div className="flex items-center space-x-2.5">
-            <div className="w-7 h-7 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-black text-xs">
-              <KeyRound className="w-4 h-4" />
-            </div>
-            <div>
-              <p className="text-[11px] font-bold text-slate-200 group-hover:text-amber-300 transition">
-                Acceso Super Administrador
-              </p>
-              <p className="text-[9px] text-slate-400 font-mono">
-                gnunezgonzalez@icloud.com
-              </p>
-            </div>
-          </div>
-          <span className="text-[10px] font-bold text-amber-400 bg-amber-950/60 px-2 py-0.5 rounded-lg border border-amber-800/60">
-            Auto-completar
-          </span>
-        </button>
-
         {/* Error Notification Alert */}
         {errorMsg && (
           <div className="bg-red-950/80 border border-red-800 rounded-2xl p-3.5 flex items-start space-x-2.5 text-xs text-red-200 animate-in fade-in">
@@ -122,7 +95,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, branding }) =
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
           <div>
             <label className="block text-slate-300 font-bold mb-1.5">
-              Correo Electrónico Oficial:
+              Correo Electrónico:
             </label>
             <div className="relative">
               <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -130,8 +103,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, branding }) =
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="ejemplo@bomberoscallelarga.cl o tu correo"
-                className="w-full bg-slate-950/90 border border-slate-700 rounded-2xl pl-10 pr-3 py-2.5 font-bold text-white text-xs focus:ring-2 focus:ring-red-600 focus:outline-none placeholder-slate-500"
+                placeholder="usuario@dominio.cl"
+                autoComplete="email"
+                className="w-full bg-slate-950/90 border border-slate-700 rounded-2xl pl-10 pr-3 py-2.5 font-bold text-white text-xs focus:ring-2 focus:ring-red-600 focus:outline-none placeholder-slate-600"
                 required
               />
             </div>
@@ -139,7 +113,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, branding }) =
 
           <div>
             <label className="block text-slate-300 font-bold mb-1.5">
-              Contraseña Segura:
+              Contraseña:
             </label>
             <div className="relative">
               <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -148,7 +122,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, branding }) =
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••••••"
-                className="w-full bg-slate-950/90 border border-slate-700 rounded-2xl pl-10 pr-10 py-2.5 font-mono font-bold text-white text-xs focus:ring-2 focus:ring-red-600 focus:outline-none placeholder-slate-500"
+                autoComplete="current-password"
+                className="w-full bg-slate-950/90 border border-slate-700 rounded-2xl pl-10 pr-10 py-2.5 font-mono font-bold text-white text-xs focus:ring-2 focus:ring-red-600 focus:outline-none placeholder-slate-600"
                 required
               />
               <button
@@ -180,16 +155,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, branding }) =
           </button>
         </form>
 
-        {/* Cybersecurity Badges Footer */}
+        {/* Security Badges Footer */}
         <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400">
           <div className="flex items-center space-x-1.5 text-emerald-400">
             <CheckCircle2 className="w-3.5 h-3.5" />
             <span className="font-mono">Cifrado SHA-256</span>
           </div>
           <span className="text-slate-500">•</span>
-          <span className="text-slate-400">Bloqueo Anti Fuerza Bruta</span>
+          <span className="text-slate-400">Prevención Fuerza Bruta</span>
           <span className="text-slate-500">•</span>
-          <span className="text-amber-400 font-bold">RBAC Master</span>
+          <span className="text-amber-400 font-bold">Control RBAC</span>
         </div>
       </div>
     </div>

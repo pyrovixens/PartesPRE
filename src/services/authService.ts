@@ -127,7 +127,7 @@ export const SUPER_ADMIN_USER: AppUser = {
   role: 'SUPER_ADMIN',
   status: 'ACTIVO',
   permissions: getDefaultPermissions('SUPER_ADMIN'),
-  password: 'Poli2009!',
+  passwordHash: 'c0023972fce4d51959f33673c0bb7b465886f889d6998414d88f56fdf57f9a1e',
   failedLoginAttempts: 0,
   createdAt: '2026-01-01T00:00:00Z',
 };
@@ -315,12 +315,11 @@ export const authenticateUser = async (
     }
   }
 
-  // 3. Password Verification (supports plaintext default and SHA-256 hash)
+  // 3. Password Verification (supports salted SHA-256 hash or secure password)
   const hashedAttempt = await hashPassword(cleanPassword);
   const passwordMatches = 
-    targetUser.password === cleanPassword ||
     targetUser.passwordHash === hashedAttempt ||
-    (targetUser.email.toLowerCase() === 'gnunezgonzalez@icloud.com' && cleanPassword === 'Poli2009!');
+    (Boolean(targetUser.password) && targetUser.password === cleanPassword);
 
   if (!passwordMatches) {
     const failedAttempts = (targetUser.failedLoginAttempts || 0) + 1;

@@ -114,7 +114,7 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
     setRank(u.rank);
     setRegistrationNumber(u.registrationNumber);
     setRole(u.role);
-    setDirectPassword(u.password || '');
+    setDirectPassword('');
     setPermissions(u.permissions || getDefaultPermissions(u.role));
     setIsModalOpen(true);
   };
@@ -320,7 +320,7 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
                 Gestión de Usuarios & Control de Ciberseguridad
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Super Admin Master: <span className="font-mono text-amber-500 font-bold">gnunezgonzalez@icloud.com</span> • Acceso protegido con contraseñas seguras
+                Administración centralizada de cuentas oficiales y control de accesos RBAC protegidos
               </p>
             </div>
           </div>
@@ -524,13 +524,13 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
 
                 <div>
                   <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Contraseña Directa (Opcional)
+                    {editingUser ? 'Nueva Contraseña (Opcional)' : 'Contraseña Inicial (Opcional)'}
                   </label>
                   <input
-                    type="text"
+                    type="password"
                     value={directPassword}
                     onChange={(e) => setDirectPassword(e.target.value)}
-                    placeholder="Ej. Bombero2026!"
+                    placeholder={editingUser ? 'Dejar vacío para no cambiar' : '••••••••••••'}
                     className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 font-mono font-bold text-xs"
                   />
                 </div>

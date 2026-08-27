@@ -282,7 +282,7 @@ INSERT INTO public.app_users (
     role, 
     status, 
     permissions, 
-    password
+    password_hash
 ) VALUES (
     'usr-superadmin-01',
     'gnunezgonzalez@icloud.com',
@@ -292,6 +292,6 @@ INSERT INTO public.app_users (
     'SUPER_ADMIN',
     'ACTIVO',
     '{"canCreateReports":true,"canEditReports":true,"canDeleteReports":true,"canApproveReports":true,"canManageVolunteers":true,"canManageUnits":true,"canManageUsers":true,"canExportReports":true}'::jsonb,
-    'Poli2009!'
+    'c0023972fce4d51959f33673c0bb7b465886f889d6998414d88f56fdf57f9a1e'
 )
 ON CONFLICT (id) DO NOTHING;
