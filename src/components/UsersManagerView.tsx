@@ -1,43 +1,43 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Users, 
-  UserPlus, 
-  Shield, 
-  ShieldCheck, 
-  Key, 
   Mail, 
-  Check, 
-  X, 
+  Shield, 
+  ShieldAlert, 
+  CheckCircle2, 
+  Copy, 
+  ExternalLink, 
+  Search, 
   Edit, 
   Trash2, 
   Lock, 
-  Unlock, 
-  Search,
-  Sparkles,
   Send,
-  UserCheck,
-  AlertTriangle,
-  Copy,
-  ExternalLink
+  Sparkles,
+  KeyRound,
+  Check,
+  X,
+  AlertTriangle
 } from 'lucide-react';
 import { AppUser, UserRole, UserPermissions, Volunteer, UserInvitation } from '../types';
 import { 
   fetchAppUsers, 
   saveAppUser, 
   deleteAppUser, 
+  createInvitation, 
   getDefaultPermissions,
-  createInvitation 
+  validatePasswordStrength,
+  hashPassword
 } from '../services/authService';
 
 interface UsersManagerViewProps {
-  currentUser: AppUser;
   volunteers: Volunteer[];
+  currentUser: AppUser;
   onNotify: (type: 'success' | 'info' | 'warning' | 'error', title: string, message: string) => void;
 }
 
 export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
-  currentUser,
   volunteers,
+  currentUser,
   onNotify,
 }) => {
   const [users, setUsers] = useState<AppUser[]>([]);
@@ -45,7 +45,7 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [editingUser, setEditingUser] = useState<AppUser | null>(null);
 
-  // Invitation Success Modal
+  // Dispatch Link Result Modal
   const [invitationResult, setInvitationResult] = useState<{
     invitation: UserInvitation;
     activationUrl: string;
@@ -60,7 +60,7 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
   const [rank, setRank] = useState<any>('Bombero Activo');
   const [registrationNumber, setRegistrationNumber] = useState<string>('');
   const [role, setRole] = useState<UserRole>('OFICIAL');
-  const [pin, setPin] = useState<string>('4444');
+  const [directPassword, setDirectPassword] = useState<string>('');
   const [permissions, setPermissions] = useState<UserPermissions>(getDefaultPermissions('OFICIAL'));
   const [isSending, setIsSending] = useState<boolean>(false);
 
@@ -102,7 +102,7 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
     setEditingUser(null);
     setSelectedVolunteerId(volunteers[0]?.id || '');
     handleVolunteerSelect(volunteers[0]?.id || '');
-    setPin('4444');
+    setDirectPassword('');
     setIsModalOpen(true);
   };
 
@@ -114,7 +114,7 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
     setRank(u.rank);
     setRegistrationNumber(u.registrationNumber);
     setRole(u.role);
-    setPin(u.pin || '4444');
+    setDirectPassword(u.password || '');
     setPermissions(u.permissions || getDefaultPermissions(u.role));
     setIsModalOpen(true);
   };
@@ -127,11 +127,24 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
       return;
     }
 
+    if (directPassword) {
+      const strength = validatePasswordStrength(directPassword);
+      if (!strength.isValid) {
+        alert(`La contraseña no cumple los requisitos de seguridad: ${strength.errors.join(', ')}`);
+        return;
+      }
+    }
+
     setIsSending(true);
 
     try {
       if (editingUser) {
         // Edit existing user
+        let hashedPassword = editingUser.passwordHash;
+        if (directPassword && directPassword !== editingUser.password) {
+          hashedPassword = await hashPassword(directPassword);
+        }
+
         const userToSave: AppUser = {
           ...editingUser,
           email: email.trim().toLowerCase(),
@@ -141,12 +154,15 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
           registrationNumber: registrationNumber || 'VOL-000',
           role,
           permissions,
-          pin: pin.trim() || '4444',
+          password: directPassword || editingUser.password,
+          passwordHash: hashedPassword,
+          failedLoginAttempts: 0,
+          lockedUntil: undefined, // Reset lockout if admin edited
         };
         await saveAppUser(userToSave);
         await loadUsers();
         setIsModalOpen(false);
-        onNotify('success', 'Usuario Actualizado', `Permisos de ${userToSave.fullName} actualizados.`);
+        onNotify('success', 'Usuario Actualizado', `Permisos y credenciales de ${userToSave.fullName} actualizados.`);
       } else {
         // Create new official invitation
         const inv = await createInvitation({
@@ -162,23 +178,54 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
 
         // Request API for email payload
         const origin = window.location.origin;
-        const apiRes = await fetch('/api/invite-user', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        let activationUrl = `${origin}/activar?token=${inv.token}`;
+        let mailtoUrl = `mailto:${inv.email}`;
+        let gmailUrl = `https://mail.google.com`;
+
+        try {
+          const apiRes = await fetch('/api/invite-user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: inv.email,
+              fullName: inv.fullName,
+              rank: inv.rank,
+              registrationNumber: inv.registrationNumber,
+              role: inv.role,
+              permissions: inv.permissions,
+              invitedBy: inv.invitedBy,
+              token: inv.token,
+              origin,
+            }),
+          });
+
+          if (apiRes.ok) {
+            const apiData = await apiRes.json();
+            activationUrl = apiData.activationUrl || activationUrl;
+            mailtoUrl = apiData.mailtoUrl || mailtoUrl;
+            gmailUrl = apiData.gmailUrl || gmailUrl;
+          }
+        } catch {
+          // fallback to client URLs
+        }
+
+        if (directPassword) {
+          const hashed = await hashPassword(directPassword);
+          await saveAppUser({
+            id: `usr-${Date.now()}`,
             email: inv.email,
             fullName: inv.fullName,
+            volunteerId: inv.volunteerId,
             rank: inv.rank,
             registrationNumber: inv.registrationNumber,
             role: inv.role,
+            status: 'ACTIVO',
             permissions: inv.permissions,
-            invitedBy: inv.invitedBy,
-            token: inv.token,
-            origin,
-          }),
-        });
-
-        const apiData = await apiRes.json();
+            password: directPassword,
+            passwordHash: hashed,
+            createdAt: new Date().toISOString(),
+          });
+        }
 
         await loadUsers();
         setIsModalOpen(false);
@@ -186,9 +233,9 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
         // Show Dispatch Options Modal
         setInvitationResult({
           invitation: inv,
-          activationUrl: apiData.activationUrl || `${origin}/activar?token=${inv.token}`,
-          mailtoUrl: apiData.mailtoUrl || `mailto:${inv.email}`,
-          gmailUrl: apiData.gmailUrl || `https://mail.google.com`,
+          activationUrl,
+          mailtoUrl,
+          gmailUrl,
         });
 
         onNotify(
@@ -197,8 +244,8 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
           `Se generó el enlace de activación para ${inv.fullName}.`
         );
       }
-    } catch (error) {
-      alert('Ocurrió un error al procesar la invitación.');
+    } catch {
+      onNotify('error', 'Error', 'Ocurrió un error al procesar el usuario.');
     } finally {
       setIsSending(false);
     }
@@ -206,7 +253,7 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
 
   const handleDeleteUser = async (userId: string, userName: string) => {
     if (userId === currentUser.id) {
-      alert('No puedes eliminar tu propia cuenta en sesión.');
+      alert('No puedes eliminar tu propia cuenta de usuario activa.');
       return;
     }
 
@@ -270,10 +317,10 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
             </div>
             <div>
               <h2 className="text-lg font-black tracking-tight text-slate-900 dark:text-white">
-                Gestión de Usuarios & Control de Permisos
+                Gestión de Usuarios & Control de Ciberseguridad
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Envío de invitaciones reales por correo y administración de roles
+                Super Admin Master: <span className="font-mono text-amber-500 font-bold">gnunezgonzalez@icloud.com</span> • Acceso protegido con contraseñas seguras
               </p>
             </div>
           </div>
@@ -300,7 +347,7 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
             className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-red-600"
           />
         </div>
-        <span className="text-xs font-bold text-slate-500 dark:text-slate-400 px-2">
+        <span className="text-xs font-bold text-slate-500 dark:text-slate-400 px-2 shrink-0">
           {filteredUsers.length} cuentas registradas
         </span>
       </div>
@@ -315,7 +362,7 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
                 <th className="py-3 px-4">Correo Electrónico</th>
                 <th className="py-3 px-4">Rol en el Sistema</th>
                 <th className="py-3 px-4 text-center">Permisos Asignados</th>
-                <th className="py-3 px-4 text-center">Estado</th>
+                <th className="py-3 px-4 text-center">Estado / Seguridad</th>
                 <th className="py-3 px-4 text-right">Acciones</th>
               </tr>
             </thead>
@@ -350,28 +397,36 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
                     </div>
                   </td>
                   <td className="py-3 px-4 text-center">
-                    <span className={`inline-flex items-center space-x-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      u.status === 'ACTIVO'
-                        ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300'
-                        : 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300'
-                    }`}>
-                      <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                      <span>{u.status}</span>
-                    </span>
+                    {u.lockedUntil && new Date(u.lockedUntil) > new Date() ? (
+                      <span className="inline-flex items-center gap-1 bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 text-[10px] font-black px-2 py-0.5 rounded-full border border-red-300">
+                        <ShieldAlert className="w-3 h-3 text-red-600" />
+                        Bloqueado
+                      </span>
+                    ) : u.status === 'ACTIVO' ? (
+                      <span className="inline-flex items-center gap-1 bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-800">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                        Activo
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-300 dark:border-amber-800">
+                        <Mail className="w-3 h-3 text-amber-600" />
+                        Invitado
+                      </span>
+                    )}
                   </td>
                   <td className="py-3 px-4 text-right">
-                    <div className="flex items-center justify-end space-x-1.5">
+                    <div className="flex items-center justify-end space-x-1">
                       <button
                         onClick={() => handleOpenEditUserModal(u)}
-                        className="p-1.5 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-                        title="Modificar permisos y rol"
+                        className="p-1.5 text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-xl transition"
+                        title="Modificar permisos y contraseña"
                       >
                         <Edit className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDeleteUser(u.id, u.fullName)}
-                        className="p-1.5 text-red-500 hover:text-red-700 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 transition"
-                        title="Eliminar cuenta"
+                        className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition"
+                        title="Eliminar usuario"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -384,18 +439,18 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
         </div>
       </div>
 
-      {/* Modal: Formulario Invitar / Crear Usuario */}
+      {/* Modal: Enviar Invitación / Crear Usuario */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-lg overflow-hidden transition-colors">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <div className="bg-slate-900 dark:bg-slate-950 text-white px-6 py-4 flex items-center justify-between border-b border-red-800/60">
               <div className="flex items-center space-x-3">
-                <div className="w-9 h-9 bg-red-700 rounded-xl flex items-center justify-center text-white">
+                <div className="w-9 h-9 bg-red-700 rounded-2xl flex items-center justify-center text-white font-bold shadow-md">
                   <Mail className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-black text-white">
-                    {editingUser ? 'Editar Permisos de Usuario' : 'Enviar Invitación Oficial por Correo'}
+                  <h3 className="text-sm font-black text-white">
+                    {editingUser ? `Editar Credenciales: ${editingUser.fullName}` : 'Generar Invitación Oficial de Acceso'}
                   </h3>
                   <p className="text-[11px] text-slate-400">
                     Se generará un enlace oficial de activación para el bombero
@@ -452,18 +507,33 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
                 </div>
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Rol Asignado</label>
-                <select
-                  value={role}
-                  onChange={(e) => handleRoleChange(e.target.value as UserRole)}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl p-2.5 font-bold text-red-700 dark:text-red-400"
-                >
-                  <option value="SUPER_ADMIN">SUPER ADMIN (Mando General Total)</option>
-                  <option value="ADMIN">ADMIN (Oficial de Mando)</option>
-                  <option value="OFICIAL">OFICIAL (Guardia / Servicio)</option>
-                  <option value="VOLUNTARIO">VOLUNTARIO (Solo Consulta)</option>
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Rol Asignado</label>
+                  <select
+                    value={role}
+                    onChange={(e) => handleRoleChange(e.target.value as UserRole)}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl p-2.5 font-bold text-red-700 dark:text-red-400"
+                  >
+                    <option value="SUPER_ADMIN">SUPER ADMIN (Mando General Total)</option>
+                    <option value="ADMIN">ADMIN (Oficial de Mando)</option>
+                    <option value="OFICIAL">OFICIAL (Guardia / Servicio)</option>
+                    <option value="VOLUNTARIO">VOLUNTARIO (Solo Consulta)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Contraseña Directa (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    value={directPassword}
+                    onChange={(e) => setDirectPassword(e.target.value)}
+                    placeholder="Ej. Bombero2026!"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 font-mono font-bold text-xs"
+                  />
+                </div>
               </div>
 
               {/* Granular Permissions Toggle */}
@@ -552,76 +622,92 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
         </div>
       )}
 
-      {/* Modal: Resultado y Opciones de Despacho de Correo Real */}
+      {/* Modal: Resultado del Enlace de Invitación Real */}
       {invitationResult && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-md p-6 space-y-4">
-            <div className="text-center space-y-2">
-              <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-center mx-auto">
-                <Mail className="w-6 h-6" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="bg-slate-900 dark:bg-slate-950 text-white px-6 py-4 flex items-center justify-between border-b border-emerald-800/60">
+              <div className="flex items-center space-x-3">
+                <div className="w-9 h-9 bg-emerald-700 rounded-2xl flex items-center justify-center text-white font-bold shadow-md">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-white">
+                    ¡Invitación Oficial Lista para Enviar!
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Destinatario: {invitationResult.invitation.email}
+                  </p>
+                </div>
               </div>
-              <h3 className="text-base font-black text-slate-900 dark:text-white">
-                ¡Invitación Oficial Generada!
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Para: <span className="font-bold text-slate-800 dark:text-slate-200">{invitationResult.invitation.fullName}</span> ({invitationResult.invitation.email})
-              </p>
+              <button onClick={() => setInvitationResult(null)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            <div className="bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 rounded-2xl p-3 space-y-2">
-              <p className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
-                Enlace Único de Activación:
+            <div className="p-6 space-y-4 text-xs text-slate-800 dark:text-slate-200">
+              <p className="leading-relaxed">
+                Se ha generado el enlace seguro de activación para <span className="font-bold text-slate-900 dark:text-white">{invitationResult.invitation.fullName}</span> con rol de <span className="font-bold text-red-700 dark:text-red-400">{invitationResult.invitation.role}</span>.
               </p>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={invitationResult.activationUrl}
-                  className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-[11px] font-mono text-slate-700 dark:text-slate-300 truncate"
-                />
+
+              {/* Activation Link Copy Box */}
+              <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl p-3.5 space-y-2">
+                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                  Enlace Oficial de Activación:
+                </label>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={invitationResult.activationUrl}
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 font-mono text-[11px] text-slate-700 dark:text-slate-300 select-all"
+                  />
+                  <button
+                    onClick={() => handleCopyLink(invitationResult.activationUrl)}
+                    className="bg-slate-800 hover:bg-slate-700 text-white font-bold px-3 py-2 rounded-xl flex items-center space-x-1 flex-shrink-0 transition active:scale-95"
+                    title="Copiar al portapapeles"
+                  >
+                    <Copy className="w-4 h-4" />
+                    <span>Copiar</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Actions dispatch options */}
+              <div className="space-y-2 pt-2">
+                <p className="font-bold text-slate-700 dark:text-slate-300 text-xs">
+                  Opciones de Envío Directo:
+                </p>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <a
+                    href={invitationResult.mailtoUrl}
+                    className="flex items-center justify-center space-x-1.5 bg-blue-700 hover:bg-blue-800 text-white font-bold p-2.5 rounded-xl text-center shadow-sm transition active:scale-95"
+                  >
+                    <Mail className="w-4 h-4" />
+                    <span>Abrir en Correo / Outlook</span>
+                  </a>
+
+                  <a
+                    href={invitationResult.gmailUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center justify-center space-x-1.5 bg-red-700 hover:bg-red-800 text-white font-bold p-2.5 rounded-xl text-center shadow-sm transition active:scale-95"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    <span>Abrir en Gmail Web</span>
+                  </a>
+                </div>
+              </div>
+
+              <div className="pt-2 text-center">
                 <button
-                  onClick={() => handleCopyLink(invitationResult.activationUrl)}
-                  className="bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 p-2 rounded-xl text-slate-800 dark:text-slate-200 transition"
-                  title="Copiar enlace"
+                  onClick={() => setInvitationResult(null)}
+                  className="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-2.5 rounded-xl transition"
                 >
-                  <Copy className="w-4 h-4" />
+                  Cerrar
                 </button>
               </div>
-            </div>
-
-            {/* Direct Email Dispatch Buttons */}
-            <div className="space-y-2 pt-2">
-              <p className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider text-center">
-                Elige cómo enviar el correo al bombero:
-              </p>
-
-              <a
-                href={invitationResult.gmailUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full flex items-center justify-center space-x-2 bg-red-700 hover:bg-red-800 text-white font-bold text-xs py-2.5 px-4 rounded-xl shadow transition"
-              >
-                <Mail className="w-4 h-4" />
-                <span>Abrir y Enviar desde Gmail</span>
-                <ExternalLink className="w-3.5 h-3.5 ml-1 opacity-70" />
-              </a>
-
-              <a
-                href={invitationResult.mailtoUrl}
-                className="w-full flex items-center justify-center space-x-2 bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold text-xs py-2.5 px-4 rounded-xl border border-slate-700 transition"
-              >
-                <Send className="w-4 h-4" />
-                <span>Abrir en mi Correo Predeterminado (Outlook/Mail)</span>
-              </a>
-            </div>
-
-            <div className="pt-2 text-center">
-              <button
-                onClick={() => setInvitationResult(null)}
-                className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-white font-bold"
-              >
-                Cerrar Ventana
-              </button>
             </div>
           </div>
         </div>

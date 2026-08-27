@@ -106,16 +106,16 @@ export default function Home() {
         fetchVolunteers(),
       ]);
 
-      setReports(fetchedReports && fetchedReports.length > 0 ? fetchedReports : INITIAL_REPORTS);
-      setVolunteers(fetchedVolunteers && fetchedVolunteers.length > 0 ? fetchedVolunteers : INITIAL_VOLUNTEERS);
+      setReports(fetchedReports !== null ? fetchedReports : getStoredReports());
+      setVolunteers(fetchedVolunteers && fetchedVolunteers.length > 0 ? fetchedVolunteers : getStoredVolunteers());
       setUnits(getStoredUnits());
       setKeys(getStoredKeys());
     } catch (e) {
       console.warn('Fallback to initial static data:', e);
-      setReports(INITIAL_REPORTS);
-      setVolunteers(INITIAL_VOLUNTEERS);
-      setUnits(INITIAL_UNITS);
-      setKeys(EMERGENCY_KEYS);
+      setReports(getStoredReports());
+      setVolunteers(getStoredVolunteers());
+      setUnits(getStoredUnits());
+      setKeys(getStoredKeys());
     }
   }, []);
 

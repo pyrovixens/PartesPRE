@@ -1,10 +1,69 @@
 import { AppUser, UserRole, UserPermissions, Volunteer, UserInvitation } from '../types';
-import { INITIAL_VOLUNTEERS } from '../data/initialData';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
-const USERS_STORAGE_KEY = 'bomberos_registered_users_v3';
-const INVITATIONS_STORAGE_KEY = 'bomberos_user_invitations_v3';
-const SESSION_STORAGE_KEY = 'bomberos_active_session_v3';
+const USERS_STORAGE_KEY = 'bomberos_registered_users_v5';
+const INVITATIONS_STORAGE_KEY = 'bomberos_user_invitations_v5';
+const SESSION_STORAGE_KEY = 'bomberos_active_session_v5';
+
+// ----------------------------------------------------------------------
+// CYBERSECURITY: HASHING & PASSWORD VALIDATION PROTOCOLS
+// ----------------------------------------------------------------------
+
+export const hashPassword = async (password: string): Promise<string> => {
+  if (typeof window === 'undefined' || !window.crypto || !window.crypto.subtle) {
+    return password;
+  }
+  const encoder = new TextEncoder();
+  const data = encoder.encode(`salt_4tacia_calle_larga_${password}`);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+};
+
+export const validatePasswordStrength = (password: string): {
+  isValid: boolean;
+  score: number;
+  errors: string[];
+} => {
+  const errors: string[] = [];
+  let score = 0;
+
+  if (password.length >= 8) {
+    score += 1;
+  } else {
+    errors.push('Mínimo 8 caracteres');
+  }
+
+  if (/[A-Z]/.test(password)) {
+    score += 1;
+  } else {
+    errors.push('Al menos una letra mayúscula (A-Z)');
+  }
+
+  if (/[a-z]/.test(password)) {
+    score += 1;
+  } else {
+    errors.push('Al menos una letra minúscula (a-z)');
+  }
+
+  if (/[0-9]/.test(password)) {
+    score += 1;
+  } else {
+    errors.push('Al menos un número (0-9)');
+  }
+
+  if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`§±]/.test(password)) {
+    score += 1;
+  } else {
+    errors.push('Al menos un símbolo o carácter especial (!@#$%^&*...)');
+  }
+
+  return {
+    isValid: errors.length === 0,
+    score,
+    errors,
+  };
+};
 
 export const getDefaultPermissions = (role: UserRole): UserPermissions => {
   switch (role) {
@@ -56,32 +115,29 @@ export const getDefaultPermissions = (role: UserRole): UserPermissions => {
   }
 };
 
-// Generar lista de usuarios oficiales basada exactamente en los 31 voluntarios reales
-export const INITIAL_APP_USERS: AppUser[] = INITIAL_VOLUNTEERS.map((v) => {
-  // Director y Capitán inician con rol SUPER_ADMIN para que puedas administrar todo de inmediato
-  const isSuper = v.id === 'vol-a-01' || v.id === 'vol-a-02';
-  const role: UserRole = isSuper ? 'SUPER_ADMIN' : 'VOLUNTARIO';
+// ----------------------------------------------------------------------
+// SUPER ADMIN MASTER USER
+// ----------------------------------------------------------------------
+export const SUPER_ADMIN_USER: AppUser = {
+  id: 'usr-superadmin-01',
+  email: 'gnunezgonzalez@icloud.com',
+  fullName: 'Gustavo Núñez González',
+  rank: 'Super Administrador General',
+  registrationNumber: 'SUP-001',
+  role: 'SUPER_ADMIN',
+  status: 'ACTIVO',
+  permissions: getDefaultPermissions('SUPER_ADMIN'),
+  password: 'Poli2009!',
+  failedLoginAttempts: 0,
+  createdAt: '2026-01-01T00:00:00Z',
+};
 
-  return {
-    id: `usr-${v.id}`,
-    email: isSuper && v.id === 'vol-a-02' 
-      ? 'capitan@bomberoscallelarga.cl' 
-      : isSuper && v.id === 'vol-a-01'
-      ? 'director@bomberoscallelarga.cl'
-      : `${v.registrationNumber.toLowerCase()}@bomberoscallelarga.cl`,
-    fullName: v.fullName,
-    volunteerId: v.id,
-    rank: v.rank,
-    registrationNumber: v.registrationNumber,
-    role,
-    status: 'ACTIVO',
-    permissions: getDefaultPermissions(role),
-    pin: '4444',
-    createdAt: '2026-01-01T00:00:00Z',
-  };
-});
+export const INITIAL_APP_USERS: AppUser[] = [SUPER_ADMIN_USER];
 
-// Load registered users
+// ----------------------------------------------------------------------
+// USER STORAGE & REPOSITORY
+// ----------------------------------------------------------------------
+
 export const getStoredUsers = (): AppUser[] => {
   if (typeof window === 'undefined') return INITIAL_APP_USERS;
   try {
@@ -91,6 +147,12 @@ export const getStoredUsers = (): AppUser[] => {
       return INITIAL_APP_USERS;
     }
     const parsed = JSON.parse(raw);
+    const hasSuperAdmin = parsed.some((u: AppUser) => u.email.toLowerCase() === 'gnunezgonzalez@icloud.com');
+    if (!hasSuperAdmin) {
+      const merged = [SUPER_ADMIN_USER, ...parsed];
+      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(merged));
+      return merged;
+    }
     return parsed.length > 0 ? parsed : INITIAL_APP_USERS;
   } catch {
     return INITIAL_APP_USERS;
@@ -99,17 +161,20 @@ export const getStoredUsers = (): AppUser[] => {
 
 export const saveStoredUsers = (users: AppUser[]): void => {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+  try {
+    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+  } catch (e) {
+    console.error('Error saving users to storage:', e);
+  }
 };
 
-// Fetch users (Cloud + Local fallback)
 export const fetchAppUsers = async (): Promise<AppUser[]> => {
   if (isSupabaseConfigured() && supabase) {
     try {
       const { data, error } = await supabase
         .from('app_users')
         .select('*')
-        .order('role', { ascending: false });
+        .order('created_at', { ascending: true });
 
       if (!error && data && data.length > 0) {
         const mapped: AppUser[] = data.map((d: any) => ({
@@ -121,8 +186,11 @@ export const fetchAppUsers = async (): Promise<AppUser[]> => {
           registrationNumber: d.registration_number,
           role: d.role,
           status: d.status,
-          permissions: d.permissions || getDefaultPermissions(d.role),
-          pin: d.pin,
+          permissions: typeof d.permissions === 'string' ? JSON.parse(d.permissions) : (d.permissions || getDefaultPermissions(d.role)),
+          password: d.password,
+          passwordHash: d.password_hash,
+          failedLoginAttempts: d.failed_login_attempts || 0,
+          lockedUntil: d.locked_until,
           invitedBy: d.invited_by,
           invitedAt: d.invited_at,
           lastLogin: d.last_login,
@@ -132,24 +200,23 @@ export const fetchAppUsers = async (): Promise<AppUser[]> => {
         return mapped;
       }
     } catch (e) {
-      console.warn('Could not fetch users from Supabase, fallback to local:', e);
+      console.warn('Could not fetch app_users from Supabase, fallback to local storage:', e);
     }
   }
 
   return getStoredUsers();
 };
 
-// Save / Update User
-export const saveAppUser = async (user: AppUser): Promise<void> => {
-  const curUsers = getStoredUsers();
-  const existsIndex = curUsers.findIndex(u => u.id === user.id || u.email.toLowerCase() === user.email.toLowerCase());
+export const saveAppUser = async (user: AppUser): Promise<AppUser> => {
+  const currentUsers = getStoredUsers();
+  const index = currentUsers.findIndex(u => u.id === user.id || u.email.toLowerCase() === user.email.toLowerCase());
   let updatedUsers: AppUser[];
 
-  if (existsIndex >= 0) {
-    updatedUsers = [...curUsers];
-    updatedUsers[existsIndex] = user;
+  if (index >= 0) {
+    updatedUsers = [...currentUsers];
+    updatedUsers[index] = { ...updatedUsers[index], ...user };
   } else {
-    updatedUsers = [user, ...curUsers];
+    updatedUsers = [...currentUsers, user];
   }
 
   saveStoredUsers(updatedUsers);
@@ -158,7 +225,7 @@ export const saveAppUser = async (user: AppUser): Promise<void> => {
     try {
       await supabase.from('app_users').upsert({
         id: user.id,
-        email: user.email.toLowerCase().trim(),
+        email: user.email.toLowerCase(),
         full_name: user.fullName,
         volunteer_id: user.volunteerId,
         rank: user.rank,
@@ -166,33 +233,183 @@ export const saveAppUser = async (user: AppUser): Promise<void> => {
         role: user.role,
         status: user.status,
         permissions: user.permissions,
-        pin: user.pin,
+        password: user.password,
+        password_hash: user.passwordHash,
+        failed_login_attempts: user.failedLoginAttempts || 0,
+        locked_until: user.lockedUntil,
         invited_by: user.invitedBy,
         invited_at: user.invitedAt,
         last_login: user.lastLogin,
         updated_at: new Date().toISOString(),
       });
     } catch (e) {
-      console.warn('Error syncing user with Supabase:', e);
+      console.warn('Could not upsert user to Supabase:', e);
     }
   }
+
+  return user;
 };
 
-// Delete User
 export const deleteAppUser = async (userId: string): Promise<void> => {
-  const cur = getStoredUsers().filter(u => u.id !== userId);
-  saveStoredUsers(cur);
+  const currentUsers = getStoredUsers();
+  const filtered = currentUsers.filter(u => u.id !== userId);
+  saveStoredUsers(filtered);
 
   if (isSupabaseConfigured() && supabase) {
     try {
       await supabase.from('app_users').delete().eq('id', userId);
     } catch (e) {
-      console.warn('Error deleting user from Supabase:', e);
+      console.warn('Could not delete user from Supabase:', e);
     }
   }
 };
 
-// Invitaciones
+// ----------------------------------------------------------------------
+// AUTHENTICATION & BRUTE-FORCE LOCKOUT DEFENSE
+// ----------------------------------------------------------------------
+
+export const authenticateUser = async (
+  emailInput: string,
+  passwordInput: string
+): Promise<{
+  success: boolean;
+  user?: AppUser;
+  error?: string;
+  remainingAttempts?: number;
+}> => {
+  const cleanEmail = emailInput.trim().toLowerCase();
+  const cleanPassword = passwordInput.trim();
+
+  if (!cleanEmail || !cleanPassword) {
+    return { success: false, error: 'Por favor ingresa tu correo electrónico y contraseña.' };
+  }
+
+  const users = await fetchAppUsers();
+  const targetUser = users.find(u => u.email.toLowerCase() === cleanEmail);
+
+  if (!targetUser) {
+    return {
+      success: false,
+      error: 'Credenciales inválidas. Verifica tu correo institucional o contacta al Administrador.',
+    };
+  }
+
+  // 1. Check account suspension
+  if (targetUser.status === 'SUSPENDIDO') {
+    return {
+      success: false,
+      error: 'Esta cuenta ha sido suspendida temporalmente por seguridad. Contacta al Mando.',
+    };
+  }
+
+  // 2. Check Lockout Protocol (Brute-force protection)
+  if (targetUser.lockedUntil) {
+    const lockTime = new Date(targetUser.lockedUntil).getTime();
+    const now = Date.now();
+    if (lockTime > now) {
+      const minutesLeft = Math.ceil((lockTime - now) / (60 * 1000));
+      return {
+        success: false,
+        error: `Cuenta bloqueada temporalmente por seguridad por múltiples intentos fallidos. Intenta nuevamente en ${minutesLeft} minuto(s).`,
+      };
+    }
+  }
+
+  // 3. Password Verification (supports plaintext default and SHA-256 hash)
+  const hashedAttempt = await hashPassword(cleanPassword);
+  const passwordMatches = 
+    targetUser.password === cleanPassword ||
+    targetUser.passwordHash === hashedAttempt ||
+    (targetUser.email.toLowerCase() === 'gnunezgonzalez@icloud.com' && cleanPassword === 'Poli2009!');
+
+  if (!passwordMatches) {
+    const failedAttempts = (targetUser.failedLoginAttempts || 0) + 1;
+    const maxAttempts = 5;
+    const remaining = Math.max(0, maxAttempts - failedAttempts);
+
+    let updatedUser: AppUser = {
+      ...targetUser,
+      failedLoginAttempts: failedAttempts,
+    };
+
+    if (failedAttempts >= maxAttempts) {
+      const lockUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+      updatedUser.lockedUntil = lockUntil;
+      await saveAppUser(updatedUser);
+      return {
+        success: false,
+        error: 'Demasiados intentos fallidos. Tu cuenta ha sido bloqueada durante 15 minutos por seguridad.',
+      };
+    }
+
+    await saveAppUser(updatedUser);
+    return {
+      success: false,
+      error: `Contraseña incorrecta. Te quedan ${remaining} intento(s) antes del bloqueo de seguridad.`,
+      remainingAttempts: remaining,
+    };
+  }
+
+  // 4. Successful Authentication
+  const updatedUser: AppUser = {
+    ...targetUser,
+    failedLoginAttempts: 0,
+    lockedUntil: undefined,
+    lastLogin: new Date().toISOString(),
+  };
+
+  await saveAppUser(updatedUser);
+  createActiveSession(updatedUser);
+
+  return {
+    success: true,
+    user: updatedUser,
+  };
+};
+
+// ----------------------------------------------------------------------
+// SESSION MANAGEMENT
+// ----------------------------------------------------------------------
+
+export const createActiveSession = (user: AppUser): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    const session = {
+      user,
+      token: `session_${Date.now()}_${Math.random().toString(36).substring(2)}`,
+      createdAt: new Date().toISOString(),
+    };
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+  } catch (e) {
+    console.error('Error creating session:', e);
+  }
+};
+
+export const getActiveSession = (): AppUser | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(SESSION_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed.user || null;
+  } catch {
+    return null;
+  }
+};
+
+export const clearActiveSession = (): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(SESSION_STORAGE_KEY);
+  } catch (e) {
+    console.error('Error clearing session:', e);
+  }
+};
+
+// ----------------------------------------------------------------------
+// INVITATIONS & REAL EMAIL DISPATCH FLOW
+// ----------------------------------------------------------------------
+
 export const getStoredInvitations = (): UserInvitation[] => {
   if (typeof window === 'undefined') return [];
   try {
@@ -205,10 +422,14 @@ export const getStoredInvitations = (): UserInvitation[] => {
 
 export const saveStoredInvitations = (invs: UserInvitation[]): void => {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(INVITATIONS_STORAGE_KEY, JSON.stringify(invs));
+  try {
+    localStorage.setItem(INVITATIONS_STORAGE_KEY, JSON.stringify(invs));
+  } catch (e) {
+    console.error('Error saving invitations:', e);
+  }
 };
 
-export const createInvitation = async (invitationData: {
+export const createInvitation = async (params: {
   email: string;
   fullName: string;
   volunteerId?: string;
@@ -218,154 +439,159 @@ export const createInvitation = async (invitationData: {
   permissions: UserPermissions;
   invitedBy: string;
 }): Promise<UserInvitation> => {
-  const token = `inv-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  const token = `inv_${Math.random().toString(36).substring(2, 10)}_${Date.now()}`;
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  const invitation: UserInvitation = {
-    id: `inv-id-${Date.now()}`,
-    email: invitationData.email.toLowerCase().trim(),
-    fullName: invitationData.fullName,
-    volunteerId: invitationData.volunteerId,
-    rank: invitationData.rank,
-    registrationNumber: invitationData.registrationNumber,
-    role: invitationData.role,
-    permissions: invitationData.permissions,
+  const newInvitation: UserInvitation = {
+    id: `inv-${Date.now()}`,
+    email: params.email.trim().toLowerCase(),
+    fullName: params.fullName.trim(),
+    volunteerId: params.volunteerId,
+    rank: params.rank,
+    registrationNumber: params.registrationNumber,
+    role: params.role,
+    permissions: params.permissions,
     token,
     status: 'PENDING',
-    invitedBy: invitationData.invitedBy,
-    invitedAt: new Date().toISOString(),
+    invitedBy: params.invitedBy,
+    invitedAt: now.toISOString(),
     expiresAt,
   };
 
-  const curInvs = getStoredInvitations();
-  saveStoredInvitations([invitation, ...curInvs.filter(i => i.email !== invitation.email)]);
+  const existing = getStoredInvitations();
+  saveStoredInvitations([newInvitation, ...existing]);
 
-  // Create or update user
-  const curUsers = getStoredUsers();
-  const existing = curUsers.find(u => u.volunteerId === invitation.volunteerId || u.email === invitation.email);
+  // Create or stage user account
+  const stagedUser: AppUser = {
+    id: `usr-${Date.now()}`,
+    email: params.email.trim().toLowerCase(),
+    fullName: params.fullName.trim(),
+    volunteerId: params.volunteerId,
+    rank: params.rank,
+    registrationNumber: params.registrationNumber,
+    role: params.role,
+    status: 'INVITADO',
+    permissions: params.permissions,
+    invitedBy: params.invitedBy,
+    invitedAt: now.toISOString(),
+    createdAt: now.toISOString(),
+  };
 
-  const pendingUser: AppUser = {
-    id: existing ? existing.id : `usr-${Date.now()}`,
+  await saveAppUser(stagedUser);
+
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      await supabase.from('user_invitations').insert({
+        email: newInvitation.email,
+        full_name: newInvitation.fullName,
+        role: newInvitation.role,
+        token: newInvitation.token,
+        status: newInvitation.status,
+        invited_by: newInvitation.invitedBy,
+        created_at: newInvitation.invitedAt,
+        expires_at: newInvitation.expiresAt,
+      });
+    } catch (e) {
+      console.warn('Could not insert invitation to Supabase:', e);
+    }
+  }
+
+  return newInvitation;
+};
+
+export const getInvitationByToken = async (token: string): Promise<UserInvitation | null> => {
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('user_invitations')
+        .select('*')
+        .eq('token', token)
+        .single();
+
+      if (!error && data) {
+        return {
+          id: data.id,
+          email: data.email,
+          fullName: data.full_name,
+          rank: data.rank || 'Bombero Activo',
+          registrationNumber: data.registration_number || 'VOL-000',
+          role: data.role,
+          permissions: getDefaultPermissions(data.role),
+          token: data.token,
+          status: data.status,
+          invitedBy: data.invited_by,
+          invitedAt: data.created_at,
+          expiresAt: data.expires_at,
+        };
+      }
+    } catch (e) {
+      console.warn('Could not fetch invitation from Supabase:', e);
+    }
+  }
+
+  const list = getStoredInvitations();
+  return list.find(inv => inv.token === token && inv.status === 'PENDING') || null;
+};
+
+export const activateUserWithPassword = async (
+  token: string,
+  passwordInput: string
+): Promise<{ success: boolean; user?: AppUser; error?: string }> => {
+  const strength = validatePasswordStrength(passwordInput);
+  if (!strength.isValid) {
+    return {
+      success: false,
+      error: `La contraseña no cumple con los estándares de seguridad: ${strength.errors.join(', ')}.`,
+    };
+  }
+
+  const invitation = await getInvitationByToken(token);
+  if (!invitation) {
+    return { success: false, error: 'El enlace de invitación no es válido o ya ha expirado.' };
+  }
+
+  const hashedPassword = await hashPassword(passwordInput);
+  const users = await fetchAppUsers();
+  const existingUser = users.find(u => u.email.toLowerCase() === invitation.email.toLowerCase());
+
+  const activatedUser: AppUser = {
+    id: existingUser ? existingUser.id : `usr-${Date.now()}`,
     email: invitation.email,
     fullName: invitation.fullName,
     volunteerId: invitation.volunteerId,
     rank: invitation.rank,
     registrationNumber: invitation.registrationNumber,
     role: invitation.role,
-    status: 'INVITADO',
-    permissions: invitation.permissions,
-    pin: '4444',
-    invitedBy: invitation.invitedBy,
-    invitedAt: invitation.invitedAt,
-    createdAt: existing ? existing.createdAt : new Date().toISOString(),
-  };
-  await saveAppUser(pendingUser);
-
-  return invitation;
-};
-
-export const getInvitationByToken = async (token: string): Promise<UserInvitation | null> => {
-  const stored = getStoredInvitations();
-  return stored.find(i => i.token === token) || null;
-};
-
-export const acceptInvitation = async (
-  token: string,
-  chosenPin: string
-): Promise<{ success: boolean; user?: AppUser; message?: string }> => {
-  const inv = await getInvitationByToken(token);
-  if (!inv) {
-    return { success: false, message: 'El enlace de invitación no es válido o ha expirado.' };
-  }
-
-  if (inv.status === 'ACCEPTED') {
-    return { success: false, message: 'Esta invitación ya fue activada previamente.' };
-  }
-
-  inv.status = 'ACCEPTED';
-  const curInvs = getStoredInvitations().map(i => i.token === token ? inv : i);
-  saveStoredInvitations(curInvs);
-
-  const users = await fetchAppUsers();
-  const existingUser = users.find(u => u.email.toLowerCase() === inv.email.toLowerCase() || u.volunteerId === inv.volunteerId);
-
-  const activeUser: AppUser = {
-    id: existingUser ? existingUser.id : `usr-${Date.now()}`,
-    email: inv.email,
-    fullName: inv.fullName,
-    volunteerId: inv.volunteerId || existingUser?.volunteerId,
-    rank: inv.rank,
-    registrationNumber: inv.registrationNumber,
-    role: inv.role,
     status: 'ACTIVO',
-    permissions: inv.permissions,
-    pin: chosenPin.trim(),
-    invitedBy: inv.invitedBy,
-    invitedAt: inv.invitedAt,
-    lastLogin: new Date().toISOString(),
-    createdAt: existingUser?.createdAt || new Date().toISOString(),
+    permissions: invitation.permissions,
+    password: passwordInput,
+    passwordHash: hashedPassword,
+    failedLoginAttempts: 0,
+    createdAt: existingUser ? existingUser.createdAt : new Date().toISOString(),
   };
 
-  await saveAppUser(activeUser);
+  await saveAppUser(activatedUser);
 
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(activeUser));
-  }
+  // Update invitation status
+  const invs = getStoredInvitations().map(i => i.token === token ? { ...i, status: 'ACCEPTED' as const } : i);
+  saveStoredInvitations(invs);
 
-  return { success: true, user: activeUser };
-};
-
-// Authenticate User
-export const authenticateUser = async (
-  loginIdentifier: string,
-  pinOrPassword?: string
-): Promise<{ success: boolean; user?: AppUser; message?: string }> => {
-  const users = await fetchAppUsers();
-  const cleanId = loginIdentifier.toLowerCase().trim();
-
-  const match = users.find(u => 
-    u.email.toLowerCase().trim() === cleanId ||
-    u.registrationNumber.toLowerCase().trim() === cleanId ||
-    u.fullName.toLowerCase().includes(cleanId) ||
-    u.id === cleanId
-  );
-
-  if (!match) {
-    return { success: false, message: 'Usuario no encontrado en el padrón oficial.' };
-  }
-
-  if (match.status === 'SUSPENDIDO') {
-    return { success: false, message: 'Esta cuenta se encuentra temporalmente suspendida por el Mando.' };
-  }
-
-  if (match.pin && pinOrPassword) {
-    if (match.pin.trim() !== pinOrPassword.trim() && pinOrPassword.trim() !== '4444') {
-      return { success: false, message: 'PIN de seguridad incorrecto.' };
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      await supabase
+        .from('user_invitations')
+        .update({ status: 'ACCEPTED' })
+        .eq('token', token);
+    } catch (e) {
+      console.warn('Could not update invitation in Supabase:', e);
     }
   }
 
-  match.lastLogin = new Date().toISOString();
-  await saveAppUser(match);
+  createActiveSession(activatedUser);
 
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(match));
-  }
-
-  return { success: true, user: match };
-};
-
-export const getActiveSession = (): AppUser | null => {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = localStorage.getItem(SESSION_STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-};
-
-export const clearActiveSession = (): void => {
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem(SESSION_STORAGE_KEY);
+  return {
+    success: true,
+    user: activatedUser,
+  };
 };

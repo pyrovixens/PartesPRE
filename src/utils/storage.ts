@@ -2,10 +2,10 @@ import { EmergencyReport, Volunteer, Unit, EmergencyKey } from '../types';
 import { EMERGENCY_KEYS, INITIAL_VOLUNTEERS, INITIAL_UNITS, INITIAL_REPORTS } from '../data/initialData';
 
 const STORAGE_KEYS = {
-  REPORTS: 'bomberos_partes_emergencia_v4',
-  VOLUNTEERS: 'bomberos_voluntarios_v4',
-  UNITS: 'bomberos_unidades_v4',
-  KEYS: 'bomberos_claves_v4',
+  REPORTS: 'bomberos_partes_emergencia_v5',
+  VOLUNTEERS: 'bomberos_voluntarios_v5',
+  UNITS: 'bomberos_unidades_v5',
+  KEYS: 'bomberos_claves_v5',
 };
 
 export const getStoredReports = (): EmergencyReport[] => {
@@ -17,7 +17,7 @@ export const getStoredReports = (): EmergencyReport[] => {
       return INITIAL_REPORTS;
     }
     const parsed = JSON.parse(data);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_REPORTS;
+    return Array.isArray(parsed) ? parsed : INITIAL_REPORTS;
   } catch (e) {
     console.error('Error loading reports from localStorage:', e);
     return INITIAL_REPORTS;
@@ -67,7 +67,7 @@ export const getStoredUnits = (): Unit[] => {
       return INITIAL_UNITS;
     }
     const parsed = JSON.parse(data);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_UNITS;
+    return Array.isArray(parsed) ? parsed : INITIAL_UNITS;
   } catch (e) {
     console.error('Error loading units:', e);
     return INITIAL_UNITS;
@@ -114,7 +114,7 @@ export const saveKeys = (keys: EmergencyKey[]): void => {
 
 export const exportAllDataBackup = (): string => {
   const backup = {
-    version: '4.0',
+    version: '5.0',
     exportDate: new Date().toISOString(),
     company: '4ª Compañía Calle Larga - C.B. Los Andes',
     reports: getStoredReports(),

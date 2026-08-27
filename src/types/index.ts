@@ -22,7 +22,8 @@ export type VolunteerRank =
   | 'Bombero Fundador'
   | 'Bombero Honorario'
   | 'Bombero Activo'
-  | 'Aspirante';
+  | 'Aspirante'
+  | 'Super Administrador General';
 
 export interface Volunteer {
   id: string;
@@ -49,11 +50,10 @@ export interface Unit {
   status: 'Operativo' | 'En Taller' | 'Fuera de Servicio';
 }
 
-// Material Mayor: Unidad + Maquinista
 export interface DispatchedUnit {
   unitCode: string;
-  driverId: string;
-  driverName: string;
+  driverId?: string;
+  driverName?: string;
 }
 
 export type ArrivalStatus = 'TRIPULO_CARRO' | '6_3_LUGAR' | 'CUBRE_CUARTEL';
@@ -62,11 +62,11 @@ export interface AttendanceRecord {
   volunteerId: string;
   volunteerName: string;
   category: VolunteerCategory;
-  rank: VolunteerRank;
+  rank: string;
   registrationNumber: string;
-  arrivalStatus: ArrivalStatus; // 'TRIPULO_CARRO' | '6_3_LUGAR' | 'CUBRE_CUARTEL'
-  unitCode?: string; // 'B-4', 'BX-4', 'R-4', 'K-4' cuando tripuló carro
-  roleInAction?: string; // e.g. "Oficial a Cargo", "Maquinista", "Pitón / Ataque", etc.
+  arrivalStatus: ArrivalStatus;
+  unitCode?: string; // If TRIPULO_CARRO
+  roleInAction?: string; // "Oficial a Cargo", "Maquinista", "Pitón 1", etc.
 }
 
 export type ReportStatus = 'BORRADOR' | 'ENVIADO' | 'APROBADO' | 'CERRADO';
@@ -74,9 +74,9 @@ export type ReportStatus = 'BORRADOR' | 'ENVIADO' | 'APROBADO' | 'CERRADO';
 export interface EmergencyReport {
   id: string;
   folioYear: number;
-  folioNumber: number; // e.g. 1, 2, 3...
-  fullFolio: string; // "2026-001"
-  correlativoCompania: string; // "001", "002"
+  folioNumber: number;
+  fullFolio: string; // e.g. "2026-001"
+  correlativoCompania: string; // "001"
   correlativoComandancia?: string; // "C-014", "102"
   incidentDate: string; // YYYY-MM-DD
   incidentTime?: string; // HH:mm (Hora del Acto)
@@ -157,7 +157,7 @@ export interface StatsSummary {
 }
 
 // -------------------------------------------------------------
-// SISTEMA DE USUARIOS, ROLES Y PERMISOS GRANULARES
+// SISTEMA DE USUARIOS, ROLES Y PROTOCOLOS DE SEGURIDAD (RBAC + CYBERSECURITY)
 // -------------------------------------------------------------
 export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'OFICIAL' | 'VOLUNTARIO';
 
@@ -184,8 +184,10 @@ export interface AppUser {
   role: UserRole;
   status: UserStatus;
   permissions: UserPermissions;
-  pin?: string;
   password?: string;
+  passwordHash?: string;
+  failedLoginAttempts?: number;
+  lockedUntil?: string;
   invitedBy?: string;
   invitedAt?: string;
   lastLogin?: string;

@@ -1,13 +1,21 @@
 -- ==============================================================================
 -- SISTEMA DE PARTES DE EMERGENCIA Y ASISTENCIAS - 4ª COMPAÑÍA "CALLE LARGA"
 -- CUERPO DE BOMBEROS DE LOS ANDES
--- Script de Creación y Población de Base de Datos para Supabase (PostgreSQL)
+-- Script de Creación de Base de Datos para Supabase (PostgreSQL)
 -- ==============================================================================
 
 -- 1. EXTENSIONES
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 2. TABLA: USUARIOS DEL SISTEMA Y CONTROL DE ROLES (RBAC)
+-- 2. LIMPIEZA DE TABLAS PREVIAS (EJECUTAR SI SE DESEA REINICIAR DE CERO)
+DROP TABLE IF EXISTS public.emergency_reports CASCADE;
+DROP TABLE IF EXISTS public.user_invitations CASCADE;
+DROP TABLE IF EXISTS public.app_users CASCADE;
+DROP TABLE IF EXISTS public.volunteers CASCADE;
+DROP TABLE IF EXISTS public.units CASCADE;
+DROP TABLE IF EXISTS public.emergency_keys CASCADE;
+
+-- 3. TABLA: USUARIOS DEL SISTEMA Y PROTOCOLOS DE SEGURIDAD (RBAC + CYBERSECURITY)
 CREATE TABLE IF NOT EXISTS public.app_users (
     id TEXT PRIMARY KEY,
     email TEXT UNIQUE NOT NULL,
@@ -18,7 +26,10 @@ CREATE TABLE IF NOT EXISTS public.app_users (
     role TEXT NOT NULL CHECK (role IN ('SUPER_ADMIN', 'ADMIN', 'OFICIAL', 'VOLUNTARIO')),
     status TEXT NOT NULL DEFAULT 'ACTIVO' CHECK (status IN ('ACTIVO', 'INVITADO', 'PENDIENTE', 'SUSPENDIDO')),
     permissions JSONB NOT NULL DEFAULT '{}'::jsonb,
-    pin TEXT DEFAULT '4444',
+    password TEXT,
+    password_hash TEXT,
+    failed_login_attempts INT DEFAULT 0,
+    locked_until TIMESTAMPTZ,
     invited_by TEXT,
     invited_at TIMESTAMPTZ,
     last_login TIMESTAMPTZ,
@@ -26,7 +37,7 @@ CREATE TABLE IF NOT EXISTS public.app_users (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3. TABLA: INVITACIONES Y VERIFICACIONES DE CORREO
+-- 4. TABLA: INVITACIONES Y VERIFICACIONES DE CORREO
 CREATE TABLE IF NOT EXISTS public.user_invitations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     email TEXT NOT NULL,
@@ -39,7 +50,7 @@ CREATE TABLE IF NOT EXISTS public.user_invitations (
     expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '7 days')
 );
 
--- 4. TABLA: VOLUNTARIOS (PADRÓN OFICIAL)
+-- 5. TABLA: VOLUNTARIOS (PADRÓN OFICIAL)
 CREATE TABLE IF NOT EXISTS public.volunteers (
     id TEXT PRIMARY KEY,
     registration_number TEXT NOT NULL,
@@ -55,7 +66,7 @@ CREATE TABLE IF NOT EXISTS public.volunteers (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 5. TABLA: MATERIAL MAYOR (UNIDADES / CARROS)
+-- 6. TABLA: MATERIAL MAYOR (UNIDADES / CARROS)
 CREATE TABLE IF NOT EXISTS public.units (
     code TEXT PRIMARY KEY, -- 'B-4', 'BX-4', 'R-4', 'K-4'
     name TEXT NOT NULL,
@@ -67,7 +78,7 @@ CREATE TABLE IF NOT EXISTS public.units (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 6. TABLA: CLAVES RADIALES Y ACTIVIDADES
+-- 7. TABLA: CLAVES RADIALES Y ACTIVIDADES
 CREATE TABLE IF NOT EXISTS public.emergency_keys (
     code TEXT PRIMARY KEY, -- '10-0-1', '10-4-1', 'ES', etc.
     description TEXT NOT NULL,
@@ -76,7 +87,7 @@ CREATE TABLE IF NOT EXISTS public.emergency_keys (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 7. TABLA: PARTES DE EMERGENCIA Y ASISTENCIAS
+-- 8. TABLA: PARTES DE EMERGENCIA Y ASISTENCIAS
 CREATE TABLE IF NOT EXISTS public.emergency_reports (
     id TEXT PRIMARY KEY,
     folio_year INT NOT NULL,
@@ -112,7 +123,7 @@ CREATE TABLE IF NOT EXISTS public.emergency_reports (
     external_agencies JSONB DEFAULT '{}'::jsonb,
     summary_notes TEXT,
     officer_notes TEXT,
-    status TEXT NOT NULL DEFAULT 'BORRADOR' CHECK (status IN ('BORRADOR', 'ENVIADO', 'APROBADO', 'CERRADO')),
+    status TEXT NOT NULL DEFAULT 'APROBADO',
     created_by TEXT NOT NULL,
     approved_by TEXT,
     approved_at TIMESTAMPTZ,
@@ -120,7 +131,7 @@ CREATE TABLE IF NOT EXISTS public.emergency_reports (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 8. POLÍTICAS DE SEGURIDAD (ROW LEVEL SECURITY - RLS)
+-- 9. HABILITAR ROW LEVEL SECURITY (RLS)
 ALTER TABLE public.app_users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_invitations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.volunteers ENABLE ROW LEVEL SECURITY;
@@ -128,46 +139,90 @@ ALTER TABLE public.units ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.emergency_keys ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.emergency_reports ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Permitir acceso anonimo completo a usuarios autorizados" ON public.app_users;
-DROP POLICY IF EXISTS "Permitir acceso anonimo a invitaciones" ON public.user_invitations;
-DROP POLICY IF EXISTS "Permitir acceso a voluntarios" ON public.volunteers;
-DROP POLICY IF EXISTS "Permitir acceso a unidades" ON public.units;
-DROP POLICY IF EXISTS "Permitir acceso a claves" ON public.emergency_keys;
-DROP POLICY IF EXISTS "Permitir acceso a reportes" ON public.emergency_reports;
+-- 10. POLÍTICAS DE ACCESO
+CREATE POLICY "app_users_anon_read_all" ON public.app_users FOR SELECT USING (true);
+CREATE POLICY "app_users_anon_insert_update" ON public.app_users FOR ALL USING (true) WITH CHECK (true);
 
-CREATE POLICY "Permitir acceso anonimo completo a usuarios autorizados" ON public.app_users FOR ALL USING (true);
-CREATE POLICY "Permitir acceso anonimo a invitaciones" ON public.user_invitations FOR ALL USING (true);
-CREATE POLICY "Permitir acceso a voluntarios" ON public.volunteers FOR ALL USING (true);
-CREATE POLICY "Permitir acceso a unidades" ON public.units FOR ALL USING (true);
-CREATE POLICY "Permitir acceso a claves" ON public.emergency_keys FOR ALL USING (true);
-CREATE POLICY "Permitir acceso a reportes" ON public.emergency_reports FOR ALL USING (true);
+CREATE POLICY "user_invitations_policy" ON public.user_invitations FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "volunteers_policy" ON public.volunteers FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "units_policy" ON public.units FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "emergency_keys_policy" ON public.emergency_keys FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "emergency_reports_policy" ON public.emergency_reports FOR ALL USING (true) WITH CHECK (true);
 
--- 9. HABILITAR SINCRONIZACIÓN EN TIEMPO REAL (REALTIME)
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'app_users') THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE public.app_users;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'volunteers') THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE public.volunteers;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'emergency_reports') THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE public.emergency_reports;
-  END IF;
-END $$;
-
--- 10. POBLACIÓN DEL MATERIAL MAYOR (UNIDADES)
-INSERT INTO public.units (code, name, plate, type, current_km, current_pump_hours, status)
-VALUES
-  ('B-4', 'Carro Bomba Urbano Mayor (Renault Camiva Midlum)', 'KJ-9082', 'Bomba', 42150, 852.4, 'Operativo'),
-  ('BX-4', 'Carro Bomba de Interfaz / Forestal (Mercedes-Benz Atego 4x4)', 'LL-4412', 'Forestal', 28400, 490.1, 'Operativo'),
-  ('R-4', 'Unidad de Rescate Técnico y Vehicular (Iveco Magirus)', 'PR-3321', 'Rescate', 31200, 215.8, 'Operativo'),
-  ('K-4', 'Vehículo de Transporte y Mando (Toyota Hilux 4x4)', 'TD-8842', 'Transporte', 65100, 12.0, 'Operativo')
+-- 11. POBLACIÓN DE CLAVES RADIALES
+INSERT INTO public.emergency_keys (code, description, category, short_code) VALUES
+  ('10-0-1', 'Incendio estructural – Casa habitación / inmueble ≤ 3 niveles', 'Emergencias', 'E'),
+  ('10-0-2', 'Incendio estructural – Edificio (4 o más niveles)', 'Emergencias', 'E'),
+  ('10-0-3', 'Incendio en lugar de gran afluencia de público (en horario)', 'Emergencias', 'E'),
+  ('10-0-4', 'Incendio estructural en sector de alto riesgo', 'Emergencias', 'E'),
+  ('10-0-5', 'Incendio en industria', 'Emergencias', 'E'),
+  ('10-0-6', 'Incendio en infraestructura crítica', 'Emergencias', 'E'),
+  ('10-1-1', 'Incendio de vehículo menor', 'Emergencias', 'E'),
+  ('10-1-2', 'Incendio de vehículo mayor', 'Emergencias', 'E'),
+  ('10-1-3', 'Incendio de transporte de pasajeros', 'Emergencias', 'E'),
+  ('10-1-4', 'Incendio de vehículo mayor con carga', 'Emergencias', 'E'),
+  ('10-2-1', 'Incendio de pastizales', 'Emergencias', 'E'),
+  ('10-2-2', 'Fuego en contenedores de basura', 'Emergencias', 'E'),
+  ('10-2-3', 'Fuego de interfaz urbano–forestal', 'Emergencias', 'E'),
+  ('10-2-4', 'Fuego en basural / sitio eriazo', 'Emergencias', 'E'),
+  ('10-2-5', 'Incendio de pastizales en ruta o > 7 km (alto riesgo)', 'Emergencias', 'E'),
+  ('10-3-1', 'Rescate de personas con riesgo vital / PCR', 'Emergencias', 'E'),
+  ('10-3-2', 'Rescate técnico agreste', 'Emergencias', 'E'),
+  ('10-3-3', 'Rescate técnico en ríos o cursos de agua', 'Emergencias', 'E'),
+  ('10-3-4', 'Rescate técnico en altura', 'Emergencias', 'E'),
+  ('10-3-5', 'Rescate técnico en estructuras colapsadas / espacios confinados', 'Emergencias', 'E'),
+  ('10-3-6', 'Rescate animal simple', 'Emergencias', 'E'),
+  ('10-3-7', 'Rescate técnico animal', 'Emergencias', 'E'),
+  ('10-3-8', 'Recuperación de cadáveres en cursos de agua', 'Emergencias', 'E'),
+  ('10-3-9', 'Rescate técnico complejo', 'Emergencias', 'E'),
+  ('10-3-10', 'Asistencia de personas', 'Emergencias', 'E'),
+  ('10-3-11', 'Búsqueda de personas en zonas agrestes', 'Emergencias', 'E'),
+  ('10-3-12', 'Rescate técnico simple de persona', 'Emergencias', 'E'),
+  ('10-4-1', 'Accidente vehicular menor', 'Emergencias', 'E'),
+  ('10-4-2', 'Accidente vehicular pesado', 'Emergencias', 'E'),
+  ('10-4-3', 'Accidente vehicular HAZMAT', 'Emergencias', 'E'),
+  ('10-4-4', 'Accidente vehicular con desbarrancamiento (> 5 m)', 'Emergencias', 'E'),
+  ('10-5-1', 'Incidente con materiales peligrosos', 'Emergencias', 'E'),
+  ('10-5-2', 'Derrame de combustible en vía pública', 'Emergencias', 'E'),
+  ('10-5-3', 'Olor desconocido en el ambiente', 'Emergencias', 'E'),
+  ('10-5-4', 'Emergencia por ingesta de producto químico', 'Emergencias', 'E'),
+  ('10-5-5', 'Higienización y desinfección', 'Emergencias', 'E'),
+  ('10-5-6', 'Rotura de termómetro', 'Emergencias', 'E'),
+  ('10-6-1', 'Fuga de gas inflamable', 'Emergencias', 'E'),
+  ('10-6-2', 'Fuga de gas inflamable en lugar de gran afluencia', 'Emergencias', 'E'),
+  ('10-6-3', 'Fuga de gas inflamable con explosión', 'Emergencias', 'E'),
+  ('10-7', 'Emergencia eléctrica', 'Emergencias', 'E'),
+  ('10-8-1', 'Verificación de emergencias', 'Emergencias', 'E'),
+  ('10-8-2', 'Apoyo SAMU (camillaje)', 'Emergencias', 'E'),
+  ('10-8-3', 'Monitoreo preventivo por factores de riesgo', 'Emergencias', 'E'),
+  ('10-8-4', 'Caída de árboles', 'Emergencias', 'E'),
+  ('10-8-5', 'Emergencias por condiciones climáticas', 'Emergencias', 'E'),
+  ('10-8-6', 'Evacuación de agua', 'Emergencias', 'E'),
+  ('10-8-7', 'Apertura de inmuebles sin personas', 'Emergencias', 'E'),
+  ('10-8-8', 'No clasificados', 'Emergencias', 'E'),
+  ('10-8-9', 'Presunta desgracia', 'Emergencias', 'E'),
+  ('10-9-1', 'Academias', 'Academias', 'A'),
+  ('10-9-2', 'Entrega de agua / llenado de piscina', 'Emergencias', 'E'),
+  ('10-9-3', 'Colocación de banderas / postura de driza', 'Emergencias', 'E'),
+  ('10-9-4', 'Guardia preventiva', 'Emergencias', 'E'),
+  ('10-9-5', 'Inspección técnica y peritaje', 'Emergencias', 'E'),
+  ('10-9-6', 'Revisión de grifos y redes de incendio', 'Emergencias', 'E'),
+  ('10-10', 'Rebrote de incendio', 'Emergencias', 'E'),
+  ('10-11', 'Llamado a servicio aéreo', 'Emergencias', 'E'),
+  ('10-12', 'Apoyo a otro Cuerpo de Bomberos', 'Emergencias', 'E'),
+  ('10-13', 'Atentado terrorista', 'Emergencias', 'E'),
+  ('10-14', 'Caída de aeronave', 'Emergencias', 'E'),
+  ('10-15', 'Simulacro', 'Emergencias', 'E'),
+  ('10-16', 'Incendio al interior de túnel', 'Emergencias', 'E'),
+  ('A', 'Academias de Formación Técnica', 'Academias', 'A'),
+  ('ES', 'Entrenamiento Estándar de Compañía', 'Entrenamiento Estandar', 'ES'),
+  ('RC', 'Reunión Ordinaria / Extraordinaria de Compañía', 'Reuniones de Compañía', 'RC'),
+  ('RF', 'Reunión de Fundación de Compañía', 'Reuniones de Fundacion', 'RF'),
+  ('V', 'Citaciones Varias / Actos Oficiales / Desfiles', 'Citaciones Varias', 'V')
 ON CONFLICT (code) DO NOTHING;
 
--- 11. POBLACIÓN DEL PADRÓN OFICIAL DE 31 VOLUNTARIOS REALES
-INSERT INTO public.volunteers (id, registration_number, rut, full_name, short_name, category, rank, status)
-VALUES
+-- 12. POBLACIÓN DEL PADRÓN OFICIAL (31 VOLUNTARIOS REALES BASE)
+INSERT INTO public.volunteers (id, registration_number, rut, full_name, short_name, category, rank, status) VALUES
   -- 1. Fundadores / Insignes
   ('vol-f-01', 'FND-001', '07.456.123-4', 'Iván Galdámez Calderón', 'I. Galdámez', 'Fundador / Insigne', 'Bombero Insigne', 'Insigne'),
   ('vol-f-02', 'FND-002', '08.123.456-7', 'Patricio Urbina Zamora', 'P. Urbina Z.', 'Fundador / Insigne', 'Bombero Insigne', 'Insigne'),
@@ -191,17 +246,17 @@ VALUES
   ('vol-h-09', 'HON-018', '16.345.678-6', 'Jaime Ayala Vicencio', 'J. Ayala V.', 'Honorario', 'Bombero Honorario', 'Honorario'),
 
   -- 3. Activos
-  ('vol-a-01', 'ACT-019', '16.789.012-3', 'Nelson Venegas Salazar', 'N. Venegas', 'Activo', 'Director', 'Activo'),
-  ('vol-a-02', 'ACT-020', '17.123.456-8', 'Gabriel Bianchini Frost', 'G. Bianchini', 'Activo', 'Capitán', 'Activo'),
-  ('vol-a-03', 'ACT-021', '17.654.321-0', 'Samuel Aguirre Torres', 'S. Aguirre', 'Activo', 'Teniente 1°', 'Activo'),
-  ('vol-a-04', 'ACT-022', '18.112.233-4', 'Héctor Covarrubias Caiceo', 'H. Covarrubias', 'Activo', 'Teniente 2°', 'Activo'),
-  ('vol-a-05', 'ACT-023', '18.456.789-1', 'Jorge Navia Valencia', 'J. Navia', 'Activo', 'Teniente 3°', 'Activo'),
-  ('vol-a-06', 'ACT-024', '18.990.112-5', 'José Vargas Ortega', 'J. Vargas', 'Activo', 'Ayudante', 'Activo'),
-  ('vol-a-07', 'ACT-025', '19.234.567-2', 'Víctor Rojo Salinas', 'V. Rojo', 'Activo', 'Tesorero', 'Activo'),
-  ('vol-a-08', 'ACT-026', '19.789.012-9', 'Enzo Núñez Campos', 'E. Núñez', 'Activo', 'Secretario', 'Activo'),
-  ('vol-a-09', 'ACT-027', '16.554.321-8', 'Gustavo Núñez', 'G. Núñez', 'Activo', 'Maquinista General', 'Activo'),
-  ('vol-a-10', 'ACT-028', '17.889.900-1', 'Cristian Gutiérrez', 'C. Gutiérrez', 'Activo', 'Maquinista', 'Activo'),
-  ('vol-a-11', 'ACT-029', '18.334.455-6', 'Enrique Vargas', 'E. Vargas', 'Activo', 'Maquinista', 'Activo'),
+  ('vol-a-01', 'ACT-019', '16.789.012-3', 'Nelson Venegas Salazar', 'N. Venegas', 'Activo', 'Bombero Activo', 'Activo'),
+  ('vol-a-02', 'ACT-020', '17.123.456-8', 'Gabriel Bianchini Frost', 'G. Bianchini', 'Activo', 'Bombero Activo', 'Activo'),
+  ('vol-a-03', 'ACT-021', '17.654.321-0', 'Samuel Aguirre Torres', 'S. Aguirre', 'Activo', 'Bombero Activo', 'Activo'),
+  ('vol-a-04', 'ACT-022', '18.112.233-4', 'Héctor Covarrubias Caiceo', 'H. Covarrubias', 'Activo', 'Bombero Activo', 'Activo'),
+  ('vol-a-05', 'ACT-023', '18.456.789-1', 'Jorge Navia Valencia', 'J. Navia', 'Activo', 'Bombero Activo', 'Activo'),
+  ('vol-a-06', 'ACT-024', '18.990.112-5', 'José Vargas Ortega', 'J. Vargas', 'Activo', 'Bombero Activo', 'Activo'),
+  ('vol-a-07', 'ACT-025', '19.234.567-2', 'Víctor Rojo Salinas', 'V. Rojo', 'Activo', 'Bombero Activo', 'Activo'),
+  ('vol-a-08', 'ACT-026', '19.789.012-9', 'Enzo Núñez Campos', 'E. Núñez', 'Activo', 'Bombero Activo', 'Activo'),
+  ('vol-a-09', 'ACT-027', '16.554.321-8', 'Gustavo Núñez', 'G. Núñez', 'Activo', 'Bombero Activo', 'Activo'),
+  ('vol-a-10', 'ACT-028', '17.889.900-1', 'Cristian Gutiérrez', 'C. Gutiérrez', 'Activo', 'Bombero Activo', 'Activo'),
+  ('vol-a-11', 'ACT-029', '18.334.455-6', 'Enrique Vargas', 'E. Vargas', 'Activo', 'Bombero Activo', 'Activo'),
   ('vol-a-12', 'ACT-030', '19.445.678-0', 'Fernando González', 'F. González', 'Activo', 'Bombero Activo', 'Activo'),
   ('vol-a-13', 'ACT-031', '19.890.123-7', 'Hugo Santibáñez Cutiño', 'H. Santibáñez', 'Activo', 'Bombero Activo', 'Activo'),
   ('vol-a-14', 'ACT-032', '20.123.456-4', 'Gustavo Casanova', 'G. Casanova', 'Activo', 'Bombero Activo', 'Activo'),
@@ -217,9 +272,26 @@ VALUES
   ('vol-asp-01', 'ASP-040', '23.456.789-0', 'Martina Lopez', 'M. Lopez', 'Aspirante', 'Aspirante', 'Activo')
 ON CONFLICT (id) DO NOTHING;
 
--- 12. POBLACIÓN DE USUARIOS INICIALES (SUPER ADMIN PARA MANDO)
-INSERT INTO public.app_users (id, email, full_name, volunteer_id, rank, registration_number, role, status, permissions, pin)
-VALUES
-    ('usr-vol-a-01', 'director@bomberoscallelarga.cl', 'Nelson Venegas Salazar', 'vol-a-01', 'Director', 'ACT-019', 'SUPER_ADMIN', 'ACTIVO', '{"canCreateReports":true,"canEditReports":true,"canDeleteReports":true,"canApproveReports":true,"canManageVolunteers":true,"canManageUnits":true,"canManageUsers":true,"canExportReports":true}'::jsonb, '4444'),
-    ('usr-vol-a-02', 'capitan@bomberoscallelarga.cl', 'Gabriel Bianchini Frost', 'vol-a-02', 'Capitán', 'ACT-020', 'SUPER_ADMIN', 'ACTIVO', '{"canCreateReports":true,"canEditReports":true,"canDeleteReports":true,"canApproveReports":true,"canManageVolunteers":true,"canManageUnits":true,"canManageUsers":true,"canExportReports":true}'::jsonb, '4444')
+-- 13. POBLACIÓN DEL SUPER ADMIN GENERAL
+INSERT INTO public.app_users (
+    id, 
+    email, 
+    full_name, 
+    rank, 
+    registration_number, 
+    role, 
+    status, 
+    permissions, 
+    password
+) VALUES (
+    'usr-superadmin-01',
+    'gnunezgonzalez@icloud.com',
+    'Gustavo Núñez González',
+    'Super Administrador General',
+    'SUP-001',
+    'SUPER_ADMIN',
+    'ACTIVO',
+    '{"canCreateReports":true,"canEditReports":true,"canDeleteReports":true,"canApproveReports":true,"canManageVolunteers":true,"canManageUnits":true,"canManageUsers":true,"canExportReports":true}'::jsonb,
+    'Poli2009!'
+)
 ON CONFLICT (id) DO NOTHING;
