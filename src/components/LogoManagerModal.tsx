@@ -198,13 +198,13 @@ export const LogoManagerModal: React.FC<LogoManagerModalProps> = ({
             <label className="block font-bold text-slate-700 dark:text-slate-300 mb-2">
               Opciones de Escudos Disponibles:
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {PRESET_LOGOS.map((preset) => (
                 <button
                   key={preset.name}
                   type="button"
                   onClick={() => setCurrentBranding({ ...currentBranding, logoUrl: preset.url })}
-                  className={`p-2.5 rounded-2xl border text-center transition flex flex-col items-center justify-between ${
+                  className={`p-2.5 rounded-2xl border text-center transition flex flex-row sm:flex-col items-center justify-start sm:justify-between gap-2.5 sm:gap-1.5 ${
                     currentBranding.logoUrl === preset.url
                       ? 'bg-red-50 dark:bg-red-950/40 border-red-600 shadow-sm'
                       : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-slate-400'
@@ -213,9 +213,9 @@ export const LogoManagerModal: React.FC<LogoManagerModalProps> = ({
                   <img
                     src={preset.url}
                     alt={preset.name}
-                    className="w-10 h-10 object-contain rounded-xl bg-slate-950/40 p-1"
+                    className="w-10 h-10 object-contain rounded-xl bg-slate-950/40 p-1 shrink-0"
                   />
-                  <span className="text-[10px] font-bold text-slate-800 dark:text-slate-200 mt-1 truncate w-full">
+                  <span className="text-[11px] sm:text-[10px] font-bold text-slate-800 dark:text-slate-200 truncate w-full text-left sm:text-center">
                     {preset.name}
                   </span>
                 </button>
@@ -224,17 +224,17 @@ export const LogoManagerModal: React.FC<LogoManagerModalProps> = ({
           </div>
 
           {/* Footer Actions */}
-          <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end space-x-2">
+          <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-end gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-3.5 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white font-bold"
+              className="px-3.5 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white font-bold text-xs"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="flex items-center space-x-1.5 bg-red-700 hover:bg-red-800 text-white font-black px-4 py-2 rounded-xl shadow-md transition active:scale-95"
+              className="flex items-center gap-1.5 bg-red-700 hover:bg-red-800 text-white font-black text-xs px-4 py-2 rounded-xl shadow-md transition active:scale-95"
             >
               <Check className="w-4 h-4" />
               <span>Guardar Emblema</span>

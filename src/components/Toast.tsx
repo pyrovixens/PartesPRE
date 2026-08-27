@@ -81,7 +81,7 @@ export const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onDismis
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed bottom-5 right-5 z-50 flex flex-col space-y-3 max-w-sm w-full pointer-events-none px-4 sm:px-0">
+    <div className="fixed top-4 sm:top-auto sm:bottom-5 left-3 right-3 sm:left-auto sm:right-5 sm:max-w-sm z-50 flex flex-col space-y-2.5 pointer-events-none">
       {toasts.map((t) => (
         <ToastItem key={t.id} toast={t} onDismiss={onDismiss} />
       ))}

@@ -64,21 +64,21 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
       <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 transition-colors">
         {/* Header Bar */}
-        <div className="bg-slate-900 dark:bg-slate-950 text-white px-6 py-4 flex items-center justify-between border-b border-red-800/60">
-          <div className="flex items-center space-x-3">
+        <div className="bg-slate-900 dark:bg-slate-950 text-white px-4 sm:px-6 py-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-red-800/60">
+          <div className="flex items-center space-x-3 min-w-0">
             <img 
               src="/logo_4ta_calle_larga.png" 
               alt="4ta Compañía" 
-              className="w-10 h-10 object-contain drop-shadow" 
+              className="w-10 h-10 object-contain drop-shadow shrink-0" 
             />
-            <div>
-              <div className="flex items-center space-x-2">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="bg-red-700 text-white text-[10px] font-black px-2 py-0.5 rounded tracking-wide">
                   PARTE #{report.correlativoCompania || report.fullFolio}
                 </span>
                 {report.correlativoComandancia && (
                   <span className="bg-slate-800 text-amber-300 text-[10px] font-mono font-bold px-2 py-0.5 rounded border border-slate-700">
-                    COMANDANCIA: {report.correlativoComandancia}
+                    COM: {report.correlativoComandancia}
                   </span>
                 )}
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
@@ -87,16 +87,16 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                   {report.status}
                 </span>
               </div>
-              <h2 className="text-base font-bold text-white mt-0.5">
+              <h2 className="text-sm sm:text-base font-bold text-white mt-0.5 truncate">
                 {report.keyCode} - {report.keyDescription}
               </h2>
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
             <button
               onClick={handleDownloadPDF}
-              className="flex items-center space-x-1 bg-red-700 hover:bg-red-800 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow transition"
+              className="flex items-center gap-1 bg-red-700 hover:bg-red-800 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow transition active:scale-95"
               title="Descargar PDF oficial firmado"
             >
               <Printer className="w-4 h-4" />
@@ -107,14 +107,14 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                 onClose();
                 onEdit(report);
               }}
-              className="flex items-center space-x-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-700 transition"
+              className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-700 transition active:scale-95"
             >
               <Edit className="w-4 h-4" />
               <span className="hidden sm:inline">Editar</span>
             </button>
             <button
               onClick={onClose}
-              className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition"
+              className="text-slate-400 hover:text-white p-1 rounded-xl hover:bg-slate-800 transition"
             >
               <X className="w-5 h-5" />
             </button>
