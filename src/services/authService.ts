@@ -371,8 +371,21 @@ export const authenticateUser = async (
 export const createActiveSession = (user: AppUser): void => {
   if (typeof window === 'undefined') return;
   try {
+    const safeUser: AppUser = {
+      id: user.id,
+      email: user.email,
+      fullName: user.fullName,
+      volunteerId: user.volunteerId,
+      rank: user.rank,
+      registrationNumber: user.registrationNumber,
+      role: user.role,
+      status: user.status,
+      permissions: user.permissions,
+      lastLogin: user.lastLogin,
+      createdAt: user.createdAt,
+    };
     const session = {
-      user,
+      user: safeUser,
       token: `session_${Date.now()}_${Math.random().toString(36).substring(2)}`,
       createdAt: new Date().toISOString(),
     };
@@ -562,7 +575,6 @@ export const activateUserWithPassword = async (
     role: invitation.role,
     status: 'ACTIVO',
     permissions: invitation.permissions,
-    password: passwordInput,
     passwordHash: hashedPassword,
     failedLoginAttempts: 0,
     createdAt: existingUser ? existingUser.createdAt : new Date().toISOString(),

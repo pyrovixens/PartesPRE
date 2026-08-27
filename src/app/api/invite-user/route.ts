@@ -39,9 +39,9 @@ export async function POST(request: Request) {
     const textBody = `Estimado/a ${fullName} (${rank}),\n\n` +
       `Has recibido una invitación oficial de ${invitedBy || 'la Oficialidad'} para acceder al Sistema de Control de Asistencias y Partes de Emergencia de la 4ª Compañía "Calle Larga" (Cuerpo de Bomberos de Los Andes).\n\n` +
       `Tu rol asignado es: ${roleNameFormatted}\n\n` +
-      `Para activar tu cuenta y configurar tu PIN personal de acceso, haz clic en el siguiente enlace:\n` +
+      `Para activar tu cuenta y configurar tu contraseña de acceso, haz clic en el siguiente enlace:\n` +
       `${activationUrl}\n\n` +
-      `Este enlace de seguridad es único y válido por 7 días.\n\n` +
+      `Este enlace de activación es único y válido por 7 días.\n\n` +
       `4ª Compañía de Bomberos "Calle Larga"\n` +
       `"Unión, Lealtad y Servicio" • C.B. Los Andes`;
 
