@@ -43,45 +43,11 @@ El sistema reemplaza las planillas manuales y libros de novedades físicos, auto
 ### 5. 👥 Gestión de Personal y Flota
 - **Padrón de Voluntarios**: Altas, bajas, modificación de cargos (Director, Capitán, Tenientes, Maquinistas, etc.) y estados (Activo, Honorario, Licencia).
 - **Flota de Carros**: Control de estado operativo, patentes y contadores de mantenimiento.
-- **Copia de Seguridad (.JSON)**: Respaldo y restauración total de la base de datos con 1 solo clic.
+
 
 ---
 
-## 🚀 Puesta en Marcha
 
-### Requisitos
-- Node.js (versión 18 o superior)
-- Navegador web moderno (Chrome, Safari, Edge, Firefox)
-
-### Comandos de Ejecución
-
-1. **Instalar dependencias**:
-   ```bash
-   npm install
-   ```
-
-2. **Iniciar en modo desarrollo**:
-   ```bash
-   npm run dev
-   ```
-   Abre [http://localhost:3003](http://localhost:3003) en tu navegador.
-
-3. **Compilar para producción**:
-   ```bash
-   npm run build
-   npm run start
-   ```
-
----
-
-## 📱 Uso en Red Local / Cuartel
-Para acceder desde tablets, celulares de oficiales o cualquier computadora conectada al Wi-Fi del cuartel:
-```bash
-npm run dev -- -H 0.0.0.0
-```
-Luego accede desde el dispositivo móvil ingresando la IP local del equipo (ej: `http://192.168.1.50:3003`).
-
----
 
 **Desarrollado con dedicación para el Cuerpo de Bomberos de Los Andes - 4ª Compañía Calle Larga.**
 # PartesPRE
