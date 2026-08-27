@@ -290,7 +290,7 @@ export const authenticateUser = async (
   if (!targetUser) {
     return {
       success: false,
-      error: 'Credenciales inválidas. Verifica tu correo institucional o contacta al Administrador.',
+      error: 'Credenciales inválidas. Verifica tu correo y contraseña.',
     };
   }
 
@@ -298,11 +298,11 @@ export const authenticateUser = async (
   if (targetUser.status === 'SUSPENDIDO') {
     return {
       success: false,
-      error: 'Esta cuenta ha sido suspendida temporalmente por seguridad. Contacta al Mando.',
+      error: 'Cuenta suspendida o no habilitada. Contacta al Administrador.',
     };
   }
 
-  // 2. Check Lockout Protocol (Brute-force protection)
+  // 2. Check Lockout Protocol
   if (targetUser.lockedUntil) {
     const lockTime = new Date(targetUser.lockedUntil).getTime();
     const now = Date.now();
@@ -310,7 +310,7 @@ export const authenticateUser = async (
       const minutesLeft = Math.ceil((lockTime - now) / (60 * 1000));
       return {
         success: false,
-        error: `Cuenta bloqueada temporalmente por seguridad por múltiples intentos fallidos. Intenta nuevamente en ${minutesLeft} minuto(s).`,
+        error: `Acceso temporalmente restringido. Intenta nuevamente en ${minutesLeft} minuto(s).`,
       };
     }
   }
@@ -324,7 +324,6 @@ export const authenticateUser = async (
   if (!passwordMatches) {
     const failedAttempts = (targetUser.failedLoginAttempts || 0) + 1;
     const maxAttempts = 5;
-    const remaining = Math.max(0, maxAttempts - failedAttempts);
 
     let updatedUser: AppUser = {
       ...targetUser,
@@ -337,15 +336,14 @@ export const authenticateUser = async (
       await saveAppUser(updatedUser);
       return {
         success: false,
-        error: 'Demasiados intentos fallidos. Tu cuenta ha sido bloqueada durante 15 minutos por seguridad.',
+        error: 'Demasiados intentos fallidos. Acceso restringido temporalmente.',
       };
     }
 
     await saveAppUser(updatedUser);
     return {
       success: false,
-      error: `Contraseña incorrecta. Te quedan ${remaining} intento(s) antes del bloqueo de seguridad.`,
-      remainingAttempts: remaining,
+      error: 'Contraseña incorrecta. Por favor intenta nuevamente.',
     };
   }
 

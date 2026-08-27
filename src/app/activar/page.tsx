@@ -127,7 +127,7 @@ function ActivationContent() {
               Activación de Cuenta Oficial
             </h1>
             <p className="text-xs text-slate-400 mt-0.5 font-medium">
-              Crea tu contraseña segura con estándares de ciberseguridad
+              Crea tu contraseña para acceder al sistema
             </p>
           </div>
         </div>
@@ -216,7 +216,7 @@ function ActivationContent() {
 
             {/* Live Password Checklist */}
             <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-3 space-y-1.5 text-[11px]">
-              <p className="font-bold text-slate-400 mb-1">Requisitos de Seguridad:</p>
+              <p className="font-bold text-slate-400 mb-1">Requisitos de la contraseña:</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                 <span className={`flex items-center gap-1.5 font-medium ${password.length >= 8 ? 'text-emerald-400' : 'text-slate-400'}`}>
                   {password.length >= 8 ? <Check className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5 text-slate-600" />}
@@ -250,8 +250,7 @@ function ActivationContent() {
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
               ) : (
                 <>
-                  <Sparkles className="w-4 h-4 text-amber-300" />
-                  <span>Activar y Proteger mi Cuenta</span>
+                  <span>Activar Cuenta</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}

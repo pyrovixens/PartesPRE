@@ -317,10 +317,10 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
             </div>
             <div>
               <h2 className="text-lg font-black tracking-tight text-slate-900 dark:text-white">
-                Gestión de Usuarios & Control de Ciberseguridad
+                Gestión de Usuarios & Control de Cuentas
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Administración centralizada de cuentas oficiales y control de accesos RBAC protegidos
+                Administración de roles institucionales y permisos de operación
               </p>
             </div>
           </div>
@@ -362,7 +362,7 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
                 <th className="py-3 px-4">Correo Electrónico</th>
                 <th className="py-3 px-4">Rol en el Sistema</th>
                 <th className="py-3 px-4 text-center">Permisos Asignados</th>
-                <th className="py-3 px-4 text-center">Estado / Seguridad</th>
+                <th className="py-3 px-4 text-center">Estado</th>
                 <th className="py-3 px-4 text-right">Acciones</th>
               </tr>
             </thead>

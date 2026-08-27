@@ -157,7 +157,7 @@ export interface StatsSummary {
 }
 
 // -------------------------------------------------------------
-// SISTEMA DE USUARIOS, ROLES Y PROTOCOLOS DE SEGURIDAD (RBAC + CYBERSECURITY)
+// SISTEMA DE USUARIOS, ROLES Y PERMISOS
 // -------------------------------------------------------------
 export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'OFICIAL' | 'VOLUNTARIO';
 

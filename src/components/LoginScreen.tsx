@@ -5,9 +5,7 @@ import {
   Eye, 
   EyeOff, 
   ArrowRight, 
-  AlertCircle, 
-  ShieldCheck, 
-  CheckCircle2
+  AlertCircle
 } from 'lucide-react';
 import { AppUser, CompanyBranding } from '../types';
 import { authenticateUser } from '../services/authService';
@@ -51,7 +49,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, branding }) =
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center p-4 relative overflow-hidden font-sans">
-      {/* Background Ambience Glow */}
+      {/* Ambience Glow */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-red-900/20 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-10 right-10 w-80 h-80 bg-amber-600/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -78,7 +76,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, branding }) =
               {branding.companyName}
             </h1>
             <p className="text-xs text-slate-400 mt-0.5 font-medium">
-              Acceso Seguro al Sistema de Partes y Asistencias
+              Control Oficial de Asistencias & Libro de Partes
             </p>
           </div>
         </div>
@@ -91,7 +89,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, branding }) =
           </div>
         )}
 
-        {/* Secure Form */}
+        {/* Login Form */}
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
           <div>
             <label className="block text-slate-300 font-bold mb-1.5">
@@ -147,25 +145,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, branding }) =
               <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
             ) : (
               <>
-                <ShieldCheck className="w-4 h-4 text-amber-300" />
-                <span>Ingresar al Sistema Seguro</span>
+                <span>Ingresar al Sistema</span>
                 <ArrowRight className="w-4 h-4" />
               </>
             )}
           </button>
         </form>
-
-        {/* Security Badges Footer */}
-        <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400">
-          <div className="flex items-center space-x-1.5 text-emerald-400">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span className="font-mono">Cifrado SHA-256</span>
-          </div>
-          <span className="text-slate-500">•</span>
-          <span className="text-slate-400">Prevención Fuerza Bruta</span>
-          <span className="text-slate-500">•</span>
-          <span className="text-amber-400 font-bold">Control RBAC</span>
-        </div>
       </div>
     </div>
   );
