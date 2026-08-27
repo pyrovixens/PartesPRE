@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     }
 
     const hostUrl = origin || 'http://localhost:3003';
-    const activationUrl = `${hostUrl}/activar?token=${token}`;
+    const activationUrl = `${hostUrl}/registro?token=${token}`;
 
     const roleNameFormatted = 
       role === 'SUPER_ADMIN' ? 'Super Administrador (Mando General)' :
@@ -39,9 +39,9 @@ export async function POST(request: Request) {
     const textBody = `Estimado/a ${fullName} (${rank}),\n\n` +
       `Has recibido una invitación oficial de ${invitedBy || 'la Oficialidad'} para acceder al Sistema de Control de Asistencias y Partes de Emergencia de la 4ª Compañía "Calle Larga" (Cuerpo de Bomberos de Los Andes).\n\n` +
       `Tu rol asignado es: ${roleNameFormatted}\n\n` +
-      `Para activar tu cuenta y configurar tu contraseña de acceso, haz clic en el siguiente enlace:\n` +
+      `Para crear tu cuenta oficial y registrar tu contraseña personal de acceso, haz clic en el siguiente enlace:\n` +
       `${activationUrl}\n\n` +
-      `Este enlace de activación es único y válido por 7 días.\n\n` +
+      `Este enlace de registro es de uso personal y válido por 7 días.\n\n` +
       `4ª Compañía de Bomberos "Calle Larga"\n` +
       `"Unión, Lealtad y Servicio" • C.B. Los Andes`;
 
@@ -59,7 +59,6 @@ export async function POST(request: Request) {
       subject,
       textBody,
       recipient: email,
-      token,
     });
   } catch (error: any) {
     return NextResponse.json(
