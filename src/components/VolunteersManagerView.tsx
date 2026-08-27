@@ -17,6 +17,7 @@ import {
   X
 } from 'lucide-react';
 import { Volunteer, VolunteerRank, VolunteerCategory } from '../types';
+import { searchInFields } from '../utils/searchUtils';
 
 interface VolunteersManagerViewProps {
   volunteers: Volunteer[];
@@ -91,13 +92,17 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
         selectedCategory === 'MAQUINISTAS' ? (v.rank === 'Maquinista General' || v.rank === 'Maquinista') :
         v.category === selectedCategory;
 
-      const q = search.toLowerCase();
-      const matchQuery = 
-        v.fullName.toLowerCase().includes(q) ||
-        v.rut.toLowerCase().includes(q) ||
-        v.registrationNumber.toLowerCase().includes(q) ||
-        v.rank.toLowerCase().includes(q) ||
-        (v.phone && v.phone.includes(q));
+      const matchQuery = searchInFields([
+        v.fullName,
+        v.shortName,
+        v.rut,
+        v.registrationNumber,
+        v.rank,
+        v.category,
+        v.status,
+        v.phone,
+        v.email
+      ], search);
 
       return matchCat && matchQuery;
     });

@@ -15,6 +15,7 @@ import {
 import { EmergencyReport, Volunteer, EmergencyKey, VolunteerCategory } from '../types';
 import { exportReportsToExcel } from '../utils/excelExport';
 import { calculateStats } from '../utils/statsCalculator';
+import { searchInFields } from '../utils/searchUtils';
 
 interface AttendanceMatrixViewProps {
   reports: EmergencyReport[];
@@ -48,10 +49,11 @@ export const AttendanceMatrixView: React.FC<AttendanceMatrixViewProps> = ({
   // Filter volunteers with search and group
   const filteredVolunteers = useMemo(() => {
     return volunteers.filter(v => {
-      const matchesSearch = 
-        v.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        v.rank.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        v.registrationNumber.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = searchInFields([
+        v.fullName,
+        v.rank,
+        v.registrationNumber
+      ], searchTerm);
       
       const matchesGroup = selectedGroup === 'ALL' || v.category === selectedGroup;
 

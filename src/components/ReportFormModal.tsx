@@ -25,8 +25,10 @@ import {
   AttendanceRecord, 
   ReportStatus, 
   VolunteerCategory,
-  ArrivalStatus
+  ArrivalStatus,
+  VolunteerRank
 } from '../types';
+import { searchInFields } from '../utils/searchUtils';
 
 interface ReportFormModalProps {
   isOpen: boolean;
@@ -319,10 +321,14 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
   // Filtered Volunteers for step 4
   const filteredVolunteers = useMemo(() => {
     return volunteers.filter(v => {
-      const matchSearch = 
-        v.fullName.toLowerCase().includes(volunteerSearch.toLowerCase()) ||
-        v.rank.toLowerCase().includes(volunteerSearch.toLowerCase()) ||
-        v.registrationNumber.toLowerCase().includes(volunteerSearch.toLowerCase());
+      const matchSearch = searchInFields([
+        v.fullName,
+        v.shortName,
+        v.rank,
+        v.registrationNumber,
+        v.rut,
+        v.category
+      ], volunteerSearch);
       const matchCat = selectedCategoryTab === 'ALL' || v.category === selectedCategoryTab;
       return matchSearch && matchCat;
     });

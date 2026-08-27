@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { EmergencyReport, EmergencyKey, AppUser } from '../types';
 import { generateEmergencyReportPDF } from '../utils/pdfGenerator';
+import { searchInFields } from '../utils/searchUtils';
 
 interface ReportListViewProps {
   reports: EmergencyReport[];
@@ -33,23 +34,26 @@ export const ReportListView: React.FC<ReportListViewProps> = ({
   onDeleteReport,
   currentUser,
 }) => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('ALL');
-  const [selectedKey, setSelectedKey] = useState('ALL');
-  const [selectedStatus, setSelectedStatus] = useState('ALL');
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+  const [selectedKey, setSelectedKey] = useState<string>('ALL');
+  const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
 
-  // Filter and search
+  // Filter and search with normalized accent/case-insensitivity
   const filteredReports = useMemo(() => {
     return reports.filter(r => {
-      const matchesSearch = 
-        r.fullFolio.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (r.correlativoCompania && r.correlativoCompania.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (r.correlativoComandancia && r.correlativoComandancia.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        r.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.sector.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.keyCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.keyDescription.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.officerInChargeName.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = searchInFields([
+        r.fullFolio,
+        r.correlativoCompania,
+        r.correlativoComandancia,
+        r.address,
+        r.sector,
+        r.commune,
+        r.keyCode,
+        r.keyDescription,
+        r.officerInChargeName,
+        r.summaryNotes
+      ], searchTerm);
 
       const matchesCategory = selectedCategory === 'ALL' || r.category === selectedCategory;
       const matchesKey = selectedKey === 'ALL' || r.keyCode === selectedKey;

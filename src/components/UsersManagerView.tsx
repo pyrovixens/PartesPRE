@@ -28,6 +28,7 @@ import {
   validatePasswordStrength,
   hashPassword
 } from '../services/authService';
+import { searchInFields } from '../utils/searchUtils';
 
 interface UsersManagerViewProps {
   volunteers: Volunteer[];
@@ -270,10 +271,14 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
   };
 
   const filteredUsers = users.filter(u => 
-    u.fullName.toLowerCase().includes(search.toLowerCase()) ||
-    u.email.toLowerCase().includes(search.toLowerCase()) ||
-    u.role.toLowerCase().includes(search.toLowerCase()) ||
-    u.registrationNumber.toLowerCase().includes(search.toLowerCase())
+    searchInFields([
+      u.fullName,
+      u.email,
+      u.role,
+      u.rank,
+      u.registrationNumber,
+      u.status
+    ], search)
   );
 
   const getRoleBadge = (role: UserRole) => {
