@@ -248,6 +248,41 @@ export default function Home() {
     });
   };
 
+  const handleSignReport = async (reportId: string, signatureData: {
+    signedBy: string;
+    signedByRank: string;
+    signedAt: string;
+    signatureDataUrl?: string;
+    verificationCode: string;
+  }) => {
+    const target = reports.find(r => r.id === reportId);
+    if (!target) return;
+
+    const signedReport: EmergencyReport = {
+      ...target,
+      status: 'APROBADO',
+      approvedBy: signatureData.signedBy,
+      approvedAt: signatureData.signedAt,
+      captainName: signatureData.signedBy,
+      captainRank: signatureData.signedByRank,
+      digitalSignature: signatureData,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await saveReportToDatabase(signedReport);
+    const updated = await fetchReports();
+    setReports(updated);
+
+    const freshSigned = updated.find(r => r.id === reportId) || signedReport;
+    setViewingReport(freshSigned);
+
+    addToast({
+      type: 'success',
+      title: 'Parte Firmado Digitalmente',
+      message: `V°B° oficial estampado por ${signatureData.signedBy} (${signatureData.signedByRank}).`,
+    });
+  };
+
   // Handlers for Volunteers
   const handleSaveVolunteer = async (vol: Volunteer) => {
     if (!currentUser?.permissions?.canManageVolunteers) {
@@ -478,6 +513,9 @@ export default function Home() {
           setViewingReport(null);
           handleOpenEditReport(rep);
         }}
+        volunteers={volunteers}
+        currentUser={currentUser}
+        onSign={handleSignReport}
       />
 
       <LogoManagerModal

@@ -135,13 +135,22 @@ export interface EmergencyReport {
   summaryNotes: string;
   officerNotes?: string;
 
-  // Control Administrativo
+  // Control Administrativo y Firmas Digitales
   status: ReportStatus;
   createdAt: string;
   createdBy: string;
   updatedAt?: string;
   approvedBy?: string;
   approvedAt?: string;
+  captainName?: string;
+  captainRank?: string;
+  digitalSignature?: {
+    signedBy: string;
+    signedByRank: string;
+    signedAt: string;
+    signatureDataUrl?: string;
+    verificationCode?: string;
+  };
 }
 
 export interface StatsSummary {

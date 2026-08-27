@@ -267,16 +267,40 @@ export const generateEmergencyReportPDF = async (report: EmergencyReport): Promi
   doc.setTextColor(100, 116, 139);
   doc.text('Oficial / Voluntario a Cargo (OBAC)', margin + 10 + (boxWidth / 2), sigY + 23, { align: 'center' });
 
-  // Signature 2: Ayudante / Capitán
-  doc.line(pageWidth - margin - 10 - boxWidth, sigY + 15, pageWidth - margin - 10, sigY + 15);
+  // Signature 2: Ayudante / Capitán de Compañía
+  const rightBoxX = pageWidth - margin - 10 - boxWidth;
+  const captainDisplayName = report.approvedBy || report.captainName || 'Capitán de Compañía';
+  const captainDisplayRank = report.captainRank || (report.approvedBy ? 'V°B° Capitanía / Mando' : 'Capitán 4ª Cía. Calle Larga');
+
+  // Embed digital signature if present
+  if (report.digitalSignature) {
+    if (report.digitalSignature.signatureDataUrl) {
+      try {
+        doc.addImage(report.digitalSignature.signatureDataUrl, 'PNG', rightBoxX + (boxWidth / 2) - 20, sigY + 2, 40, 12);
+      } catch (e) {
+        console.warn('Could not embed signature image in PDF:', e);
+      }
+    } else {
+      doc.setFont('helvetica', 'bolditalic');
+      doc.setFontSize(6.5);
+      doc.setTextColor(143, 13, 13);
+      doc.text('FIRMADO DIGITALMENTE', rightBoxX + (boxWidth / 2), sigY + 10, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(5.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text(report.digitalSignature.verificationCode || 'VALIDADO OFICIALMENTE', rightBoxX + (boxWidth / 2), sigY + 13.5, { align: 'center' });
+    }
+  }
+
+  doc.line(rightBoxX, sigY + 15, pageWidth - margin - 10, sigY + 15);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.setTextColor(...slateDark);
-  doc.text('Ayudantía / Capitanía de Compañía', pageWidth - margin - 10 - (boxWidth / 2), sigY + 19, { align: 'center' });
+  doc.text(captainDisplayName, rightBoxX + (boxWidth / 2), sigY + 19, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(100, 116, 139);
-  doc.text('Revisión y Aprobación Oficial', pageWidth - margin - 10 - (boxWidth / 2), sigY + 23, { align: 'center' });
+  doc.text(captainDisplayRank, rightBoxX + (boxWidth / 2), sigY + 23, { align: 'center' });
 
   // Footer
   const totalPages = doc.getNumberOfPages();

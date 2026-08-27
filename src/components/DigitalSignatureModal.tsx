@@ -1,0 +1,357 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { 
+  X, 
+  Check, 
+  PenTool, 
+  Award, 
+  ShieldCheck, 
+  RotateCcw, 
+  FileCheck2, 
+  UserCheck, 
+  Calendar,
+  Sparkles
+} from 'lucide-react';
+import { EmergencyReport, Volunteer, AppUser } from '../types';
+
+interface DigitalSignatureModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  report: EmergencyReport;
+  volunteers: Volunteer[];
+  currentUser?: AppUser | null;
+  onSignReport: (signatureData: {
+    signedBy: string;
+    signedByRank: string;
+    signedAt: string;
+    signatureDataUrl?: string;
+    verificationCode: string;
+  }) => void;
+}
+
+export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
+  isOpen,
+  onClose,
+  report,
+  volunteers,
+  currentUser,
+  onSignReport,
+}) => {
+  const [signatureMode, setSignatureMode] = useState<'SEAL' | 'DRAW'>('SEAL');
+
+  // Find captain from padrón or default
+  const captainVolunteer = volunteers.find(v => v.rank === 'Capitán');
+  const defaultSignerName = captainVolunteer ? captainVolunteer.fullName : (currentUser?.fullName || 'Capitán de Compañía');
+  const defaultSignerRank = captainVolunteer ? captainVolunteer.rank : (currentUser?.rank || 'Capitán');
+
+  const [signerName, setSignerName] = useState<string>(defaultSignerName);
+  const [signerRank, setSignerRank] = useState<string>(defaultSignerRank);
+
+  // Canvas refs for drawing
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [isDrawing, setIsDrawing] = useState<boolean>(false);
+  const [hasDrawn, setHasDrawn] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      if (captainVolunteer) {
+        setSignerName(captainVolunteer.fullName);
+        setSignerRank(captainVolunteer.rank);
+      } else if (currentUser) {
+        setSignerName(currentUser.fullName);
+        setSignerRank(currentUser.rank || 'Capitán');
+      }
+      setHasDrawn(false);
+      clearCanvas();
+    }
+  }, [isOpen, captainVolunteer, currentUser]);
+
+  const clearCanvas = () => {
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+    setHasDrawn(false);
+  };
+
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    setIsDrawing(true);
+    setHasDrawn(true);
+
+    const rect = canvas.getBoundingClientRect();
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+
+    ctx.beginPath();
+    ctx.moveTo(clientX - rect.left, clientY - rect.top);
+  };
+
+  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#1e293b'; // dark slate ink
+
+    ctx.lineTo(clientX - rect.left, clientY - rect.top);
+    ctx.stroke();
+  };
+
+  const stopDrawing = () => {
+    setIsDrawing(false);
+  };
+
+  const generateVerificationCode = () => {
+    const folio = report.correlativoCompania || report.fullFolio.replace(/[^0-9]/g, '') || '001';
+    const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
+    return `DIG-4CIA-${folio}-${rand}`;
+  };
+
+  const handleConfirmSignature = () => {
+    const now = new Date();
+    const formattedDate = now.toLocaleDateString('es-CL', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    }) + ' ' + now.toLocaleTimeString('es-CL', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+
+    const verificationCode = generateVerificationCode();
+
+    let signatureDataUrl: string | undefined = undefined;
+
+    if (signatureMode === 'DRAW' && hasDrawn && canvasRef.current) {
+      signatureDataUrl = canvasRef.current.toDataURL('image/png');
+    }
+
+    onSignReport({
+      signedBy: signerName.trim() || 'Capitán de Compañía',
+      signedByRank: signerRank.trim() || 'Capitán',
+      signedAt: formattedDate,
+      signatureDataUrl,
+      verificationCode,
+    });
+
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  // Officers list from padrón
+  const officersList = volunteers.filter(v => 
+    v.rank.includes('Capitán') || 
+    v.rank.includes('Teniente') || 
+    v.rank.includes('Director') || 
+    v.rank.includes('Comandante')
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+        {/* Header */}
+        <div className="bg-slate-900 dark:bg-slate-950 text-white px-6 py-4 flex items-center justify-between border-b border-slate-800">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-red-700 to-red-800 rounded-2xl flex items-center justify-center text-white shadow-md">
+              <Award className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-black text-white">
+                Firma Digital & V°B° de Mando
+              </h3>
+              <p className="text-[11px] text-slate-400 font-medium">
+                Parte Oficial: <span className="text-amber-400 font-bold">{report.correlativoCompania || report.fullFolio}</span>
+              </p>
+            </div>
+          </div>
+          <button 
+            onClick={onClose}
+            className="text-slate-400 hover:text-white p-1 rounded-xl hover:bg-slate-800 transition"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-6 overflow-y-auto space-y-4 text-xs text-slate-800 dark:text-slate-200">
+          {/* Signer Selection */}
+          <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 space-y-3">
+            <label className="block text-xs font-black text-slate-900 dark:text-white">
+              Oficial Firmante (V°B° Capitanía / Mando):
+            </label>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                  Seleccionar Oficial:
+                </label>
+                <select
+                  value={signerName}
+                  onChange={(e) => {
+                    const selected = volunteers.find(v => v.fullName === e.target.value);
+                    if (selected) {
+                      setSignerName(selected.fullName);
+                      setSignerRank(selected.rank);
+                    } else {
+                      setSignerName(e.target.value);
+                    }
+                  }}
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 dark:text-white"
+                >
+                  {officersList.map(o => (
+                    <option key={o.id} value={o.fullName}>
+                      {o.rank} - {o.fullName}
+                    </option>
+                  ))}
+                  <option value={defaultSignerName}>{defaultSignerName} ({defaultSignerRank})</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                  Cargo / Grado Oficial:
+                </label>
+                <input
+                  type="text"
+                  value={signerRank}
+                  onChange={(e) => setSignerRank(e.target.value)}
+                  placeholder="Ej: Capitán de Compañía"
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 dark:text-white"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Mode Selector Tabs */}
+          <div className="flex border-b border-slate-200 dark:border-slate-700">
+            <button
+              type="button"
+              onClick={() => setSignatureMode('SEAL')}
+              className={`flex-1 py-2.5 font-bold text-xs flex items-center justify-center space-x-2 border-b-2 transition ${
+                signatureMode === 'SEAL'
+                  ? 'border-red-700 text-red-700 dark:text-red-400 bg-red-50/50 dark:bg-red-950/20'
+                  : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
+              }`}
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span>Sello Digital Oficial</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSignatureMode('DRAW')}
+              className={`flex-1 py-2.5 font-bold text-xs flex items-center justify-center space-x-2 border-b-2 transition ${
+                signatureMode === 'DRAW'
+                  ? 'border-red-700 text-red-700 dark:text-red-400 bg-red-50/50 dark:bg-red-950/20'
+                  : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
+              }`}
+            >
+              <PenTool className="w-4 h-4" />
+              <span>Trazar Firma Manuscrita</span>
+            </button>
+          </div>
+
+          {/* Mode 1: Digital Certificate Seal Preview */}
+          {signatureMode === 'SEAL' && (
+            <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 text-center space-y-2.5">
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-red-700/10 text-red-700 dark:text-red-400 rounded-full border border-red-200 dark:border-red-800/60 mx-auto">
+                <Award className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-[10px] font-black text-red-700 dark:text-red-400 uppercase tracking-widest">
+                  Certificado de Firma Electrónica
+                </p>
+                <h4 className="text-sm font-black text-slate-900 dark:text-white mt-0.5">
+                  {signerName}
+                </h4>
+                <p className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                  {signerRank} • 4ª Cía. Bomberos Calle Larga
+                </p>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Visto Bueno y Aprobación Oficial de Servicio
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Mode 2: Interactive Signature Canvas */}
+          {signatureMode === 'DRAW' && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                  Dibuja tu firma o rúbrica con el dedo o ratón:
+                </label>
+                <button
+                  type="button"
+                  onClick={clearCanvas}
+                  className="text-[11px] text-red-600 hover:text-red-700 font-bold flex items-center space-x-1"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Limpiar Trazo</span>
+                </button>
+              </div>
+
+              <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl bg-white overflow-hidden shadow-inner touch-none relative">
+                <canvas
+                  ref={canvasRef}
+                  width={420}
+                  height={150}
+                  onMouseDown={startDrawing}
+                  onMouseMove={draw}
+                  onMouseUp={stopDrawing}
+                  onMouseLeave={stopDrawing}
+                  onTouchStart={startDrawing}
+                  onTouchMove={draw}
+                  onTouchEnd={stopDrawing}
+                  className="w-full h-[140px] cursor-crosshair block"
+                />
+                {!hasDrawn && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-slate-300 dark:text-slate-400 text-xs font-serif italic">
+                    Firma aquí
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer Actions */}
+        <div className="p-5 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+          >
+            Cancelar
+          </button>
+
+          <button
+            type="button"
+            onClick={handleConfirmSignature}
+            className="flex-1 bg-gradient-to-r from-red-700 to-red-800 hover:from-red-800 hover:to-red-900 text-white font-black text-xs py-2.5 px-4 rounded-xl shadow-lg transition transform active:scale-98 flex items-center justify-center space-x-2 border border-red-600/50"
+          >
+            <ShieldCheck className="w-4 h-4 text-amber-300" />
+            <span>Firmar Digitalmente y Aprobar Parte</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};

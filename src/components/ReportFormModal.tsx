@@ -391,8 +391,11 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
       createdAt: editingReport ? editingReport.createdAt : new Date().toISOString(),
       createdBy: editingReport ? editingReport.createdBy : (selectedOBAC?.fullName || 'Oficial de Guardia'),
       updatedAt: new Date().toISOString(),
-      approvedBy: status === 'APROBADO' ? (selectedOBAC?.fullName || 'Capitán de Compañía') : undefined,
-      approvedAt: status === 'APROBADO' ? new Date().toISOString() : undefined,
+      approvedBy: status === 'APROBADO' ? (editingReport?.approvedBy || volunteers.find(v => v.rank === 'Capitán')?.fullName || 'Capitán de Compañía') : undefined,
+      approvedAt: status === 'APROBADO' ? (editingReport?.approvedAt || new Date().toISOString()) : undefined,
+      captainName: editingReport?.captainName || volunteers.find(v => v.rank === 'Capitán')?.fullName || 'Capitán de Compañía',
+      captainRank: editingReport?.captainRank || 'Capitán 4ª Cía. Calle Larga',
+      digitalSignature: editingReport?.digitalSignature,
     };
 
     onSave(reportToSave);
