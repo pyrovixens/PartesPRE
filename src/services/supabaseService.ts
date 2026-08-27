@@ -80,6 +80,9 @@ export const fetchReports = async (): Promise<EmergencyReport[]> => {
       updatedAt: row.updated_at,
       approvedBy: row.approved_by,
       approvedAt: row.approved_at,
+      captainName: row.captain_name,
+      captainRank: row.captain_rank,
+      digitalSignature: row.digital_signature && Object.keys(row.digital_signature).length > 0 ? row.digital_signature : undefined,
     }));
 
     // Cache locally
@@ -141,6 +144,9 @@ export const saveReportToDatabase = async (report: EmergencyReport): Promise<boo
       created_by: report.createdBy,
       approved_by: report.approvedBy,
       approved_at: report.approvedAt,
+      captain_name: report.captainName,
+      captain_rank: report.captainRank,
+      digital_signature: report.digitalSignature || {},
       updated_at: new Date().toISOString(),
     };
 
@@ -295,12 +301,118 @@ export const deleteVolunteerFromDatabase = async (volunteerId: string): Promise<
 };
 
 // -------------------------------------------------------------------
+// UNITS SERVICE
+// -------------------------------------------------------------------
+
+export const fetchUnits = async (): Promise<Unit[]> => {
+  if (!isSupabaseConfigured() || !supabase) {
+    return getStoredUnits();
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('units')
+      .select('*')
+      .order('code', { ascending: true });
+
+    if (error) {
+      console.warn('Supabase units fetch error:', error.message);
+      return getStoredUnits();
+    }
+
+    if (!data || data.length === 0) {
+      return getStoredUnits();
+    }
+
+    const mapped: Unit[] = data.map(row => ({
+      code: row.code,
+      name: row.name,
+      plate: row.plate || row.plate_number || '',
+      type: row.type || 'Bomba',
+      currentKm: row.current_km || row.currentKm || 0,
+      currentPumpHours: row.current_pump_hours || row.currentPumpHours || 0,
+      status: row.status || 'Operativo',
+    }));
+
+    saveUnits(mapped);
+    return mapped;
+  } catch (err) {
+    console.error('Error fetching units from Supabase:', err);
+    return getStoredUnits();
+  }
+};
+
+export const saveUnitToDatabase = async (unit: Unit): Promise<boolean> => {
+  const current = getStoredUnits();
+  const exists = current.some(u => u.code === unit.code);
+  const updated = exists 
+    ? current.map(u => u.code === unit.code ? unit : u)
+    : [...current, unit];
+  saveUnits(updated);
+
+  if (!isSupabaseConfigured() || !supabase) {
+    return true;
+  }
+
+  try {
+    const { error } = await supabase
+      .from('units')
+      .upsert({
+        code: unit.code,
+        name: unit.name,
+        type: unit.type,
+        status: unit.status,
+        plate: unit.plate,
+        current_km: unit.currentKm,
+        current_pump_hours: unit.currentPumpHours,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'code' });
+
+    if (error) {
+      console.error('Error saving unit to Supabase:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('Exception saving unit to Supabase:', err);
+    return false;
+  }
+};
+
+export const deleteUnitFromDatabase = async (unitCode: string): Promise<boolean> => {
+  const current = getStoredUnits();
+  const updated = current.filter(u => u.code !== unitCode);
+  saveUnits(updated);
+
+  if (!isSupabaseConfigured() || !supabase) {
+    return true;
+  }
+
+  try {
+    const { error } = await supabase
+      .from('units')
+      .delete()
+      .eq('code', unitCode);
+
+    if (error) {
+      console.error('Error deleting unit from Supabase:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('Exception deleting unit from Supabase:', err);
+    return false;
+  }
+};
+
+// -------------------------------------------------------------------
 // REALTIME SUBSCRIPTION
 // -------------------------------------------------------------------
 
 export const subscribeToRealtimeChanges = (
   onReportsChange: () => void,
-  onVolunteersChange: () => void
+  onVolunteersChange: () => void,
+  onUnitsChange?: () => void
 ) => {
   if (!isSupabaseConfigured() || !supabase) {
     return () => {};
@@ -321,6 +433,13 @@ export const subscribeToRealtimeChanges = (
         { event: '*', schema: 'public', table: 'volunteers' },
         () => {
           onVolunteersChange();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'units' },
+        () => {
+          if (onUnitsChange) onUnitsChange();
         }
       )
       .subscribe();

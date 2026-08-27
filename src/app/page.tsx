@@ -37,6 +37,9 @@ import {
   fetchVolunteers,
   saveVolunteerToDatabase,
   deleteVolunteerFromDatabase,
+  fetchUnits,
+  saveUnitToDatabase,
+  deleteUnitFromDatabase,
   subscribeToRealtimeChanges
 } from '../services/supabaseService';
 import { 
@@ -101,14 +104,15 @@ export default function Home() {
   // Load Data function
   const loadAllData = useCallback(async () => {
     try {
-      const [fetchedReports, fetchedVolunteers] = await Promise.all([
+      const [fetchedReports, fetchedVolunteers, fetchedUnits] = await Promise.all([
         fetchReports(),
         fetchVolunteers(),
+        fetchUnits(),
       ]);
 
       setReports(fetchedReports !== null ? fetchedReports : getStoredReports());
       setVolunteers(fetchedVolunteers && fetchedVolunteers.length > 0 ? fetchedVolunteers : getStoredVolunteers());
-      setUnits(getStoredUnits());
+      setUnits(fetchedUnits !== null ? fetchedUnits : getStoredUnits());
       setKeys(getStoredKeys());
     } catch (e) {
       console.warn('Fallback to initial static data:', e);
@@ -323,7 +327,7 @@ export default function Home() {
   };
 
   // Handlers for Units
-  const handleSaveUnit = (unit: Unit) => {
+  const handleSaveUnit = async (unit: Unit) => {
     if (!currentUser?.permissions?.canManageUnits) {
       addToast({
         type: 'warning',
@@ -332,15 +336,32 @@ export default function Home() {
       });
       return;
     }
-    const cur = getStoredUnits();
-    const exists = cur.some(u => u.code === unit.code);
-    const updated = exists ? cur.map(u => u.code === unit.code ? unit : u) : [...cur, unit];
-    saveUnits(updated);
+    await saveUnitToDatabase(unit);
+    const updated = await fetchUnits();
     setUnits(updated);
     addToast({
       type: 'success',
       title: 'Material Mayor Actualizado',
-      message: `Unidad ${unit.code} guardada correctamente.`,
+      message: `Unidad ${unit.code} guardada en la base de datos oficial.`,
+    });
+  };
+
+  const handleDeleteUnit = async (unitId: string) => {
+    if (!currentUser?.permissions?.canManageUnits) {
+      addToast({
+        type: 'warning',
+        title: 'Permiso Denegado',
+        message: 'Solo los administradores pueden dar de baja unidades.',
+      });
+      return;
+    }
+    await deleteUnitFromDatabase(unitId);
+    const updated = await fetchUnits();
+    setUnits(updated);
+    addToast({
+      type: 'warning',
+      title: 'Unidad Removida',
+      message: 'La unidad ha sido retirada del inventario.',
     });
   };
 

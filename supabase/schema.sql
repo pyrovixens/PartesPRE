@@ -127,6 +127,9 @@ CREATE TABLE IF NOT EXISTS public.emergency_reports (
     created_by TEXT NOT NULL,
     approved_by TEXT,
     approved_at TIMESTAMPTZ,
+    captain_name TEXT,
+    captain_rank TEXT,
+    digital_signature JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
