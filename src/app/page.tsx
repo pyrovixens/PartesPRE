@@ -41,6 +41,8 @@ import {
   fetchUnits,
   saveUnitToDatabase,
   deleteUnitFromDatabase,
+  fetchBranding,
+  saveBrandingToDatabase,
   subscribeToRealtimeChanges
 } from '../services/supabaseService';
 import { 
@@ -152,7 +154,7 @@ export default function Home() {
     loadAllData();
   }, [loadAllData]);
 
-  // Realtime cloud sync subscription
+  // Realtime cloud & local sync subscription
   useEffect(() => {
     if (currentUser) {
       const unsubscribe = subscribeToRealtimeChanges(
@@ -160,11 +162,21 @@ export default function Home() {
           fetchReports().then(reps => {
             if (reps && reps.length > 0) setReports(reps);
           });
-          addToast({ type: 'info', title: 'Sincronización en Tiempo Real', message: 'El libro de partes se ha actualizado.' });
+          addToast({ type: 'info', title: 'Sincronización en Vivo', message: 'Los partes y asistencias se han actualizado en tiempo real.' });
         },
         () => {
           fetchVolunteers().then(vols => {
             if (vols && vols.length > 0) setVolunteers(vols);
+          });
+        },
+        () => {
+          fetchUnits().then(u => {
+            if (u && u.length > 0) setUnits(u);
+          });
+        },
+        () => {
+          fetchBranding().then(b => {
+            if (b) setBranding(b);
           });
         }
       );
@@ -367,9 +379,9 @@ export default function Home() {
   };
 
   // Save Custom Branding
-  const handleSaveBranding = (newBranding: CompanyBranding) => {
+  const handleSaveBranding = async (newBranding: CompanyBranding) => {
     setBranding(newBranding);
-    localStorage.setItem('bomberos_branding', JSON.stringify(newBranding));
+    await saveBrandingToDatabase(newBranding);
     addToast({
       type: 'success',
       title: 'Escudo & Marca Actualizados',

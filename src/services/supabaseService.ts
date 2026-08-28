@@ -102,6 +102,7 @@ export const saveReportToDatabase = async (report: EmergencyReport): Promise<boo
     ? currentLocal.map(r => r.id === report.id ? report : r)
     : [report, ...currentLocal];
   saveReports(updatedLocal);
+  broadcastLiveChange('REPORT_CHANGED', report);
 
   if (!isSupabaseConfigured() || !supabase) {
     return true;
@@ -169,6 +170,7 @@ export const deleteReportFromDatabase = async (reportId: string): Promise<boolea
   const current = getStoredReports();
   const updated = current.filter(r => r.id !== reportId);
   saveReports(updated);
+  broadcastLiveChange('REPORT_CHANGED', { id: reportId });
 
   if (!isSupabaseConfigured() || !supabase) {
     return true;
@@ -241,6 +243,7 @@ export const saveVolunteerToDatabase = async (volunteer: Volunteer): Promise<boo
   const exists = current.some(v => v.id === volunteer.id);
   const updated = exists ? current.map(v => v.id === volunteer.id ? volunteer : v) : [...current, volunteer];
   saveVolunteers(updated);
+  broadcastLiveChange('VOLUNTEER_CHANGED', volunteer);
 
   if (!isSupabaseConfigured() || !supabase) {
     return true;
@@ -278,6 +281,7 @@ export const deleteVolunteerFromDatabase = async (volunteerId: string): Promise<
   const current = getStoredVolunteers();
   const updated = current.filter(v => v.id !== volunteerId);
   saveVolunteers(updated);
+  broadcastLiveChange('VOLUNTEER_CHANGED', { id: volunteerId });
 
   if (!isSupabaseConfigured() || !supabase) {
     return true;
@@ -349,6 +353,7 @@ export const saveUnitToDatabase = async (unit: Unit): Promise<boolean> => {
     ? current.map(u => u.code === unit.code ? unit : u)
     : [...current, unit];
   saveUnits(updated);
+  broadcastLiveChange('UNIT_CHANGED', unit);
 
   if (!isSupabaseConfigured() || !supabase) {
     return true;
@@ -383,6 +388,7 @@ export const deleteUnitFromDatabase = async (unitCode: string): Promise<boolean>
   const current = getStoredUnits();
   const updated = current.filter(u => u.code !== unitCode);
   saveUnits(updated);
+  broadcastLiveChange('UNIT_CHANGED', { code: unitCode });
 
   if (!isSupabaseConfigured() || !supabase) {
     return true;
@@ -406,49 +412,200 @@ export const deleteUnitFromDatabase = async (unitCode: string): Promise<boolean>
 };
 
 // -------------------------------------------------------------------
-// REALTIME SUBSCRIPTION
+// BRANDING SERVICE
+// -------------------------------------------------------------------
+
+export const fetchBranding = async (): Promise<any | null> => {
+  const local = typeof window !== 'undefined' ? localStorage.getItem('bomberos_branding') : null;
+  const localParsed = local ? JSON.parse(local) : null;
+
+  if (!isSupabaseConfigured() || !supabase) {
+    return localParsed;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('company_branding')
+      .select('*')
+      .limit(1)
+      .single();
+
+    if (error || !data) {
+      return localParsed;
+    }
+
+    const branding = {
+      companyName: data.company_name,
+      fireDepartment: data.fire_department,
+      motto: data.motto,
+      logoUrl: data.logo_url,
+      primaryColor: data.primary_color,
+      accentColor: data.accent_color,
+    };
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('bomberos_branding', JSON.stringify(branding));
+    }
+    return branding;
+  } catch {
+    return localParsed;
+  }
+};
+
+export const saveBrandingToDatabase = async (branding: any): Promise<boolean> => {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('bomberos_branding', JSON.stringify(branding));
+  }
+  broadcastLiveChange('BRANDING_CHANGED', branding);
+
+  if (!isSupabaseConfigured() || !supabase) {
+    return true;
+  }
+
+  try {
+    const { error } = await supabase
+      .from('company_branding')
+      .upsert({
+        id: 1,
+        company_name: branding.companyName,
+        fire_department: branding.fireDepartment,
+        motto: branding.motto,
+        logo_url: branding.logoUrl,
+        primary_color: branding.primaryColor,
+        accent_color: branding.accentColor,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' });
+
+    if (error) {
+      console.warn('Could not save branding to Supabase:', error.message);
+    }
+    return true;
+  } catch {
+    return true;
+  }
+};
+
+// -------------------------------------------------------------------
+// HIGH-SPEED BROADCAST CHANNEL FOR LIVE TAB & WINDOW SYNC
+// -------------------------------------------------------------------
+
+const getBroadcastChannel = () => {
+  if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+    try {
+      return new BroadcastChannel('bomberos_live_sync_channel');
+    } catch {
+      return null;
+    }
+  }
+  return null;
+};
+
+export const broadcastLiveChange = (type: string, payload?: any) => {
+  const channel = getBroadcastChannel();
+  if (channel) {
+    try {
+      channel.postMessage({ type, payload, timestamp: Date.now() });
+      channel.close();
+    } catch {
+      // Ignore broadcast errors
+    }
+  }
+};
+
+// -------------------------------------------------------------------
+// REALTIME SUBSCRIPTION (SUPABASE WEBSOCKETS + BROADCAST CHANNEL + STORAGE)
 // -------------------------------------------------------------------
 
 export const subscribeToRealtimeChanges = (
   onReportsChange: () => void,
   onVolunteersChange: () => void,
-  onUnitsChange?: () => void
+  onUnitsChange?: () => void,
+  onBrandingChange?: () => void
 ) => {
-  if (!isSupabaseConfigured() || !supabase) {
-    return () => {};
-  }
-
-  try {
-    const channel = supabase
-      .channel('schema-db-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'emergency_reports' },
-        () => {
-          onReportsChange();
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'volunteers' },
-        () => {
-          onVolunteersChange();
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'units' },
-        () => {
-          if (onUnitsChange) onUnitsChange();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase?.removeChannel(channel);
+  // 1. Local Broadcast Channel for instant device/tab syncing
+  const localChannel = getBroadcastChannel();
+  if (localChannel) {
+    localChannel.onmessage = (event) => {
+      const { type } = event.data || {};
+      if (type === 'REPORT_CHANGED') {
+        onReportsChange();
+      } else if (type === 'VOLUNTEER_CHANGED') {
+        onVolunteersChange();
+      } else if (type === 'UNIT_CHANGED' && onUnitsChange) {
+        onUnitsChange();
+      } else if (type === 'BRANDING_CHANGED' && onBrandingChange) {
+        onBrandingChange();
+      }
     };
-  } catch (err) {
-    console.error('Error setting up Realtime subscription:', err);
-    return () => {};
   }
+
+  // 2. Storage event fallback for cross-tab sync
+  const handleStorageEvent = (e: StorageEvent) => {
+    if (e.key === 'bomberos_emergency_reports') {
+      onReportsChange();
+    } else if (e.key === 'bomberos_volunteers') {
+      onVolunteersChange();
+    } else if (e.key === 'bomberos_units' && onUnitsChange) {
+      onUnitsChange();
+    } else if (e.key === 'bomberos_branding' && onBrandingChange) {
+      onBrandingChange();
+    }
+  };
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('storage', handleStorageEvent);
+  }
+
+  // 3. Supabase Cloud Realtime Channel for multi-device live sync
+  let supabaseChannel: any = null;
+
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      supabaseChannel = supabase
+        .channel('schema-db-live-sync')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'emergency_reports' },
+          () => {
+            onReportsChange();
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'volunteers' },
+          () => {
+            onVolunteersChange();
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'units' },
+          () => {
+            if (onUnitsChange) onUnitsChange();
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'company_branding' },
+          () => {
+            if (onBrandingChange) onBrandingChange();
+          }
+        )
+        .subscribe();
+    } catch (err) {
+      console.error('Error setting up Supabase Realtime subscription:', err);
+    }
+  }
+
+  return () => {
+    if (localChannel) {
+      localChannel.close();
+    }
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('storage', handleStorageEvent);
+    }
+    if (supabase && supabaseChannel) {
+      supabase.removeChannel(supabaseChannel);
+    }
+  };
 };
