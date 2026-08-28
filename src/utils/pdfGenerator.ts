@@ -269,8 +269,8 @@ export const generateEmergencyReportPDF = async (report: EmergencyReport): Promi
 
   // Signature 2: Ayudante / Capitán de Compañía
   const rightBoxX = pageWidth - margin - 10 - boxWidth;
-  const captainDisplayName = report.approvedBy || report.captainName || 'Capitán de Compañía';
-  const captainDisplayRank = report.captainRank || (report.approvedBy ? 'V°B° Capitanía / Mando' : 'Capitán 4ª Cía. Calle Larga');
+  const captainDisplayName = report.digitalSignature?.signedBy || report.approvedBy || report.captainName || 'Capitán de Compañía';
+  const captainDisplayRank = report.digitalSignature?.signedByRank || report.captainRank || (report.approvedBy ? 'V°B° Mando de Compañía' : 'Capitán 4ª Cía. Calle Larga');
 
   // Embed digital signature if present
   if (report.digitalSignature) {

@@ -384,7 +384,7 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                   ) : (
                     <div className="space-y-2">
                       <div className="border-b border-slate-300 dark:border-slate-600 pb-6 text-slate-400 font-serif italic text-xs">
-                        V°B° Capitán de Compañía
+                        V°B° Mando de Compañía ({displayCaptainRank})
                       </div>
                       <div>
                         <p className="font-bold text-slate-900 dark:text-white text-xs">{displayCaptainName}</p>

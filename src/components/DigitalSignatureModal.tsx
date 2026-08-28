@@ -192,16 +192,62 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
 
         {/* Body */}
         <div className="p-6 overflow-y-auto space-y-4 text-xs text-slate-800 dark:text-slate-200">
+          
+          {/* Dual Signature Comparison Box */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* OBAC Box */}
+            <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-2xl p-3.5 space-y-1.5">
+              <div className="flex items-center space-x-1.5 text-slate-500 dark:text-slate-400 font-bold text-[10px] uppercase tracking-wider">
+                <UserCheck className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                <span>1. Oficial a Cargo (OBAC)</span>
+              </div>
+              <p className="font-black text-slate-900 dark:text-white text-xs">
+                {report.officerInChargeName}
+              </p>
+              <p className="text-[10px] text-red-700 dark:text-red-400 font-bold">
+                {report.officerInChargeRank} • Mando en Terreno
+              </p>
+            </div>
+
+            {/* Signing Officer Box */}
+            <div className="bg-red-50/50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/60 rounded-2xl p-3.5 space-y-1.5">
+              <div className="flex items-center space-x-1.5 text-red-700 dark:text-red-400 font-bold text-[10px] uppercase tracking-wider">
+                <Award className="w-3.5 h-3.5 text-amber-500" />
+                <span>2. Oficial que Valida (V°B°)</span>
+              </div>
+              <p className="font-black text-slate-900 dark:text-white text-xs truncate">
+                {signerName || 'Seleccione oficial'}
+              </p>
+              <p className="text-[10px] text-amber-600 dark:text-amber-400 font-bold truncate">
+                {signerRank || 'Cargo asignado'} • 4ª Cía.
+              </p>
+            </div>
+          </div>
+
           {/* Signer Selection */}
           <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 space-y-3">
-            <label className="block text-xs font-black text-slate-900 dark:text-white">
-              Oficial Firmante (V°B° Capitanía / Mando):
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-black text-slate-900 dark:text-white">
+                Oficial Firmante y Cargo Institucional:
+              </label>
+              {currentUser && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSignerName(currentUser.fullName);
+                    setSignerRank(currentUser.rank || 'Ayudante de Compañía');
+                  }}
+                  className="text-[10px] text-red-700 dark:text-red-400 font-bold hover:underline"
+                >
+                  Usar mi usuario ({currentUser.fullName.split(' ')[0]})
+                </button>
+              )}
+            </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div>
                 <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1">
-                  Seleccionar Oficial:
+                  Nombre del Oficial:
                 </label>
                 <select
                   value={signerName}
@@ -216,26 +262,71 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
                   }}
                   className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 dark:text-white"
                 >
-                  {officersList.map(o => (
-                    <option key={o.id} value={o.fullName}>
-                      {o.rank} - {o.fullName}
+                  <optgroup label="Oficiales de Compañía">
+                    {officersList.map(o => (
+                      <option key={o.id} value={o.fullName}>
+                        {o.rank} - {o.fullName}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Todos los Voluntarios">
+                    {volunteers.map(v => (
+                      <option key={v.id} value={v.fullName}>
+                        {v.rank} - {v.fullName} ({v.registrationNumber})
+                      </option>
+                    ))}
+                  </optgroup>
+                  {currentUser && (
+                    <option value={currentUser.fullName}>
+                      {currentUser.rank} - {currentUser.fullName} (Sesión Actual)
                     </option>
-                  ))}
-                  <option value={defaultSignerName}>{defaultSignerName} ({defaultSignerRank})</option>
+                  )}
                 </select>
               </div>
 
               <div>
                 <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1">
-                  Cargo / Grado Oficial:
+                  Cargo Institucional Asignado:
                 </label>
                 <input
                   type="text"
                   value={signerRank}
                   onChange={(e) => setSignerRank(e.target.value)}
-                  placeholder="Ej: Capitán de Compañía"
+                  placeholder="Ej: Capitán de Compañía / Ayudante"
                   className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 dark:text-white"
                 />
+              </div>
+            </div>
+
+            {/* Quick Cargo Preset Chips */}
+            <div>
+              <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                Cargos Rápidos:
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {[
+                  'Capitán de Compañía',
+                  'Ayudante de Compañía',
+                  'Teniente 1°',
+                  'Teniente 2°',
+                  'Teniente 3°',
+                  'Director de Compañía',
+                  'Secretario de Compañía',
+                  'Oficial de Guardia'
+                ].map(c => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setSignerRank(c)}
+                    className={`text-[10px] px-2 py-0.5 rounded-md font-bold transition ${
+                      signerRank === c
+                        ? 'bg-red-700 text-white'
+                        : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-red-50 dark:hover:bg-red-950/40'
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
