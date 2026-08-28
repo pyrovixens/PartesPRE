@@ -356,17 +356,20 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
     setAttendees([]);
   };
 
-  // Filtered Volunteers for step 4
+  // Filtered Volunteers for step 4 (Support fast typing of code/number or name)
   const filteredVolunteers = useMemo(() => {
+    const cleanSearch = volunteerSearch.trim();
     return volunteers.filter(v => {
+      const regDigits = v.registrationNumber.replace(/\D/g, '');
       const matchSearch = searchInFields([
         v.fullName,
         v.shortName,
         v.rank,
         v.registrationNumber,
+        regDigits,
         v.rut,
         v.category
-      ], volunteerSearch);
+      ], cleanSearch);
       const matchCat = selectedCategoryTab === 'ALL' || v.category === selectedCategoryTab;
       return matchSearch && matchCat;
     });
@@ -554,207 +557,131 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
             </div>
           )}
 
-          {/* STEP 2: CLAVE, UBICACIÓN Y MANDO (CON BUSCADORES EN TIEMPO REAL) */}
+          {/* STEP 2: CLAVE, UBICACIÓN Y MANDO (OBAC) - SIMPLE Y RÁPIDO PARA MÓVILES */}
           {activeStep === 2 && (
-            <div className="space-y-6">
+            <div className="space-y-4">
 
-              {/* 1. SELECCIÓN DE CLAVE RADIAL CON BUSCADOR INTELIGENTE */}
-              <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 space-y-3">
+              {/* 1. CLAVE RADIAL / TIPO DE ACTO */}
+              <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-2">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <Radio className="w-4 h-4 text-red-600 dark:text-red-400" />
-                    <label className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
-                      1. Clave Radial & Tipo de Acto
-                    </label>
-                  </div>
-                  <span className="text-[10px] bg-red-100 dark:bg-red-950/80 text-red-800 dark:text-red-300 font-bold px-2 py-0.5 rounded-full border border-red-200 dark:border-red-800">
-                    {filteredKeys.length} claves encontradas
+                  <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    <Radio className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                    <span>Clave Radial / Tipo de Acto</span>
+                  </label>
+                  <span className="text-[10px] font-bold text-red-700 dark:text-red-400">
+                    {selectedKeyObj.category}
                   </span>
                 </div>
 
-                {/* Selected Key Display Banner */}
-                <div className="p-3 bg-white dark:bg-slate-900 border-2 border-red-600/60 rounded-xl flex items-center justify-between shadow-sm">
-                  <div className="flex items-center space-x-3">
-                    <span className="bg-red-700 text-white font-black text-xs px-2.5 py-1 rounded-lg shadow-sm">
-                      {selectedKeyObj.code}
-                    </span>
-                    <div>
-                      <p className="font-bold text-slate-900 dark:text-white text-xs">
-                        {selectedKeyObj.description}
-                      </p>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
-                        Categoría: <span className="font-bold text-red-600 dark:text-red-400">{selectedKeyObj.category}</span>
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center text-emerald-600 dark:text-emerald-400 text-xs font-bold space-x-1">
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span className="hidden sm:inline">Seleccionada</span>
-                  </div>
-                </div>
-
-                {/* Search Bar for Claves */}
+                {/* Compact search input for Claves */}
                 <div className="relative">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
-                    placeholder="Buscar clave por código o descripción (ej: 10-0, estructural, 10-4, rescate, pastizal, reunión)..."
+                    placeholder="Escribe para buscar clave (ej: 10-0, 10-4, rescate, pastizal, reunión)..."
                     value={keySearch}
                     onChange={(e) => setKeySearch(e.target.value)}
-                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl pl-9 pr-8 py-2 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-red-600 focus:outline-none"
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg pl-8 pr-7 py-1.5 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-red-600 focus:outline-none"
                   />
                   {keySearch && (
                     <button
                       type="button"
                       onClick={() => setKeySearch('')}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-white"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
                     >
-                      <X className="w-3.5 h-3.5" />
+                      <X className="w-3 h-3" />
                     </button>
                   )}
                 </div>
 
-                {/* Category Filter Chips */}
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-[10px] font-bold">
-                  {[
-                    { id: 'ALL', label: 'Todas las Claves' },
-                    { id: '10-0', label: '10-0 Estructural' },
-                    { id: '10-2', label: '10-2 Pastizal/Forestal' },
-                    { id: '10-4', label: '10-4 Rescate Vehicular' },
-                    { id: '10-3', label: '10-3 Salvamento' },
-                    { id: '10-10', label: '10-10 Escombros' },
-                    { id: 'INSTITUCIONAL', label: 'Institucionales' },
-                  ].map(tab => (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      onClick={() => setSelectedKeyFilter(tab.id)}
-                      className={`px-2.5 py-1 rounded-lg transition whitespace-nowrap ${
-                        selectedKeyFilter === tab.id
-                          ? 'bg-slate-900 dark:bg-red-700 text-white'
-                          : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100'
-                      }`}
-                    >
-                      {tab.label}
-                    </button>
+                {/* Direct Select */}
+                <select
+                  value={keyCode}
+                  onChange={(e) => setKeyCode(e.target.value)}
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-2 font-bold text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-red-600 focus:outline-none"
+                >
+                  {filteredKeys.map(k => (
+                    <option key={k.code} value={k.code}>
+                      {k.code} - {k.description} ({k.category})
+                    </option>
                   ))}
-                </div>
-
-                {/* Filtered Claves Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-44 overflow-y-auto p-1 border border-slate-200 dark:border-slate-700/80 rounded-xl bg-white dark:bg-slate-900">
-                  {filteredKeys.length > 0 ? (
-                    filteredKeys.map(k => {
-                      const isSelected = k.code === keyCode;
-                      return (
-                        <button
-                          key={k.code}
-                          type="button"
-                          onClick={() => setKeyCode(k.code)}
-                          className={`p-2 rounded-xl text-left transition flex items-start space-x-2 border ${
-                            isSelected
-                              ? 'bg-red-50 dark:bg-red-950/40 border-red-500 shadow-sm ring-1 ring-red-500'
-                              : 'bg-slate-50/50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/60 hover:bg-slate-100 dark:hover:bg-slate-800'
-                          }`}
-                        >
-                          <span className={`text-[11px] font-black px-1.5 py-0.5 rounded shrink-0 ${
-                            isSelected ? 'bg-red-700 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200'
-                          }`}>
-                            {k.code}
-                          </span>
-                          <div className="truncate">
-                            <p className="font-bold text-slate-900 dark:text-white text-xs truncate">
-                              {k.description}
-                            </p>
-                            <p className="text-[10px] text-slate-400 truncate">{k.category}</p>
-                          </div>
-                        </button>
-                      );
-                    })
-                  ) : (
-                    <div className="col-span-full py-4 text-center text-xs text-slate-400 italic">
-                      No se encontraron claves que coincidan con "{keySearch}"
-                    </div>
-                  )}
-                </div>
+                </select>
               </div>
 
-              {/* 2. UBICACIÓN, SECTOR Y REFERENCIAS */}
-              <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 space-y-3">
-                <div className="flex items-center space-x-2">
-                  <MapPin className="w-4 h-4 text-amber-500" />
-                  <label className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
-                    2. Ubicación del Acto / Emergencia
-                  </label>
-                </div>
+              {/* 2. UBICACIÓN */}
+              <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-3">
+                <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Ubicación de la Emergencia</span>
+                </label>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                      Dirección / Lugar exacto
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                      Dirección / Calle / N°
                     </label>
                     <input
                       type="text"
                       placeholder="Ej. Av. Calle Larga N° 1450"
                       value={address}
                       onChange={(e) => setAddress(e.target.value)}
-                      className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-red-600 focus:outline-none"
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-red-600 focus:outline-none"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
                       Esquina o Referencia
                     </label>
                     <input
                       type="text"
-                      placeholder="Ej. Frente a Plaza de Armas / Enlace Pocuro"
+                      placeholder="Ej. Frente a Plaza / Enlace Pocuro"
                       value={cornerOrReference}
                       onChange={(e) => setCornerOrReference(e.target.value)}
-                      className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-red-600 focus:outline-none"
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-red-600 focus:outline-none"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
                       Sector / Población
                     </label>
                     <input
                       type="text"
-                      placeholder="Ej. Pocuro, San Roque, Centro, San Vicente"
+                      placeholder="Ej. Pocuro, San Roque, Centro"
                       value={sector}
                       onChange={(e) => setSector(e.target.value)}
-                      className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-red-600 focus:outline-none"
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-red-600 focus:outline-none"
                     />
-
-                    {/* Quick Sector Presets */}
+                    {/* Compact chips */}
                     <div className="flex flex-wrap gap-1 mt-1.5">
-                      {['Pocuro', 'San Roque', 'El Callejón', 'Centro', 'San Vicente', 'La Pampilla', 'Tabolango', 'Bypass'].map(s => (
+                      {['Pocuro', 'San Roque', 'El Callejón', 'Centro', 'San Vicente', 'La Pampilla'].map(s => (
                         <button
                           key={s}
                           type="button"
                           onClick={() => setSector(s)}
-                          className={`text-[10px] px-2 py-0.5 rounded-md font-bold transition ${
-                            sector === s
-                              ? 'bg-amber-600 text-white'
+                          className={`text-[10px] px-1.5 py-0.5 rounded font-bold transition ${
+                            sector === s 
+                              ? 'bg-amber-600 text-white' 
                               : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-amber-500 hover:text-white'
                           }`}
                         >
-                          + {s}
+                          +{s}
                         </button>
                       ))}
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
                       Comuna
                     </label>
                     <select
                       value={commune}
                       onChange={(e) => setCommune(e.target.value)}
-                      className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold focus:ring-2 focus:ring-red-600 focus:outline-none"
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-semibold focus:ring-2 focus:ring-red-600 focus:outline-none"
                     >
                       <option value="Calle Larga">Calle Larga</option>
                       <option value="Los Andes">Los Andes</option>
@@ -767,123 +694,60 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
                 </div>
               </div>
 
-              {/* 3. OFICIAL AL MANDO (OBAC) CON BUSCADOR INTELIGENTE */}
-              <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 space-y-3">
+              {/* 3. OFICIAL AL MANDO (OBAC) - MODIFICABLE EN 1 CLIC */}
+              <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-2">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <Award className="w-4 h-4 text-amber-500" />
-                    <label className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
-                      3. Oficial o Voluntario al Mando (OBAC)
-                    </label>
-                  </div>
-                  <span className="text-[10px] bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 font-bold px-2 py-0.5 rounded-full border border-amber-200 dark:border-amber-800">
-                    {filteredOBACs.length} disponibles
+                  <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    <UserCheck className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Oficial o Voluntario al Mando (OBAC)</span>
+                  </label>
+                  <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                    Modificable
                   </span>
                 </div>
 
-                {/* Selected OBAC Display Banner */}
-                <div className="p-3 bg-white dark:bg-slate-900 border-2 border-amber-500/60 rounded-xl flex items-center justify-between shadow-sm">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-black text-xs border border-amber-300 dark:border-amber-700 shrink-0">
-                      <UserCheck className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="font-black text-slate-900 dark:text-white text-xs">
-                        {selectedOBAC ? selectedOBAC.fullName : 'No seleccionado'}
-                      </p>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
-                        <span className="text-red-700 dark:text-red-400 font-black">{selectedOBAC?.rank}</span> • Reg: {selectedOBAC?.registrationNumber}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center text-emerald-600 dark:text-emerald-400 text-xs font-bold space-x-1">
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span className="hidden sm:inline">Oficial Asignado</span>
-                  </div>
-                </div>
-
-                {/* Search Bar for OBAC */}
+                {/* Quick Search for OBAC */}
                 <div className="relative">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
-                    placeholder="Buscar oficial al mando por nombre, cargo o N° (ej: Capitán, Gabriel, Teniente, 001)..."
+                    placeholder="Escribe para buscar oficial por nombre, cargo o N° (ej: Capitán, Gabriel, 001)..."
                     value={obacSearch}
                     onChange={(e) => setObacSearch(e.target.value)}
-                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl pl-9 pr-8 py-2 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-red-600 focus:outline-none"
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg pl-8 pr-7 py-1.5 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-red-600 focus:outline-none"
                   />
                   {obacSearch && (
                     <button
                       type="button"
                       onClick={() => setObacSearch('')}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-white"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
                     >
-                      <X className="w-3.5 h-3.5" />
+                      <X className="w-3 h-3" />
                     </button>
                   )}
                 </div>
 
-                {/* Rank Filter Chips for OBAC */}
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-[10px] font-bold">
-                  {[
-                    { id: 'ALL', label: 'Todo el Personal' },
-                    { id: 'OFICIALES', label: 'Oficiales de Mando' },
-                    { id: 'MAQUINISTAS', label: 'Maquinistas' },
-                    { id: 'VOLUNTARIOS', label: 'Voluntarios' },
-                  ].map(tab => (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      onClick={() => setSelectedObacFilter(tab.id)}
-                      className={`px-2.5 py-1 rounded-lg transition whitespace-nowrap ${
-                        selectedObacFilter === tab.id
-                          ? 'bg-slate-900 dark:bg-amber-600 text-white'
-                          : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100'
-                      }`}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Filtered OBAC Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-44 overflow-y-auto p-1 border border-slate-200 dark:border-slate-700/80 rounded-xl bg-white dark:bg-slate-900">
-                  {filteredOBACs.length > 0 ? (
-                    filteredOBACs.map(v => {
-                      const isSelected = v.id === officerInChargeId;
-                      return (
-                        <button
-                          key={v.id}
-                          type="button"
-                          onClick={() => setOfficerInChargeId(v.id)}
-                          className={`p-2 rounded-xl text-left transition flex items-center justify-between border ${
-                            isSelected
-                              ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-500 shadow-sm ring-1 ring-amber-500'
-                              : 'bg-slate-50/50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/60 hover:bg-slate-100 dark:hover:bg-slate-800'
-                          }`}
-                        >
-                          <div className="truncate mr-2">
-                            <p className="font-bold text-slate-900 dark:text-white text-xs truncate">
-                              {v.fullName}
-                            </p>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
-                              {v.rank} • {v.registrationNumber}
-                            </p>
-                          </div>
-                          {isSelected && (
-                            <div className="w-5 h-5 rounded-full bg-amber-600 text-white flex items-center justify-center shrink-0">
-                              <Check className="w-3 h-3" />
-                            </div>
-                          )}
-                        </button>
-                      );
-                    })
-                  ) : (
-                    <div className="col-span-full py-4 text-center text-xs text-slate-400 italic">
-                      No se encontraron oficiales con el término "{obacSearch}"
-                    </div>
-                  )}
-                </div>
+                {/* Direct OBAC Select */}
+                <select
+                  value={officerInChargeId}
+                  onChange={(e) => setOfficerInChargeId(e.target.value)}
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-2 font-bold text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-red-600 focus:outline-none"
+                >
+                  <optgroup label="Oficiales de Mando">
+                    {filteredOBACs.filter(v => ['Director', 'Capitán', 'Teniente 1°', 'Teniente 2°', 'Teniente 3°', 'Ayudante', 'Tesorero', 'Secretario'].includes(v.rank)).map(v => (
+                      <option key={v.id} value={v.id}>
+                        {v.rank} - {v.fullName} ({v.registrationNumber})
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Voluntarios y Maquinistas">
+                    {filteredOBACs.filter(v => !['Director', 'Capitán', 'Teniente 1°', 'Teniente 2°', 'Teniente 3°', 'Ayudante', 'Tesorero', 'Secretario'].includes(v.rank)).map(v => (
+                      <option key={v.id} value={v.id}>
+                        {v.rank} - {v.fullName} ({v.registrationNumber})
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
               </div>
 
             </div>
@@ -1025,22 +889,41 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
               </div>
 
               {/* Filter by Category Tabs & Search */}
-              <div className="flex flex-col sm:flex-row items-center gap-2">
-                <input
-                  type="text"
-                  placeholder="Buscar bombero por nombre, cargo o registro..."
-                  value={volunteerSearch}
-                  onChange={(e) => setVolunteerSearch(e.target.value)}
-                  className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-red-600 focus:outline-none"
-                />
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <div className="relative flex-1">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Escribe código (ej: 001, 002) o nombre del bombero..."
+                    value={volunteerSearch}
+                    onChange={(e) => setVolunteerSearch(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && filteredVolunteers.length === 1) {
+                        e.preventDefault();
+                        handleToggleVolunteer(filteredVolunteers[0]);
+                        setVolunteerSearch('');
+                      }
+                    }}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg pl-8 pr-7 py-1.5 text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-red-600 focus:outline-none font-medium"
+                  />
+                  {volunteerSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setVolunteerSearch('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
 
-                <div className="flex items-center space-x-1 overflow-x-auto text-[11px]">
+                <div className="flex items-center space-x-1 overflow-x-auto text-[11px] no-scrollbar">
                   {['ALL', 'Activo', 'Honorario', 'Fundador / Insigne', 'Aspirante'].map(cat => (
                     <button
                       key={cat}
                       type="button"
                       onClick={() => setSelectedCategoryTab(cat)}
-                      className={`px-2.5 py-1 rounded-md font-bold whitespace-nowrap transition ${
+                      className={`px-2 py-1 rounded-md font-bold whitespace-nowrap transition ${
                         selectedCategoryTab === cat
                           ? 'bg-red-700 text-white'
                           : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
