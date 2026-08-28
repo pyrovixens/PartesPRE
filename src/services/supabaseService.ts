@@ -73,10 +73,10 @@ const purgeFromAllReportStorages = (reportId: string) => {
 // -------------------------------------------------------------------
 
 export const fetchReports = async (): Promise<EmergencyReport[]> => {
-  // 1. Fetch from online server API
-  let serverReports: EmergencyReport[] = [];
+  let serverReports: EmergencyReport[] | null = null;
   let serverDeletedIds: string[] = [];
 
+  // 1. Fetch from authoritative online server API
   try {
     const res = await fetch('/api/reports', { cache: 'no-store' });
     if (res.ok) {
@@ -93,50 +93,29 @@ export const fetchReports = async (): Promise<EmergencyReport[]> => {
     console.warn('API /api/reports fetch error:', apiErr);
   }
 
-  // 2. Read local tombstones
   const deletedSet = new Set([...getDeletedIds('bomberos_deleted_report_ids'), ...serverDeletedIds]);
 
-  // 3. Purge deleted from local storages
   for (const delId of Array.from(deletedSet)) {
     purgeFromAllReportStorages(delId);
   }
 
-  // 4. Gather remaining valid local reports
-  const localCandidates: EmergencyReport[] = [];
-  if (typeof window !== 'undefined') {
-    const keysToCheck = [
-      'bomberos_partes_emergencia_v5', 
-      'bomberos_emergency_reports', 
-      'bomberos_reports', 
-      'bomberos_partes'
-    ];
-    for (const k of keysToCheck) {
-      try {
-        const raw = localStorage.getItem(k);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed)) {
-            for (const r of parsed) {
-              if (r && r.id && !deletedSet.has(r.id) && !localCandidates.some(c => c.id === r.id)) {
-                localCandidates.push(r);
-              }
-            }
-          }
-        }
-      } catch {}
-    }
+  // If server responded (even with [] empty list), use it as authoritative state!
+  if (serverReports !== null) {
+    const clean = serverReports.filter(r => !deletedSet.has(r.id));
+    saveReports(clean);
+    return clean;
   }
 
-  // 5. Direct Supabase query if serverReports was empty and Supabase configured
-  if (serverReports.length === 0 && isSupabaseConfigured() && supabase) {
+  // 2. Direct Supabase query if server API was unreachable
+  if (isSupabaseConfigured() && supabase) {
     try {
       const { data, error } = await supabase
         .from('emergency_reports')
         .select('*')
         .order('incident_date', { ascending: false });
 
-      if (!error && data && data.length > 0) {
-        serverReports = data
+      if (!error && data) {
+        const mapped: EmergencyReport[] = data
           .filter((row: any) => !deletedSet.has(row.id))
           .map(row => ({
             id: row.id,
@@ -180,60 +159,39 @@ export const fetchReports = async (): Promise<EmergencyReport[]> => {
             captainRank: row.captain_rank,
             digitalSignature: row.digital_signature && Object.keys(row.digital_signature).length > 0 ? row.digital_signature : undefined,
           }));
+        saveReports(mapped);
+        return mapped;
       }
     } catch (err) {
       console.warn('Direct Supabase fetch error:', err);
     }
   }
 
-  // 6. Auto-upload valid non-deleted local reports missing on server
-  const serverIds = new Set(serverReports.map(r => r.id));
-  const missingOnServer = localCandidates.filter(r => !serverIds.has(r.id) && !deletedSet.has(r.id));
-  if (missingOnServer.length > 0) {
-    for (const r of missingOnServer) {
-      try {
-        fetch('/api/reports', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(r),
-        }).catch(() => {});
-        serverReports.unshift(r);
-      } catch {}
-    }
-  }
-
-  const finalReports = (serverReports.length > 0 ? serverReports : (localCandidates.length > 0 ? localCandidates : getStoredReports()))
-    .filter(r => !deletedSet.has(r.id));
-
-  saveReports(finalReports);
-  return finalReports;
+  const local = getStoredReports().filter(r => !deletedSet.has(r.id));
+  return local;
 };
 
 export const saveReportToDatabase = async (report: EmergencyReport): Promise<boolean> => {
-  // If report was previously in deleted set, remove it
   if (typeof window !== 'undefined') {
     const deleted = getDeletedIds('bomberos_deleted_report_ids').filter(id => id !== report.id);
     localStorage.setItem('bomberos_deleted_report_ids', JSON.stringify(deleted));
   }
 
-  // Update local cache immediately
   const currentLocal = getStoredReports().filter(r => r.id !== report.id);
   const updatedLocal = [report, ...currentLocal];
   saveReports(updatedLocal);
   broadcastLiveChange('REPORT_CHANGED', report);
 
-  // 1. Post to centralized online backend API
   try {
-    fetch('/api/reports', {
+    await fetch('/api/reports', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(report),
-    }).catch(e => console.warn('Background /api/reports save error:', e));
+    });
   } catch (e) {
     console.warn('API saveReport error:', e);
   }
 
-  // 2. Direct Supabase upsert if configured
   if (isSupabaseConfigured() && supabase) {
     try {
       await supabase.from('emergency_reports').upsert({
@@ -286,22 +244,23 @@ export const saveReportToDatabase = async (report: EmergencyReport): Promise<boo
 };
 
 export const deleteReportFromDatabase = async (reportId: string): Promise<boolean> => {
-  // 1. Mark as permanently deleted in local tombstones
   addDeletedId('bomberos_deleted_report_ids', reportId);
   purgeFromAllReportStorages(reportId);
 
-  // 2. Update local state cache
   const current = getStoredReports();
   const updated = current.filter(r => r.id !== reportId);
   saveReports(updated);
   broadcastLiveChange('REPORT_CHANGED', { id: reportId, deleted: true });
 
-  // 3. Request deletion on online server API
   try {
-    fetch(`/api/reports?id=${encodeURIComponent(reportId)}`, { method: 'DELETE' }).catch(() => {});
-  } catch {}
+    await fetch(`/api/reports?id=${encodeURIComponent(reportId)}`, { 
+      method: 'DELETE',
+      cache: 'no-store',
+    });
+  } catch (e) {
+    console.warn('API deleteReport error:', e);
+  }
 
-  // 4. Request deletion on Supabase if configured
   if (isSupabaseConfigured() && supabase) {
     try {
       await supabase.from('emergency_reports').delete().eq('id', reportId);
@@ -315,7 +274,7 @@ export const deleteReportFromDatabase = async (reportId: string): Promise<boolea
 // -------------------------------------------------------------------
 
 export const fetchVolunteers = async (): Promise<Volunteer[]> => {
-  let serverVolunteers: Volunteer[] = [];
+  let serverVolunteers: Volunteer[] | null = null;
   let serverDeletedIds: string[] = [];
 
   try {
@@ -336,35 +295,21 @@ export const fetchVolunteers = async (): Promise<Volunteer[]> => {
 
   const deletedSet = new Set([...getDeletedIds('bomberos_deleted_volunteer_ids'), ...serverDeletedIds]);
 
-  const localCandidates: Volunteer[] = [];
-  if (typeof window !== 'undefined') {
-    const keysToCheck = ['bomberos_voluntarios_v5', 'bomberos_volunteers', 'bomberos_voluntarios'];
-    for (const k of keysToCheck) {
-      try {
-        const raw = localStorage.getItem(k);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed)) {
-            for (const v of parsed) {
-              if (v && v.id && !deletedSet.has(v.id) && !localCandidates.some(c => c.id === v.id)) {
-                localCandidates.push(v);
-              }
-            }
-          }
-        }
-      } catch {}
-    }
+  if (serverVolunteers !== null) {
+    const clean = serverVolunteers.filter(v => !deletedSet.has(v.id));
+    saveVolunteers(clean);
+    return clean;
   }
 
-  if (serverVolunteers.length === 0 && isSupabaseConfigured() && supabase) {
+  if (isSupabaseConfigured() && supabase) {
     try {
       const { data, error } = await supabase
         .from('volunteers')
         .select('*')
         .order('registration_number', { ascending: true });
 
-      if (!error && data && data.length > 0) {
-        serverVolunteers = data
+      if (!error && data) {
+        const mapped: Volunteer[] = data
           .filter((row: any) => !deletedSet.has(row.id))
           .map(row => ({
             id: row.id,
@@ -378,32 +323,16 @@ export const fetchVolunteers = async (): Promise<Volunteer[]> => {
             phone: row.phone,
             email: row.email,
           }));
+        saveVolunteers(mapped);
+        return mapped;
       }
     } catch (err) {
       console.warn('Supabase fetchVolunteers error:', err);
     }
   }
 
-  const serverIds = new Set(serverVolunteers.map(v => v.id));
-  const missing = localCandidates.filter(v => !serverIds.has(v.id) && !deletedSet.has(v.id));
-  if (missing.length > 0) {
-    for (const v of missing) {
-      try {
-        fetch('/api/volunteers', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(v),
-        }).catch(() => {});
-        serverVolunteers.push(v);
-      } catch {}
-    }
-  }
-
-  const finalVolunteers = (serverVolunteers.length > 0 ? serverVolunteers : (localCandidates.length > 0 ? localCandidates : getStoredVolunteers()))
-    .filter(v => !deletedSet.has(v.id));
-
-  saveVolunteers(finalVolunteers);
-  return finalVolunteers;
+  const local = getStoredVolunteers().filter(v => !deletedSet.has(v.id));
+  return local;
 };
 
 export const saveVolunteerToDatabase = async (volunteer: Volunteer): Promise<boolean> => {
@@ -419,11 +348,11 @@ export const saveVolunteerToDatabase = async (volunteer: Volunteer): Promise<boo
   broadcastLiveChange('VOLUNTEER_CHANGED', volunteer);
 
   try {
-    fetch('/api/volunteers', {
+    await fetch('/api/volunteers', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(volunteer),
-    }).catch(() => {});
+    });
   } catch {}
 
   if (isSupabaseConfigured() && supabase) {
@@ -455,7 +384,10 @@ export const deleteVolunteerFromDatabase = async (volunteerId: string): Promise<
   broadcastLiveChange('VOLUNTEER_CHANGED', { id: volunteerId, deleted: true });
 
   try {
-    fetch(`/api/volunteers?id=${encodeURIComponent(volunteerId)}`, { method: 'DELETE' }).catch(() => {});
+    await fetch(`/api/volunteers?id=${encodeURIComponent(volunteerId)}`, { 
+      method: 'DELETE',
+      cache: 'no-store',
+    });
   } catch {}
 
   if (isSupabaseConfigured() && supabase) {
@@ -471,7 +403,7 @@ export const deleteVolunteerFromDatabase = async (volunteerId: string): Promise<
 // -------------------------------------------------------------------
 
 export const fetchUnits = async (): Promise<Unit[]> => {
-  let serverUnits: Unit[] = [];
+  let serverUnits: Unit[] | null = null;
   let serverDeletedCodes: string[] = [];
 
   try {
@@ -490,15 +422,21 @@ export const fetchUnits = async (): Promise<Unit[]> => {
 
   const deletedSet = new Set([...getDeletedIds('bomberos_deleted_unit_codes'), ...serverDeletedCodes]);
 
-  if (serverUnits.length === 0 && isSupabaseConfigured() && supabase) {
+  if (serverUnits !== null) {
+    const clean = serverUnits.filter(u => !deletedSet.has(u.code));
+    saveUnits(clean);
+    return clean;
+  }
+
+  if (isSupabaseConfigured() && supabase) {
     try {
       const { data, error } = await supabase
         .from('units')
         .select('*')
         .order('code', { ascending: true });
 
-      if (!error && data && data.length > 0) {
-        serverUnits = data
+      if (!error && data) {
+        const mapped: Unit[] = data
           .filter((row: any) => !deletedSet.has(row.code))
           .map(row => ({
             code: row.code,
@@ -509,15 +447,14 @@ export const fetchUnits = async (): Promise<Unit[]> => {
             currentPumpHours: row.current_pump_hours || row.currentPumpHours || 0,
             status: row.status || 'Operativo',
           }));
+        saveUnits(mapped);
+        return mapped;
       }
     } catch {}
   }
 
-  const finalUnits = (serverUnits.length > 0 ? serverUnits : getStoredUnits())
-    .filter(u => !deletedSet.has(u.code));
-
-  saveUnits(finalUnits);
-  return finalUnits;
+  const local = getStoredUnits().filter(u => !deletedSet.has(u.code));
+  return local;
 };
 
 export const saveUnitToDatabase = async (unit: Unit): Promise<boolean> => {
@@ -533,11 +470,11 @@ export const saveUnitToDatabase = async (unit: Unit): Promise<boolean> => {
   broadcastLiveChange('UNIT_CHANGED', unit);
 
   try {
-    fetch('/api/units', {
+    await fetch('/api/units', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(unit),
-    }).catch(() => {});
+    });
   } catch {}
 
   if (isSupabaseConfigured() && supabase) {
@@ -566,7 +503,10 @@ export const deleteUnitFromDatabase = async (unitCode: string): Promise<boolean>
   broadcastLiveChange('UNIT_CHANGED', { code: unitCode, deleted: true });
 
   try {
-    fetch(`/api/units?code=${encodeURIComponent(unitCode)}`, { method: 'DELETE' }).catch(() => {});
+    await fetch(`/api/units?code=${encodeURIComponent(unitCode)}`, { 
+      method: 'DELETE',
+      cache: 'no-store',
+    });
   } catch {}
 
   if (isSupabaseConfigured() && supabase) {
@@ -606,11 +546,11 @@ export const saveBrandingToDatabase = async (branding: CompanyBranding): Promise
   broadcastLiveChange('BRANDING_CHANGED', branding);
 
   try {
-    fetch('/api/branding', {
+    await fetch('/api/branding', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(branding),
-    }).catch(() => {});
+    });
   } catch {}
 
   if (isSupabaseConfigured() && supabase) {
@@ -701,7 +641,7 @@ export const subscribeToRealtimeChanges = (
     window.addEventListener('storage', handleStorageEvent);
   }
 
-  // 3. Online Server Synchronization (Heartbeat check every 3.5 seconds)
+  // 3. Online Server Synchronization (Heartbeat check every 1.5 seconds)
   let lastKnownRevision = -1;
   const pollInterval = setInterval(async () => {
     try {
@@ -719,7 +659,7 @@ export const subscribeToRealtimeChanges = (
         }
       }
     } catch {}
-  }, 3500);
+  }, 1500);
 
   // 4. Supabase Cloud Realtime Channel if configured
   let supabaseChannel: any = null;

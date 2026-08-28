@@ -160,17 +160,17 @@ export default function Home() {
       const unsubscribe = subscribeToRealtimeChanges(
         () => {
           fetchReports().then(reps => {
-            if (reps && reps.length > 0) setReports(reps);
+            if (Array.isArray(reps)) setReports(reps);
           });
         },
         () => {
           fetchVolunteers().then(vols => {
-            if (vols && vols.length > 0) setVolunteers(vols);
+            if (Array.isArray(vols)) setVolunteers(vols);
           });
         },
         () => {
           fetchUnits().then(u => {
-            if (u && u.length > 0) setUnits(u);
+            if (Array.isArray(u)) setUnits(u);
           });
         },
         () => {
@@ -232,7 +232,9 @@ export default function Home() {
   const handleSaveReport = async (reportToSave: EmergencyReport) => {
     await saveReportToDatabase(reportToSave);
     const updated = await fetchReports();
-    setReports(updated);
+    if (Array.isArray(updated)) {
+      setReports(updated);
+    }
     setIsFormOpen(false);
     setEditingReport(null);
     addToast({
@@ -252,16 +254,21 @@ export default function Home() {
       });
       return;
     }
-    await deleteReportFromDatabase(reportId);
-    const updated = await fetchReports();
-    setReports(updated);
+    // Optimistic immediate removal from UI
+    setReports(prev => prev.filter(r => r.id !== reportId));
     if (viewingReport?.id === reportId) {
       setViewingReport(null);
+    }
+    await deleteReportFromDatabase(reportId);
+    const updated = await fetchReports();
+    if (Array.isArray(updated)) {
+      setReports(updated);
     }
     addToast({
       type: 'warning',
       title: 'Parte Eliminado',
       message: 'El parte ha sido retirado del libro de registro.',
+      duration: 2500,
     });
   };
 
@@ -288,15 +295,18 @@ export default function Home() {
 
     await saveReportToDatabase(signedReport);
     const updated = await fetchReports();
-    setReports(updated);
+    if (Array.isArray(updated)) {
+      setReports(updated);
+    }
 
-    const freshSigned = updated.find(r => r.id === reportId) || signedReport;
+    const freshSigned = (Array.isArray(updated) && updated.find(r => r.id === reportId)) || signedReport;
     setViewingReport(freshSigned);
 
     addToast({
       type: 'success',
       title: 'Parte Firmado Digitalmente',
       message: `V°B° oficial estampado por ${signatureData.signedBy} (${signatureData.signedByRank}).`,
+      duration: 3000,
     });
   };
 
@@ -312,11 +322,14 @@ export default function Home() {
     }
     await saveVolunteerToDatabase(vol);
     const updated = await fetchVolunteers();
-    setVolunteers(updated);
+    if (Array.isArray(updated)) {
+      setVolunteers(updated);
+    }
     addToast({
       type: 'success',
       title: 'Padrón Actualizado',
       message: `Datos del voluntario ${vol.fullName} guardados con éxito.`,
+      duration: 2500,
     });
   };
 
@@ -329,13 +342,17 @@ export default function Home() {
       });
       return;
     }
+    setVolunteers(prev => prev.filter(v => v.id !== volId));
     await deleteVolunteerFromDatabase(volId);
     const updated = await fetchVolunteers();
-    setVolunteers(updated);
+    if (Array.isArray(updated)) {
+      setVolunteers(updated);
+    }
     addToast({
       type: 'warning',
       title: 'Voluntario Removido',
       message: 'El registro ha sido retirado del padrón.',
+      duration: 2500,
     });
   };
 
@@ -351,11 +368,14 @@ export default function Home() {
     }
     await saveUnitToDatabase(unit);
     const updated = await fetchUnits();
-    setUnits(updated);
+    if (Array.isArray(updated)) {
+      setUnits(updated);
+    }
     addToast({
       type: 'success',
       title: 'Material Mayor Actualizado',
       message: `Unidad ${unit.code} guardada en la base de datos oficial.`,
+      duration: 2500,
     });
   };
 
@@ -368,13 +388,17 @@ export default function Home() {
       });
       return;
     }
+    setUnits(prev => prev.filter(u => u.code !== unitId));
     await deleteUnitFromDatabase(unitId);
     const updated = await fetchUnits();
-    setUnits(updated);
+    if (Array.isArray(updated)) {
+      setUnits(updated);
+    }
     addToast({
       type: 'warning',
       title: 'Unidad Removida',
       message: 'La unidad ha sido retirada del inventario.',
+      duration: 2500,
     });
   };
 
