@@ -58,6 +58,7 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
   currentUser,
 }) => {
   const [activeStep, setActiveStep] = useState<number>(1);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   // Form State
   const [folioYear, setFolioYear] = useState<number>(new Date().getFullYear());
@@ -247,6 +248,7 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
       setStatus(isCapitanOrAyudante ? 'APROBADO' : 'ENVIADO');
     }
     setActiveStep(1);
+    setIsSubmitting(false);
   }, [editingReport, nextFolioNumber, isOpen, volunteers, currentUser]);
 
   const selectedKeyObj = useMemo(() => {
@@ -392,10 +394,13 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
       e.preventDefault();
     }
 
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+
     const fullFolio = `${folioYear}-${String(folioNumber).padStart(3, '0')}`;
 
     const reportToSave: EmergencyReport = {
-      id: editingReport ? editingReport.id : `rep-${Date.now()}`,
+      id: editingReport ? editingReport.id : `rep-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       folioYear,
       folioNumber,
       fullFolio,
@@ -475,13 +480,14 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
           <div className="flex items-center space-x-2 shrink-0 ml-2">
             <button
               type="button"
+              disabled={isSubmitting}
               onClick={(e) => handleSubmit(e as any)}
-              className="flex items-center space-x-1 bg-red-700 hover:bg-red-800 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow-md transition active:scale-95 border border-red-500/50"
+              className={`flex items-center space-x-1 bg-red-700 hover:bg-red-800 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow-md transition active:scale-95 border border-red-500/50 ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
               title="Guardar Parte Oficial"
             >
               <Save className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Guardar Parte</span>
-              <span className="inline sm:hidden">Guardar</span>
+              <span className="hidden sm:inline">{isSubmitting ? 'Guardando...' : 'Guardar Parte'}</span>
+              <span className="inline sm:hidden">{isSubmitting ? '...' : 'Guardar'}</span>
             </button>
             <button
               type="button"
@@ -1190,11 +1196,12 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
 
               <button
                 type="button"
+                disabled={isSubmitting}
                 onClick={(e) => handleSubmit(e as any)}
-                className="flex items-center gap-1.5 bg-red-700 hover:bg-red-800 text-white text-xs font-black px-4 sm:px-5 py-2 rounded-xl shadow-md transition active:scale-95 border border-red-500/40"
+                className={`flex items-center gap-1.5 bg-red-700 hover:bg-red-800 text-white text-xs font-black px-4 sm:px-5 py-2 rounded-xl shadow-md transition active:scale-95 border border-red-500/40 ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 <Save className="w-4 h-4" />
-                <span>Guardar Parte Oficial</span>
+                <span>{isSubmitting ? 'Guardando...' : 'Guardar Parte Oficial'}</span>
               </button>
             </div>
           </div>

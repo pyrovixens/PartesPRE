@@ -230,13 +230,19 @@ export default function Home() {
   };
 
   const handleSaveReport = async (reportToSave: EmergencyReport) => {
-    // Optimistic UI update & instant modal close
-    setReports(prev => {
-      const exists = prev.some(r => r.id === reportToSave.id);
-      return exists ? prev.map(r => r.id === reportToSave.id ? reportToSave : r) : [reportToSave, ...prev];
-    });
     setIsFormOpen(false);
     setEditingReport(null);
+
+    // Optimistic UI update with strict deduplication
+    setReports(prev => {
+      const key = `${reportToSave.folioYear}-${reportToSave.correlativoCompania || reportToSave.fullFolio}`;
+      const filtered = prev.filter(r => 
+        r.id !== reportToSave.id && 
+        `${r.folioYear}-${r.correlativoCompania || r.fullFolio}` !== key
+      );
+      return [reportToSave, ...filtered];
+    });
+
     addToast({
       type: 'success',
       title: 'Parte Ingresado',

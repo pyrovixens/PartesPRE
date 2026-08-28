@@ -101,7 +101,16 @@ export const fetchReports = async (): Promise<EmergencyReport[]> => {
 
   // If server responded (even with [] empty list), use it as authoritative state!
   if (serverReports !== null) {
-    const clean = serverReports.filter(r => !deletedSet.has(r.id));
+    const seenIds = new Set<string>();
+    const seenFolios = new Set<string>();
+    const clean = serverReports.filter(r => {
+      if (deletedSet.has(r.id)) return false;
+      const key = `${r.folioYear}-${r.correlativoCompania || r.fullFolio || r.folioNumber}`;
+      if (seenIds.has(r.id) || seenFolios.has(key)) return false;
+      seenIds.add(r.id);
+      seenFolios.add(key);
+      return true;
+    });
     saveReports(clean);
     return clean;
   }
@@ -177,7 +186,11 @@ export const saveReportToDatabase = async (report: EmergencyReport): Promise<boo
     localStorage.setItem('bomberos_deleted_report_ids', JSON.stringify(deleted));
   }
 
-  const currentLocal = getStoredReports().filter(r => r.id !== report.id);
+  const reportKey = `${report.folioYear}-${report.correlativoCompania || report.fullFolio}`;
+  const currentLocal = getStoredReports().filter(r => 
+    r.id !== report.id && 
+    `${r.folioYear}-${r.correlativoCompania || r.fullFolio}` !== reportKey
+  );
   const updatedLocal = [report, ...currentLocal];
   saveReports(updatedLocal);
   broadcastLiveChange('REPORT_CHANGED', report);

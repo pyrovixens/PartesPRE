@@ -100,7 +100,6 @@ export const serverGetReports = async (): Promise<EmergencyReport[]> => {
 
       if (!error && data && data.length > 0) {
         const mapped: EmergencyReport[] = data
-          .filter((row: any) => !globalState.deletedReportIds.includes(row.id))
           .map((row: any) => ({
             id: row.id,
             folioYear: row.folio_year,
@@ -143,26 +142,69 @@ export const serverGetReports = async (): Promise<EmergencyReport[]> => {
             captainRank: row.captain_rank,
             digitalSignature: row.digital_signature && Object.keys(row.digital_signature).length > 0 ? row.digital_signature : undefined,
           }));
-        globalState.reports = mapped;
-        return mapped;
+
+        // Strict Deduplication
+        const seenIds = new Set<string>();
+        const seenFolios = new Set<string>();
+        globalState.reports = mapped.filter(r => {
+          if (globalState.deletedReportIds.includes(r.id)) return false;
+          const key = `${r.folioYear}-${r.correlativoCompania || r.fullFolio || r.folioNumber}`;
+          if (seenIds.has(r.id) || seenFolios.has(key)) return false;
+          seenIds.add(r.id);
+          seenFolios.add(key);
+          return true;
+        });
+
+        return globalState.reports;
       }
     } catch (e) {
       console.warn('Supabase query error in serverGetReports:', e);
     }
   }
-  return globalState.reports.filter(r => !globalState.deletedReportIds.includes(r.id));
+
+  // Deduplicate in-memory reports
+  const seenIds = new Set<string>();
+  const seenFolios = new Set<string>();
+  globalState.reports = globalState.reports.filter(r => {
+    if (globalState.deletedReportIds.includes(r.id)) return false;
+    const key = `${r.folioYear}-${r.correlativoCompania || r.fullFolio || r.folioNumber}`;
+    if (seenIds.has(r.id) || seenFolios.has(key)) return false;
+    seenIds.add(r.id);
+    seenFolios.add(key);
+    return true;
+  });
+
+  return globalState.reports;
 };
 
 export const serverSaveReport = async (report: EmergencyReport): Promise<EmergencyReport> => {
   // If report was previously deleted, un-delete it
   globalState.deletedReportIds = globalState.deletedReportIds.filter(id => id !== report.id);
 
-  const index = globalState.reports.findIndex(r => r.id === report.id);
+  // Match by ID OR by same Folio in the same Year
+  const reportKey = `${report.folioYear}-${report.correlativoCompania || report.fullFolio || report.folioNumber}`;
+  const index = globalState.reports.findIndex(r => 
+    r.id === report.id || 
+    `${r.folioYear}-${r.correlativoCompania || r.fullFolio || r.folioNumber}` === reportKey
+  );
+
   if (index >= 0) {
-    globalState.reports[index] = report;
+    globalState.reports[index] = { ...report, id: globalState.reports[index].id || report.id };
   } else {
     globalState.reports.unshift(report);
   }
+
+  // Deduplicate array
+  const seenIds = new Set<string>();
+  const seenFolios = new Set<string>();
+  globalState.reports = globalState.reports.filter(r => {
+    const key = `${r.folioYear}-${r.correlativoCompania || r.fullFolio || r.folioNumber}`;
+    if (seenIds.has(r.id) || seenFolios.has(key)) return false;
+    seenIds.add(r.id);
+    seenFolios.add(key);
+    return true;
+  });
+
   bumpRevision();
 
   if (supabase) {
