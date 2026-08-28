@@ -30,8 +30,17 @@ export const fetchReports = async (): Promise<EmergencyReport[]> => {
       return getStoredReports();
     }
 
-    if (!data || data.length === 0) {
+    if (!data) {
       return getStoredReports();
+    }
+
+    if (data.length === 0) {
+      const initial = getStoredReports();
+      if (initial.length > 0) {
+        Promise.all(initial.map(rep => saveReportToDatabase(rep))).catch(e => console.warn('Seeding initial reports:', e));
+        return initial;
+      }
+      return [];
     }
 
     // Map database fields to frontend model
@@ -213,8 +222,17 @@ export const fetchVolunteers = async (): Promise<Volunteer[]> => {
       return getStoredVolunteers();
     }
 
-    if (!data || data.length === 0) {
+    if (!data) {
       return getStoredVolunteers();
+    }
+
+    if (data.length === 0) {
+      const initial = getStoredVolunteers();
+      if (initial.length > 0) {
+        Promise.all(initial.map(vol => saveVolunteerToDatabase(vol))).catch(e => console.warn('Seeding initial volunteers:', e));
+        return initial;
+      }
+      return [];
     }
 
     const mapped: Volunteer[] = data.map(row => ({
@@ -324,8 +342,17 @@ export const fetchUnits = async (): Promise<Unit[]> => {
       return getStoredUnits();
     }
 
-    if (!data || data.length === 0) {
+    if (!data) {
       return getStoredUnits();
+    }
+
+    if (data.length === 0) {
+      const initial = getStoredUnits();
+      if (initial.length > 0) {
+        Promise.all(initial.map(u => saveUnitToDatabase(u))).catch(e => console.warn('Seeding initial units:', e));
+        return initial;
+      }
+      return [];
     }
 
     const mapped: Unit[] = data.map(row => ({

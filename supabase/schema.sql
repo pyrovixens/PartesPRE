@@ -298,3 +298,30 @@ INSERT INTO public.app_users (
     'c0023972fce4d51959f33673c0bb7b465886f889d6998414d88f56fdf57f9a1e'
 )
 ON CONFLICT (id) DO NOTHING;
+
+-- 14. TABLA: BRANDING INSTITUCIONAL (ESCUDO Y MARCA)
+CREATE TABLE IF NOT EXISTS public.company_branding (
+    id TEXT PRIMARY KEY DEFAULT 'default_branding',
+    company_name TEXT NOT NULL DEFAULT '4ª Compañía "Bomba Calle Larga"',
+    fire_department TEXT NOT NULL DEFAULT 'Cuerpo de Bomberos de Los Andes',
+    motto TEXT NOT NULL DEFAULT 'Honor, Disciplina y Abnegación',
+    logo_url TEXT NOT NULL DEFAULT '/logo_4ta_calle_larga.png',
+    primary_color TEXT NOT NULL DEFAULT '#8B0000',
+    accent_color TEXT NOT NULL DEFAULT '#DC2626',
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.company_branding ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "company_branding_policy" ON public.company_branding FOR ALL USING (true) WITH CHECK (true);
+
+INSERT INTO public.company_branding (id, company_name, fire_department, motto, logo_url, primary_color, accent_color)
+VALUES ('default_branding', '4ª Compañía "Bomba Calle Larga"', 'Cuerpo de Bomberos de Los Andes', 'Honor, Disciplina y Abnegación', '/logo_4ta_calle_larga.png', '#8B0000', '#DC2626')
+ON CONFLICT (id) DO NOTHING;
+
+-- 15. HABILITAR PUBLICACIÓN EN TIEMPO REAL (SUPABASE REALTIME WEBSOCKETS)
+ALTER PUBLICATION supabase_realtime ADD TABLE public.emergency_reports;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.volunteers;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.units;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.app_users;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.emergency_keys;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.company_branding;
+
