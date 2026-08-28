@@ -388,12 +388,8 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
 
   // Submit Handler
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!address.trim() && selectedKeyObj.category === 'Emergencias') {
-      alert('Por favor indica la dirección de la emergencia.');
-      setActiveStep(2);
-      return;
+    if (e && typeof e.preventDefault === 'function') {
+      e.preventDefault();
     }
 
     const fullFolio = `${folioYear}-${String(folioNumber).padStart(3, '0')}`;
@@ -405,18 +401,18 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
       fullFolio,
       correlativoCompania: correlativoCompania || String(folioNumber).padStart(3, '0'),
       correlativoComandancia: correlativoComandancia.trim(),
-      incidentDate,
-      incidentTime,
+      incidentDate: incidentDate || new Date().toISOString().substring(0, 10),
+      incidentTime: incidentTime || '12:00',
       keyCode: selectedKeyObj.code,
       keyDescription: selectedKeyObj.description,
       category: selectedKeyObj.category,
-      address: address.trim() || 'Cuartel 4ª Compañía Calle Larga',
+      address: address.trim() || 'Sector Calle Larga',
       cornerOrReference: cornerOrReference.trim(),
-      sector,
-      commune,
-      officerInChargeId: selectedOBAC?.id || '',
-      officerInChargeName: selectedOBAC?.fullName || '',
-      officerInChargeRank: selectedOBAC?.rank || 'Capitán',
+      sector: sector || 'Calle Larga',
+      commune: commune || 'Calle Larga',
+      officerInChargeId: selectedOBAC?.id || (volunteers[0]?.id || ''),
+      officerInChargeName: selectedOBAC?.fullName || (volunteers[0]?.fullName || 'Oficial a Cargo'),
+      officerInChargeRank: selectedOBAC?.rank || (volunteers[0]?.rank || 'Capitán'),
       units: selectedUnits,
       attendees,
       totalFirefighters: attendees.length,
@@ -476,12 +472,26 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition shrink-0 ml-2"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center space-x-2 shrink-0 ml-2">
+            <button
+              type="button"
+              onClick={(e) => handleSubmit(e as any)}
+              className="flex items-center space-x-1 bg-red-700 hover:bg-red-800 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow-md transition active:scale-95 border border-red-500/50"
+              title="Guardar Parte Oficial"
+            >
+              <Save className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Guardar Parte</span>
+              <span className="inline sm:hidden">Guardar</span>
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition"
+              title="Cerrar ventana"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Step Tabs */}
@@ -552,7 +562,6 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
                     type="date"
                     value={incidentDate}
                     onChange={(e) => setIncidentDate(e.target.value)}
-                    required
                     className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 sm:px-3 py-1.5 sm:py-2 font-bold focus:ring-2 focus:ring-red-600 focus:outline-none text-xs sm:text-sm"
                   />
                 </div>
@@ -1155,7 +1164,7 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
                   onClick={() => setActiveStep(activeStep - 1)}
                   className="text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-slate-900 px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 transition active:scale-95"
                 >
-                  Anterior
+                  ← Anterior
                 </button>
               )}
             </div>
@@ -1169,23 +1178,24 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
                 Cancelar
               </button>
 
-              {activeStep < 5 ? (
+              {activeStep < 5 && (
                 <button
                   type="button"
                   onClick={() => setActiveStep(activeStep + 1)}
-                  className="bg-slate-900 dark:bg-red-700 hover:bg-slate-800 dark:hover:bg-red-800 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-sm transition active:scale-95"
+                  className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-sm transition active:scale-95 border border-slate-700"
                 >
-                  Siguiente paso
-                </button>
-              ) : (
-                <button
-                  type="submit"
-                  className="flex items-center gap-1.5 bg-red-700 hover:bg-red-800 text-white text-xs font-bold px-4 sm:px-5 py-2 rounded-xl shadow-md transition active:scale-95"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>Guardar Parte Oficial</span>
+                  Siguiente paso →
                 </button>
               )}
+
+              <button
+                type="button"
+                onClick={(e) => handleSubmit(e as any)}
+                className="flex items-center gap-1.5 bg-red-700 hover:bg-red-800 text-white text-xs font-black px-4 sm:px-5 py-2 rounded-xl shadow-md transition active:scale-95 border border-red-500/40"
+              >
+                <Save className="w-4 h-4" />
+                <span>Guardar Parte Oficial</span>
+              </button>
             </div>
           </div>
         </form>

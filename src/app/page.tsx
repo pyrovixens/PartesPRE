@@ -230,11 +230,11 @@ export default function Home() {
   };
 
   const handleSaveReport = async (reportToSave: EmergencyReport) => {
-    await saveReportToDatabase(reportToSave);
-    const updated = await fetchReports();
-    if (Array.isArray(updated)) {
-      setReports(updated);
-    }
+    // Optimistic UI update & instant modal close
+    setReports(prev => {
+      const exists = prev.some(r => r.id === reportToSave.id);
+      return exists ? prev.map(r => r.id === reportToSave.id ? reportToSave : r) : [reportToSave, ...prev];
+    });
     setIsFormOpen(false);
     setEditingReport(null);
     addToast({
@@ -243,6 +243,13 @@ export default function Home() {
       message: `Parte #${reportToSave.correlativoCompania || reportToSave.fullFolio} ingresado exitosamente.`,
       duration: 2500,
     });
+
+    // Persist to central database & server
+    await saveReportToDatabase(reportToSave);
+    const updated = await fetchReports();
+    if (Array.isArray(updated)) {
+      setReports(updated);
+    }
   };
 
   const handleDeleteReport = async (reportId: string) => {
