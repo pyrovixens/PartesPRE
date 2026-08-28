@@ -15,7 +15,6 @@ import {
 } from 'lucide-react';
 import { exportMatrixToExcel } from '../utils/excelExport';
 import { EmergencyReport, Volunteer, UserProfile, CompanyBranding } from '../types';
-import { isSupabaseConfigured } from '../lib/supabase';
 
 interface HeaderProps {
   activeTab: string;
@@ -92,14 +91,6 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Action Buttons Right */}
         <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-          {/* Cloud Connection Badge */}
-          <div className="hidden lg:flex items-center space-x-1.5 bg-slate-950/70 border border-slate-700/80 px-2.5 py-1.5 rounded-2xl text-[10px] font-black">
-            <span className={`w-2 h-2 rounded-full ${isSupabaseConfigured() ? 'bg-emerald-400 animate-pulse shadow-sm shadow-emerald-500/50' : 'bg-amber-400'}`}></span>
-            <span className={isSupabaseConfigured() ? 'text-emerald-300' : 'text-amber-300'}>
-              {isSupabaseConfigured() ? 'Base Central en Vivo' : 'Modo Sin Nube'}
-            </span>
-          </div>
-
           {/* User Profile Card & Role */}
           <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-800/90 border border-slate-700/80 rounded-2xl px-2 sm:px-3 py-1 sm:py-1.5 shadow-sm">
             <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-xl bg-red-700 text-white font-black text-[10px] sm:text-xs flex items-center justify-center">
