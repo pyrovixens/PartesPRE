@@ -15,22 +15,50 @@ import {
 // -------------------------------------------------------------------
 
 export const fetchReports = async (): Promise<EmergencyReport[]> => {
-  // 1. Try centralized online backend API
+  // 1. Gather all local reports from all possible local keys
+  const localCandidates: EmergencyReport[] = [];
+  if (typeof window !== 'undefined') {
+    const keysToCheck = [
+      'bomberos_partes_emergencia_v5', 
+      'bomberos_emergency_reports', 
+      'bomberos_reports', 
+      'bomberos_partes',
+      'bomberos_reports_v4',
+      'bomberos_partes_v1'
+    ];
+    for (const k of keysToCheck) {
+      try {
+        const raw = localStorage.getItem(k);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            for (const r of parsed) {
+              if (r && r.id && !localCandidates.some(c => c.id === r.id)) {
+                localCandidates.push(r);
+              }
+            }
+          }
+        }
+      } catch {}
+    }
+  }
+
+  // 2. Fetch from online server API
+  let serverReports: EmergencyReport[] = [];
   try {
     const res = await fetch('/api/reports', { cache: 'no-store' });
     if (res.ok) {
       const json = await res.json();
-      if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-        saveReports(json.data);
-        return json.data;
+      if (json.success && Array.isArray(json.data)) {
+        serverReports = json.data;
       }
     }
   } catch (apiErr) {
-    console.warn('API /api/reports fetch error, trying direct Supabase/cache:', apiErr);
+    console.warn('API /api/reports fetch error:', apiErr);
   }
 
-  // 2. Direct Supabase query if configured
-  if (isSupabaseConfigured() && supabase) {
+  // 3. Direct Supabase query if configured
+  if (serverReports.length === 0 && isSupabaseConfigured() && supabase) {
     try {
       const { data, error } = await supabase
         .from('emergency_reports')
@@ -38,7 +66,7 @@ export const fetchReports = async (): Promise<EmergencyReport[]> => {
         .order('incident_date', { ascending: false });
 
       if (!error && data && data.length > 0) {
-        const mapped: EmergencyReport[] = data.map(row => ({
+        serverReports = data.map(row => ({
           id: row.id,
           folioYear: row.folio_year,
           folioNumber: row.folio_number,
@@ -80,16 +108,31 @@ export const fetchReports = async (): Promise<EmergencyReport[]> => {
           captainRank: row.captain_rank,
           digitalSignature: row.digital_signature && Object.keys(row.digital_signature).length > 0 ? row.digital_signature : undefined,
         }));
-        saveReports(mapped);
-        return mapped;
       }
     } catch (err) {
       console.warn('Direct Supabase fetch error:', err);
     }
   }
 
-  // 3. Fallback to local cache
-  return getStoredReports();
+  // 4. If user entered reports previously that are not on the server, auto-upload to server
+  const serverIds = new Set(serverReports.map(r => r.id));
+  const missingOnServer = localCandidates.filter(r => !serverIds.has(r.id));
+  if (missingOnServer.length > 0) {
+    for (const r of missingOnServer) {
+      try {
+        fetch('/api/reports', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(r),
+        }).catch(() => {});
+        serverReports.unshift(r);
+      } catch {}
+    }
+  }
+
+  const finalReports = serverReports.length > 0 ? serverReports : (localCandidates.length > 0 ? localCandidates : getStoredReports());
+  saveReports(finalReports);
+  return finalReports;
 };
 
 export const saveReportToDatabase = async (report: EmergencyReport): Promise<boolean> => {
@@ -188,22 +231,43 @@ export const deleteReportFromDatabase = async (reportId: string): Promise<boolea
 // -------------------------------------------------------------------
 
 export const fetchVolunteers = async (): Promise<Volunteer[]> => {
-  // 1. Try online backend API
+  // 1. Gather all local volunteers
+  const localCandidates: Volunteer[] = [];
+  if (typeof window !== 'undefined') {
+    const keysToCheck = ['bomberos_voluntarios_v5', 'bomberos_volunteers', 'bomberos_voluntarios'];
+    for (const k of keysToCheck) {
+      try {
+        const raw = localStorage.getItem(k);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            for (const v of parsed) {
+              if (v && v.id && !localCandidates.some(c => c.id === v.id)) {
+                localCandidates.push(v);
+              }
+            }
+          }
+        }
+      } catch {}
+    }
+  }
+
+  // 2. Try online backend API
+  let serverVolunteers: Volunteer[] = [];
   try {
     const res = await fetch('/api/volunteers', { cache: 'no-store' });
     if (res.ok) {
       const json = await res.json();
-      if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-        saveVolunteers(json.data);
-        return json.data;
+      if (json.success && Array.isArray(json.data)) {
+        serverVolunteers = json.data;
       }
     }
   } catch (apiErr) {
     console.warn('API /api/volunteers fetch error:', apiErr);
   }
 
-  // 2. Direct Supabase
-  if (isSupabaseConfigured() && supabase) {
+  // 3. Direct Supabase
+  if (serverVolunteers.length === 0 && isSupabaseConfigured() && supabase) {
     try {
       const { data, error } = await supabase
         .from('volunteers')
@@ -211,7 +275,7 @@ export const fetchVolunteers = async (): Promise<Volunteer[]> => {
         .order('registration_number', { ascending: true });
 
       if (!error && data && data.length > 0) {
-        const mapped: Volunteer[] = data.map(row => ({
+        serverVolunteers = data.map(row => ({
           id: row.id,
           registrationNumber: row.registration_number,
           rut: row.rut,
@@ -223,15 +287,31 @@ export const fetchVolunteers = async (): Promise<Volunteer[]> => {
           phone: row.phone,
           email: row.email,
         }));
-        saveVolunteers(mapped);
-        return mapped;
       }
     } catch (err) {
       console.warn('Supabase fetchVolunteers error:', err);
     }
   }
 
-  return getStoredVolunteers();
+  // 4. Auto-sync missing volunteers to server
+  const serverIds = new Set(serverVolunteers.map(v => v.id));
+  const missing = localCandidates.filter(v => !serverIds.has(v.id));
+  if (missing.length > 0) {
+    for (const v of missing) {
+      try {
+        fetch('/api/volunteers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(v),
+        }).catch(() => {});
+        serverVolunteers.push(v);
+      } catch {}
+    }
+  }
+
+  const finalVolunteers = serverVolunteers.length > 0 ? serverVolunteers : (localCandidates.length > 0 ? localCandidates : getStoredVolunteers());
+  saveVolunteers(finalVolunteers);
+  return finalVolunteers;
 };
 
 export const saveVolunteerToDatabase = async (volunteer: Volunteer): Promise<boolean> => {
@@ -488,11 +568,11 @@ export const subscribeToRealtimeChanges = (
 
   // 2. Storage event fallback
   const handleStorageEvent = (e: StorageEvent) => {
-    if (e.key === 'bomberos_emergency_reports') {
+    if (e.key === 'bomberos_emergency_reports' || e.key === 'bomberos_partes_emergencia_v5') {
       onReportsChange();
-    } else if (e.key === 'bomberos_volunteers') {
+    } else if (e.key === 'bomberos_volunteers' || e.key === 'bomberos_voluntarios_v5') {
       onVolunteersChange();
-    } else if (e.key === 'bomberos_units' && onUnitsChange) {
+    } else if ((e.key === 'bomberos_units' || e.key === 'bomberos_unidades_v5') && onUnitsChange) {
       onUnitsChange();
     } else if (e.key === 'bomberos_branding' && onBrandingChange) {
       onBrandingChange();

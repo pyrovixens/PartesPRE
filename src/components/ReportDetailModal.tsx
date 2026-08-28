@@ -49,7 +49,11 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
 
   if (!report) return null;
 
-  const handleDownloadPDF = () => {
+  const handleDownloadPDF = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     generateEmergencyReportPDF(report);
   };
 
@@ -404,6 +408,7 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
           {/* Modal Bottom Footer Actions */}
           <div className="p-4 sm:p-5 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 flex-wrap flex-shrink-0">
             <button
+              type="button"
               onClick={onClose}
               className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-800 transition flex items-center space-x-1.5 active:scale-95"
             >
@@ -413,6 +418,7 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
 
             <div className="flex items-center space-x-2">
               <button
+                type="button"
                 onClick={handleDownloadPDF}
                 className="bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl flex items-center space-x-1.5 transition active:scale-95 border border-slate-700 shadow-sm"
               >
@@ -421,6 +427,7 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
               </button>
 
               <button
+                type="button"
                 onClick={() => onEdit(report)}
                 className="bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl flex items-center space-x-1.5 transition active:scale-95 border border-slate-700 shadow-sm"
               >
@@ -430,6 +437,7 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
 
               {!report.digitalSignature && isAuthorizedToSign && (
                 <button
+                  type="button"
                   onClick={() => setIsSignModalOpen(true)}
                   className="bg-red-700 hover:bg-red-800 text-white font-black text-xs px-4 py-2 rounded-xl flex items-center space-x-1.5 shadow-md transition active:scale-95 border border-red-500/50"
                   title="Cerrar y Validar Parte Oficial con Firma Digital (Capitanía / Ayudantía)"

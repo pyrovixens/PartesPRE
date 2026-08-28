@@ -20,6 +20,24 @@ const getBase64ImageFromUrl = async (imageUrl: string): Promise<string> => {
   }
 };
 
+const downloadBlob = (blob: Blob, filename: string) => {
+  if (typeof window === 'undefined') return;
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.style.display = 'none';
+  a.href = url;
+  a.download = filename;
+  a.rel = 'noopener noreferrer';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    try {
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch {}
+  }, 300);
+};
+
 export const generateEmergencyReportPDF = async (report: EmergencyReport): Promise<void> => {
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -312,7 +330,8 @@ export const generateEmergencyReportPDF = async (report: EmergencyReport): Promi
     doc.text(`Sistema de Partes • 4ª Compañía Calle Larga - Cuerpo de Bomberos Los Andes • Página ${i} de ${totalPages}`, pageWidth / 2, pageHeight - 6, { align: 'center' });
   }
 
-  doc.save(`Parte_${report.correlativoCompania || report.fullFolio}_4taCia_CalleLarga.pdf`);
+  const pdfBlob = doc.output('blob');
+  downloadBlob(pdfBlob, `Parte_${report.correlativoCompania || report.fullFolio}_4taCia_CalleLarga.pdf`);
 };
 
 export const generateMonthlyExecutivePDF = async (reports: EmergencyReport[], summary: StatsSummary, monthName: string, year: number): Promise<void> => {
@@ -424,5 +443,6 @@ export const generateMonthlyExecutivePDF = async (reports: EmergencyReport[], su
     doc.text(`4ª Compañía Calle Larga - Cuerpo de Bomberos Los Andes • Página ${i} de ${totalPages}`, pageWidth / 2, pageHeight - 6, { align: 'center' });
   }
 
-  doc.save(`Informe_Mensual_${monthName}_${year}_4taCia.pdf`);
+  const pdfBlob = doc.output('blob');
+  downloadBlob(pdfBlob, `Informe_Mensual_${monthName}_${year}_4taCia.pdf`);
 };
