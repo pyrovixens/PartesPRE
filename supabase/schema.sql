@@ -350,11 +350,29 @@ INSERT INTO public.company_branding (id, company_name, fire_department, motto, l
 VALUES ('default_branding', '4ª Compañía "Bomba Calle Larga"', 'Cuerpo de Bomberos de Los Andes', 'Honor, Disciplina y Abnegación', '/logo_4ta_calle_larga.png', '#8B0000', '#DC2626')
 ON CONFLICT (id) DO NOTHING;
 
--- 17. HABILITAR PUBLICACIÓN EN TIEMPO REAL (SUPABASE REALTIME WEBSOCKETS)
-ALTER PUBLICATION supabase_realtime ADD TABLE public.emergency_reports;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.volunteers;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.units;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.app_users;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.user_invitations;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.emergency_keys;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.company_branding;
+-- 17. HABILITAR PUBLICACIÓN EN TIEMPO REAL DE FORMA SEGURA (SUPABASE REALTIME)
+DO $$
+DECLARE
+  tbl text;
+  tables text[] := ARRAY[
+    'emergency_reports',
+    'volunteers',
+    'units',
+    'app_users',
+    'user_invitations',
+    'emergency_keys',
+    'company_branding'
+  ];
+BEGIN
+  FOREACH tbl IN ARRAY tables
+  LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_publication_tables 
+      WHERE pubname = 'supabase_realtime' 
+      AND schemaname = 'public' 
+      AND tablename = tbl
+    ) THEN
+      EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I', tbl);
+    END IF;
+  END LOOP;
+END $$;
