@@ -169,6 +169,19 @@ export const saveStoredUsers = (users: AppUser[]): void => {
 };
 
 export const fetchAppUsers = async (): Promise<AppUser[]> => {
+  // 1. Online API endpoint
+  try {
+    const res = await fetch('/api/users', { cache: 'no-store' });
+    if (res.ok) {
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+        saveStoredUsers(json.data);
+        return json.data;
+      }
+    }
+  } catch {}
+
+  // 2. Direct Supabase
   if (isSupabaseConfigured() && supabase) {
     try {
       const { data, error } = await supabase
@@ -221,6 +234,16 @@ export const saveAppUser = async (user: AppUser): Promise<AppUser> => {
 
   saveStoredUsers(updatedUsers);
 
+  // 1. Online API endpoint
+  try {
+    fetch('/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(user),
+    }).catch(() => {});
+  } catch {}
+
+  // 2. Direct Supabase
   if (isSupabaseConfigured() && supabase) {
     try {
       await supabase.from('app_users').upsert({
@@ -241,7 +264,7 @@ export const saveAppUser = async (user: AppUser): Promise<AppUser> => {
         invited_at: user.invitedAt,
         last_login: user.lastLogin,
         updated_at: new Date().toISOString(),
-      });
+      }, { onConflict: 'id' });
     } catch (e) {
       console.warn('Could not upsert user to Supabase:', e);
     }
@@ -254,6 +277,10 @@ export const deleteAppUser = async (userId: string): Promise<void> => {
   const currentUsers = getStoredUsers();
   const filtered = currentUsers.filter(u => u.id !== userId);
   saveStoredUsers(filtered);
+
+  try {
+    fetch(`/api/users?id=${encodeURIComponent(userId)}`, { method: 'DELETE' }).catch(() => {});
+  } catch {}
 
   if (isSupabaseConfigured() && supabase) {
     try {
