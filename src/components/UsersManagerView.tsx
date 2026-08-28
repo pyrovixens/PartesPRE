@@ -16,7 +16,9 @@ import {
   KeyRound,
   Check,
   X,
-  AlertTriangle
+  AlertTriangle,
+  Clock,
+  RefreshCw
 } from 'lucide-react';
 import { AppUser, UserRole, UserPermissions, Volunteer, UserInvitation } from '../types';
 import { 
@@ -24,6 +26,8 @@ import {
   saveAppUser, 
   deleteAppUser, 
   createInvitation, 
+  fetchInvitations,
+  deleteInvitation,
   getDefaultPermissions,
   validatePasswordStrength,
   hashPassword
@@ -42,6 +46,7 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
   onNotify,
 }) => {
   const [users, setUsers] = useState<AppUser[]>([]);
+  const [invitations, setInvitations] = useState<UserInvitation[]>([]);
   const [search, setSearch] = useState<string>('');
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [editingUser, setEditingUser] = useState<AppUser | null>(null);
@@ -65,13 +70,22 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
   const [permissions, setPermissions] = useState<UserPermissions>(getDefaultPermissions('OFICIAL'));
   const [isSending, setIsSending] = useState<boolean>(false);
 
-  const loadUsers = async () => {
-    const list = await fetchAppUsers();
-    setUsers(list);
+  const loadData = async () => {
+    try {
+      const [userList, invList] = await Promise.all([
+        fetchAppUsers(),
+        fetchInvitations(),
+      ]);
+      // Active / suspended users only (no unverified dummy users)
+      setUsers(userList.filter(u => u.status === 'ACTIVO' || u.status === 'SUSPENDIDO'));
+      setInvitations(invList.filter(i => i.status === 'PENDING'));
+    } catch {
+      console.warn('Error loading users and invitations');
+    }
   };
 
   useEffect(() => {
-    loadUsers();
+    loadData();
   }, []);
 
   const handleVolunteerSelect = (volId: string) => {
@@ -140,7 +154,7 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
 
     try {
       if (editingUser) {
-        // Edit existing user
+        // Edit existing active user
         let hashedPassword = editingUser.passwordHash;
         if (directPassword && directPassword !== editingUser.password) {
           hashedPassword = await hashPassword(directPassword);
@@ -158,97 +172,131 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
           password: directPassword || editingUser.password,
           passwordHash: hashedPassword,
           failedLoginAttempts: 0,
-          lockedUntil: undefined, // Reset lockout if admin edited
+          lockedUntil: undefined,
         };
         await saveAppUser(userToSave);
-        await loadUsers();
+        await loadData();
         setIsModalOpen(false);
         onNotify('success', 'Usuario Actualizado', `Permisos y credenciales de ${userToSave.fullName} actualizados.`);
       } else {
-        // Create new official invitation
-        const inv = await createInvitation({
-          email: email.trim().toLowerCase(),
-          fullName: fullName.trim(),
-          volunteerId: selectedVolunteerId || undefined,
-          rank,
-          registrationNumber: registrationNumber || 'VOL-000',
-          role,
-          permissions,
-          invitedBy: `${currentUser.rank} ${currentUser.fullName}`,
-        });
-
-        // Request API for email payload
-        const origin = window.location.origin;
-        let activationUrl = `${origin}/activar?token=${inv.token}`;
-        let mailtoUrl = `mailto:${inv.email}`;
-        let gmailUrl = `https://mail.google.com`;
-
-        try {
-          const apiRes = await fetch('/api/invite-user', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email: inv.email,
-              fullName: inv.fullName,
-              rank: inv.rank,
-              registrationNumber: inv.registrationNumber,
-              role: inv.role,
-              permissions: inv.permissions,
-              invitedBy: inv.invitedBy,
-              token: inv.token,
-              origin,
-            }),
-          });
-
-          if (apiRes.ok) {
-            const apiData = await apiRes.json();
-            activationUrl = apiData.activationUrl || activationUrl;
-            mailtoUrl = apiData.mailtoUrl || mailtoUrl;
-            gmailUrl = apiData.gmailUrl || gmailUrl;
-          }
-        } catch {
-          // fallback to client URLs
-        }
-
+        // Direct password provided -> create active account immediately
         if (directPassword) {
           const hashed = await hashPassword(directPassword);
-          await saveAppUser({
+          const newUser: AppUser = {
             id: `usr-${Date.now()}`,
-            email: inv.email,
-            fullName: inv.fullName,
-            volunteerId: inv.volunteerId,
-            rank: inv.rank,
-            registrationNumber: inv.registrationNumber,
-            role: inv.role,
+            email: email.trim().toLowerCase(),
+            fullName: fullName.trim(),
+            volunteerId: selectedVolunteerId || undefined,
+            rank,
+            registrationNumber: registrationNumber || 'VOL-000',
+            role,
             status: 'ACTIVO',
-            permissions: inv.permissions,
+            permissions,
             password: directPassword,
             passwordHash: hashed,
             createdAt: new Date().toISOString(),
+          };
+          await saveAppUser(newUser);
+          await loadData();
+          setIsModalOpen(false);
+          onNotify('success', 'Cuenta Creada', `Se creó la cuenta oficial activa para ${newUser.fullName}.`);
+        } else {
+          // Send official invitation (account will only be saved when activated)
+          const inv = await createInvitation({
+            email: email.trim().toLowerCase(),
+            fullName: fullName.trim(),
+            volunteerId: selectedVolunteerId || undefined,
+            rank,
+            registrationNumber: registrationNumber || 'VOL-000',
+            role,
+            permissions,
+            invitedBy: `${currentUser.rank} ${currentUser.fullName}`,
           });
+
+          // Request API for email payload
+          const origin = window.location.origin;
+          let activationUrl = `${origin}/crear-cuenta?email=${encodeURIComponent(inv.email)}`;
+          let mailtoUrl = `mailto:${inv.email}`;
+          let gmailUrl = `https://mail.google.com`;
+
+          try {
+            const apiRes = await fetch('/api/invite-user', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                email: inv.email,
+                fullName: inv.fullName,
+                rank: inv.rank,
+                registrationNumber: inv.registrationNumber,
+                role: inv.role,
+                permissions: inv.permissions,
+                invitedBy: inv.invitedBy,
+                token: inv.token,
+                origin,
+              }),
+            });
+
+            if (apiRes.ok) {
+              const apiData = await apiRes.json();
+              activationUrl = apiData.activationUrl || activationUrl;
+              mailtoUrl = apiData.mailtoUrl || mailtoUrl;
+              gmailUrl = apiData.gmailUrl || gmailUrl;
+            }
+          } catch {
+            // fallback
+          }
+
+          await loadData();
+          setIsModalOpen(false);
+
+          // Show Dispatch Options Modal
+          setInvitationResult({
+            invitation: inv,
+            activationUrl,
+            mailtoUrl,
+            gmailUrl,
+          });
+
+          onNotify(
+            'success',
+            'Invitación Generada',
+            `Se generó el enlace de activación para ${inv.fullName}.`
+          );
         }
-
-        await loadUsers();
-        setIsModalOpen(false);
-
-        // Show Dispatch Options Modal
-        setInvitationResult({
-          invitation: inv,
-          activationUrl,
-          mailtoUrl,
-          gmailUrl,
-        });
-
-        onNotify(
-          'success',
-          'Invitación Generada',
-          `Se generó el enlace de activación para ${inv.fullName}.`
-        );
       }
     } catch {
       onNotify('error', 'Error', 'Ocurrió un error al procesar el usuario.');
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handleResendInvitation = async (inv: UserInvitation) => {
+    const origin = window.location.origin;
+    const activationUrl = `${origin}/crear-cuenta?email=${encodeURIComponent(inv.email)}`;
+    const subject = `🚒 Invitación Oficial: Sistema de Partes - 4ª Cía. Bomberos Calle Larga`;
+    const textBody = `Estimado/a ${inv.fullName} (${inv.rank}),\n\n` +
+      `Te reenviamos la invitación oficial para acceder al Sistema de Control de Asistencias y Partes de la 4ª Cía. "Calle Larga".\n\n` +
+      `Para registrar tu contraseña personal de acceso, haz clic en el siguiente enlace:\n` +
+      `${activationUrl}\n\n` +
+      `4ª Cía. Bomberos Calle Larga • C.B. Los Andes`;
+
+    const mailtoUrl = `mailto:${encodeURIComponent(inv.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(textBody)}`;
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(inv.email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(textBody)}`;
+
+    setInvitationResult({
+      invitation: inv,
+      activationUrl,
+      mailtoUrl,
+      gmailUrl,
+    });
+  };
+
+  const handleDeleteInvitation = async (email: string, name: string) => {
+    if (confirm(`¿Estás seguro de cancelar y revocar la invitación de ${name}?`)) {
+      await deleteInvitation(email);
+      await loadData();
+      onNotify('warning', 'Invitación Revocada', `Se ha cancelado la invitación pendiente para ${name}.`);
     }
   };
 
@@ -260,7 +308,7 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
 
     if (confirm(`¿Estás seguro de eliminar o suspender la cuenta de ${userName}?`)) {
       await deleteAppUser(userId);
-      await loadUsers();
+      await loadData();
       onNotify('warning', 'Usuario Removido', `La cuenta de ${userName} ha sido eliminada.`);
     }
   };
@@ -325,7 +373,7 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
                 Gestión de Usuarios & Control de Cuentas
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Administración de roles institucionales y permisos de operación
+                Administración de roles institucionales, invitaciones y credenciales
               </p>
             </div>
           </div>
@@ -336,24 +384,91 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
           className="flex items-center space-x-1.5 bg-red-700 hover:bg-red-800 text-white font-black text-xs px-4 py-2.5 rounded-2xl shadow-md transition active:scale-95 border border-red-500/50"
         >
           <Mail className="w-4 h-4" />
-          <span>Enviar Invitación por Correo</span>
+          <span>Invitar / Crear Usuario</span>
         </button>
       </div>
 
-      {/* Search & Stats Filter */}
+      {/* Invitaciones Pendientes (Si existen) */}
+      {invitations.length > 0 && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-3xl p-4 sm:p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Clock className="w-4 h-4 text-amber-500" />
+              <h3 className="font-black text-xs sm:text-sm text-amber-800 dark:text-amber-300">
+                Invitaciones Pendientes de Activación ({invitations.length})
+              </h3>
+            </div>
+            <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+              No generan credenciales activas hasta que el voluntario registre su contraseña
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {invitations.map((inv) => (
+              <div key={inv.token || inv.id} className="bg-white dark:bg-slate-900 border border-amber-500/30 rounded-2xl p-3.5 shadow-sm space-y-2 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between gap-1">
+                    <p className="font-bold text-xs text-slate-900 dark:text-white truncate">{inv.fullName}</p>
+                    <span className="text-[9px] font-black bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 px-1.5 py-0.5 rounded border border-amber-300 dark:border-amber-800 shrink-0">
+                      {inv.role}
+                    </span>
+                  </div>
+                  <p className="font-mono text-[10px] text-slate-500 truncate">{inv.email}</p>
+                  <p className="text-[10px] text-slate-400 pt-1">
+                    Invitado por: {inv.invitedBy || 'Oficialidad'}
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 gap-1">
+                  <button
+                    type="button"
+                    onClick={() => handleResendInvitation(inv)}
+                    className="flex items-center gap-1 text-[10px] font-bold bg-amber-600/10 hover:bg-amber-600/20 text-amber-700 dark:text-amber-300 px-2.5 py-1 rounded-lg transition"
+                    title="Reenviar correo o enlace"
+                  >
+                    <Send className="w-3 h-3" />
+                    <span>Reenviar</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleCopyLink(`${window.location.origin}/crear-cuenta?email=${encodeURIComponent(inv.email)}`)}
+                    className="flex items-center gap-1 text-[10px] font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 px-2.5 py-1 rounded-lg transition"
+                    title="Copiar enlace directo"
+                  >
+                    <Copy className="w-3 h-3" />
+                    <span>Copiar Link</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteInvitation(inv.email, inv.fullName)}
+                    className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition"
+                    title="Revocar invitación"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Search Filter */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-3 flex items-center space-x-3">
         <div className="relative flex-1">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Buscar por nombre, correo, registro o cargo..."
+            placeholder="Buscar usuario por nombre, correo, registro o cargo..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-red-600"
           />
         </div>
         <span className="text-xs font-bold text-slate-500 dark:text-slate-400 px-2 shrink-0">
-          {filteredUsers.length} cuentas registradas
+          {filteredUsers.length} cuentas oficiales activas
         </span>
       </div>
 
@@ -619,7 +734,7 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
                   className="flex items-center space-x-1.5 bg-red-700 hover:bg-red-800 text-white font-black px-4 py-2 rounded-xl shadow-md transition active:scale-95 disabled:opacity-50"
                 >
                   <Send className="w-4 h-4" />
-                  <span>{isSending ? 'Generando...' : (editingUser ? 'Guardar Cambios' : 'Generar Invitación')}</span>
+                  <span>{isSending ? 'Generando...' : (editingUser ? 'Guardar Cambios' : (directPassword ? 'Crear Cuenta Activa' : 'Generar Invitación'))}</span>
                 </button>
               </div>
             </form>
@@ -659,9 +774,19 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
                   Rol asignado: <span className="font-bold text-red-700 dark:text-red-400">{invitationResult.invitation.role}</span> • {invitationResult.invitation.rank}
                 </p>
                 <p className="text-[10px] text-slate-500 pt-1">
-                  Enlace válido por 7 días para que el voluntario registre su contraseña personal en el sistema.
+                  El enlace es válido por 7 días. Cuando el usuario acceda y configure su contraseña, quedará activado en el sistema.
                 </p>
               </div>
+
+              {/* Copy link button */}
+              <button
+                type="button"
+                onClick={() => handleCopyLink(invitationResult.activationUrl)}
+                className="w-full flex items-center justify-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 rounded-xl transition text-xs border border-slate-700 shadow-sm"
+              >
+                <Copy className="w-4 h-4" />
+                <span>Copiar Enlace de Activación</span>
+              </button>
 
               {/* Dispatch options */}
               <div className="grid grid-cols-2 gap-2 pt-1">

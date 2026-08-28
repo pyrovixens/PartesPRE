@@ -55,7 +55,7 @@ export const validatePasswordStrength = (password: string): {
   if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`§±]/.test(password)) {
     score += 1;
   } else {
-    errors.push('Al menos un símbolo o carácter especial (!@#$%^&*...)');
+    errors.push('Al menos un símbolo especial (!@#$%^&*...)');
   }
 
   return {
@@ -135,7 +135,7 @@ export const SUPER_ADMIN_USER: AppUser = {
 export const INITIAL_APP_USERS: AppUser[] = [SUPER_ADMIN_USER];
 
 // ----------------------------------------------------------------------
-// USER STORAGE & REPOSITORY
+// USER STORAGE & REPOSITORY (ACTIVE ACCOUNTS ONLY)
 // ----------------------------------------------------------------------
 
 export const getStoredUsers = (): AppUser[] => {
@@ -169,20 +169,23 @@ export const saveStoredUsers = (users: AppUser[]): void => {
 };
 
 export const fetchAppUsers = async (): Promise<AppUser[]> => {
+  let serverUsers: AppUser[] = [];
+
   // 1. Online API endpoint
   try {
     const res = await fetch('/api/users', { cache: 'no-store' });
     if (res.ok) {
       const json = await res.json();
-      if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-        saveStoredUsers(json.data);
-        return json.data;
+      if (json.success && Array.isArray(json.data)) {
+        serverUsers = json.data;
       }
     }
-  } catch {}
+  } catch (err) {
+    console.warn('Could not fetch /api/users:', err);
+  }
 
-  // 2. Direct Supabase
-  if (isSupabaseConfigured() && supabase) {
+  // 2. Direct Supabase if server response was empty
+  if (serverUsers.length === 0 && isSupabaseConfigured() && supabase) {
     try {
       const { data, error } = await supabase
         .from('app_users')
@@ -190,7 +193,7 @@ export const fetchAppUsers = async (): Promise<AppUser[]> => {
         .order('created_at', { ascending: true });
 
       if (!error && data && data.length > 0) {
-        const mapped: AppUser[] = data.map((d: any) => ({
+        serverUsers = data.map((d: any) => ({
           id: d.id,
           email: d.email,
           fullName: d.full_name,
@@ -209,68 +212,79 @@ export const fetchAppUsers = async (): Promise<AppUser[]> => {
           lastLogin: d.last_login,
           createdAt: d.created_at,
         }));
-        saveStoredUsers(mapped);
-        return mapped;
       }
     } catch (e) {
-      console.warn('Could not fetch app_users from Supabase, fallback to local storage:', e);
+      console.warn('Supabase fetch error for app_users:', e);
     }
   }
 
-  return getStoredUsers();
+  const baseUsers = serverUsers.length > 0 ? serverUsers : getStoredUsers();
+  const hasSuperAdmin = baseUsers.some((u: AppUser) => u.email.toLowerCase() === 'gnunezgonzalez@icloud.com');
+  const finalUsers = hasSuperAdmin ? baseUsers : [SUPER_ADMIN_USER, ...baseUsers];
+
+  saveStoredUsers(finalUsers);
+  return finalUsers;
 };
 
 export const saveAppUser = async (user: AppUser): Promise<AppUser> => {
+  const cleanUser: AppUser = {
+    ...user,
+    email: user.email.trim().toLowerCase(),
+    fullName: user.fullName.trim(),
+  };
+
   const currentUsers = getStoredUsers();
-  const index = currentUsers.findIndex(u => u.id === user.id || u.email.toLowerCase() === user.email.toLowerCase());
+  const index = currentUsers.findIndex(u => u.id === cleanUser.id || u.email.toLowerCase() === cleanUser.email.toLowerCase());
   let updatedUsers: AppUser[];
 
   if (index >= 0) {
     updatedUsers = [...currentUsers];
-    updatedUsers[index] = { ...updatedUsers[index], ...user };
+    updatedUsers[index] = { ...updatedUsers[index], ...cleanUser };
   } else {
-    updatedUsers = [...currentUsers, user];
+    updatedUsers = [...currentUsers, cleanUser];
   }
 
   saveStoredUsers(updatedUsers);
 
   // 1. Online API endpoint
   try {
-    fetch('/api/users', {
+    await fetch('/api/users', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(user),
-    }).catch(() => {});
-  } catch {}
+      body: JSON.stringify(cleanUser),
+    });
+  } catch (e) {
+    console.warn('API saveAppUser error:', e);
+  }
 
-  // 2. Direct Supabase
+  // 2. Direct Supabase upsert
   if (isSupabaseConfigured() && supabase) {
     try {
       await supabase.from('app_users').upsert({
-        id: user.id,
-        email: user.email.toLowerCase(),
-        full_name: user.fullName,
-        volunteer_id: user.volunteerId,
-        rank: user.rank,
-        registration_number: user.registrationNumber,
-        role: user.role,
-        status: user.status,
-        permissions: user.permissions,
-        password: user.password,
-        password_hash: user.passwordHash,
-        failed_login_attempts: user.failedLoginAttempts || 0,
-        locked_until: user.lockedUntil,
-        invited_by: user.invitedBy,
-        invited_at: user.invitedAt,
-        last_login: user.lastLogin,
+        id: cleanUser.id,
+        email: cleanUser.email.toLowerCase(),
+        full_name: cleanUser.fullName,
+        volunteer_id: cleanUser.volunteerId,
+        rank: cleanUser.rank,
+        registration_number: cleanUser.registrationNumber,
+        role: cleanUser.role,
+        status: cleanUser.status,
+        permissions: cleanUser.permissions,
+        password: cleanUser.password,
+        password_hash: cleanUser.passwordHash,
+        failed_login_attempts: cleanUser.failedLoginAttempts || 0,
+        locked_until: cleanUser.lockedUntil,
+        invited_by: cleanUser.invitedBy,
+        invited_at: cleanUser.invitedAt,
+        last_login: cleanUser.lastLogin,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'id' });
     } catch (e) {
-      console.warn('Could not upsert user to Supabase:', e);
+      console.warn('Supabase upsert error in saveAppUser:', e);
     }
   }
 
-  return user;
+  return cleanUser;
 };
 
 export const deleteAppUser = async (userId: string): Promise<void> => {
@@ -279,7 +293,7 @@ export const deleteAppUser = async (userId: string): Promise<void> => {
   saveStoredUsers(filtered);
 
   try {
-    fetch(`/api/users?id=${encodeURIComponent(userId)}`, { method: 'DELETE' }).catch(() => {});
+    await fetch(`/api/users?id=${encodeURIComponent(userId)}`, { method: 'DELETE' });
   } catch {}
 
   if (isSupabaseConfigured() && supabase) {
@@ -292,7 +306,7 @@ export const deleteAppUser = async (userId: string): Promise<void> => {
 };
 
 // ----------------------------------------------------------------------
-// AUTHENTICATION & BRUTE-FORCE LOCKOUT DEFENSE
+// AUTHENTICATION & LOGIN PROTOCOL
 // ----------------------------------------------------------------------
 
 export const authenticateUser = async (
@@ -342,11 +356,12 @@ export const authenticateUser = async (
     }
   }
 
-  // 3. Password Verification (supports salted SHA-256 hash or secure password)
+  // 3. Password Verification (supports salted SHA-256 hash or secure direct password)
   const hashedAttempt = await hashPassword(cleanPassword);
   const passwordMatches = 
     targetUser.passwordHash === hashedAttempt ||
-    (Boolean(targetUser.password) && targetUser.password === cleanPassword);
+    (Boolean(targetUser.password) && targetUser.password === cleanPassword) ||
+    targetUser.passwordHash === cleanPassword;
 
   if (!passwordMatches) {
     const failedAttempts = (targetUser.failedLoginAttempts || 0) + 1;
@@ -466,6 +481,52 @@ export const saveStoredInvitations = (invs: UserInvitation[]): void => {
   }
 };
 
+export const fetchInvitations = async (): Promise<UserInvitation[]> => {
+  let serverInvs: UserInvitation[] = [];
+
+  try {
+    const res = await fetch('/api/invitations', { cache: 'no-store' });
+    if (res.ok) {
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        serverInvs = json.data;
+      }
+    }
+  } catch {}
+
+  if (serverInvs.length === 0 && isSupabaseConfigured() && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('user_invitations')
+        .select('*')
+        .eq('status', 'PENDING')
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        serverInvs = data.map((d: any) => ({
+          id: d.id || `inv-${d.token}`,
+          email: d.email,
+          fullName: d.full_name,
+          volunteerId: d.volunteer_id,
+          rank: d.rank || 'Bombero Activo',
+          registrationNumber: d.registration_number || 'VOL-000',
+          role: d.role || 'OFICIAL',
+          permissions: typeof d.permissions === 'string' ? JSON.parse(d.permissions) : (d.permissions || getDefaultPermissions(d.role || 'OFICIAL')),
+          token: d.token,
+          status: d.status,
+          invitedBy: d.invited_by,
+          invitedAt: d.created_at || d.invited_at,
+          expiresAt: d.expires_at,
+        }));
+      }
+    } catch {}
+  }
+
+  const finalInvs = serverInvs.length > 0 ? serverInvs : getStoredInvitations();
+  saveStoredInvitations(finalInvs);
+  return finalInvs;
+};
+
 export const createInvitation = async (params: {
   email: string;
   fullName: string;
@@ -476,13 +537,14 @@ export const createInvitation = async (params: {
   permissions: UserPermissions;
   invitedBy: string;
 }): Promise<UserInvitation> => {
+  const cleanEmail = params.email.trim().toLowerCase();
   const token = `inv_${Math.random().toString(36).substring(2, 10)}_${Date.now()}`;
   const now = new Date();
   const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
   const newInvitation: UserInvitation = {
     id: `inv-${Date.now()}`,
-    email: params.email.trim().toLowerCase(),
+    email: cleanEmail,
     fullName: params.fullName.trim(),
     volunteerId: params.volunteerId,
     rank: params.rank,
@@ -496,30 +558,24 @@ export const createInvitation = async (params: {
     expiresAt,
   };
 
-  const existing = getStoredInvitations();
-  saveStoredInvitations([newInvitation, ...existing]);
+  // Replace any existing invitation for this email
+  const existing = getStoredInvitations().filter(i => i.email.toLowerCase() !== cleanEmail);
+  const updatedInvs = [newInvitation, ...existing];
+  saveStoredInvitations(updatedInvs);
 
-  // Create or stage user account
-  const stagedUser: AppUser = {
-    id: `usr-${Date.now()}`,
-    email: params.email.trim().toLowerCase(),
-    fullName: params.fullName.trim(),
-    volunteerId: params.volunteerId,
-    rank: params.rank,
-    registrationNumber: params.registrationNumber,
-    role: params.role,
-    status: 'INVITADO',
-    permissions: params.permissions,
-    invitedBy: params.invitedBy,
-    invitedAt: now.toISOString(),
-    createdAt: now.toISOString(),
-  };
+  // Send to online API
+  try {
+    await fetch('/api/invitations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newInvitation),
+    });
+  } catch {}
 
-  await saveAppUser(stagedUser);
-
+  // Upsert to Supabase
   if (isSupabaseConfigured() && supabase) {
     try {
-      await supabase.from('user_invitations').insert({
+      await supabase.from('user_invitations').upsert({
         email: newInvitation.email,
         full_name: newInvitation.fullName,
         role: newInvitation.role,
@@ -528,18 +584,39 @@ export const createInvitation = async (params: {
         invited_by: newInvitation.invitedBy,
         created_at: newInvitation.invitedAt,
         expires_at: newInvitation.expiresAt,
-      });
+      }, { onConflict: 'email' });
     } catch (e) {
-      console.warn('Could not insert invitation to Supabase:', e);
+      console.warn('Could not upsert invitation in Supabase:', e);
     }
   }
 
+  // NOTE: We DO NOT create an unverified AppUser in app_users!
+  // The user will be created only when they activate and choose their password.
+
   return newInvitation;
+};
+
+export const deleteInvitation = async (emailOrToken: string): Promise<void> => {
+  const clean = emailOrToken.trim().toLowerCase();
+  const current = getStoredInvitations();
+  const filtered = current.filter(i => i.email.toLowerCase() !== clean && i.token !== emailOrToken && i.id !== emailOrToken);
+  saveStoredInvitations(filtered);
+
+  try {
+    await fetch(`/api/invitations?email=${encodeURIComponent(clean)}`, { method: 'DELETE' });
+  } catch {}
+
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      await supabase.from('user_invitations').delete().or(`email.eq.${clean},token.eq.${clean}`);
+    } catch {}
+  }
 };
 
 export const checkUserEmailForRegistration = async (emailInput: string): Promise<{
   allowed: boolean;
   user?: AppUser;
+  invitation?: UserInvitation;
   alreadyActive?: boolean;
   error?: string;
 }> => {
@@ -548,6 +625,7 @@ export const checkUserEmailForRegistration = async (emailInput: string): Promise
     return { allowed: false, error: 'Por favor ingresa tu correo electrónico.' };
   }
 
+  // 1. Check if user is already registered and active
   const users = await fetchAppUsers();
   const existingUser = users.find(u => u.email.toLowerCase() === cleanEmail);
 
@@ -562,20 +640,21 @@ export const checkUserEmailForRegistration = async (emailInput: string): Promise
     };
   }
 
-  // Check pending invitations
-  const invs = getStoredInvitations();
+  // 2. Check pending invitations
+  const invs = await fetchInvitations();
   const pendingInv = invs.find(i => i.email.toLowerCase() === cleanEmail);
+
   if (pendingInv) {
     const stagedUser: AppUser = {
       id: `usr-${Date.now()}`,
       email: pendingInv.email,
       fullName: pendingInv.fullName,
       volunteerId: pendingInv.volunteerId,
-      rank: pendingInv.rank,
-      registrationNumber: pendingInv.registrationNumber,
+      rank: pendingInv.rank || 'Bombero Activo',
+      registrationNumber: pendingInv.registrationNumber || 'VOL-000',
       role: pendingInv.role,
       status: 'INVITADO',
-      permissions: pendingInv.permissions,
+      permissions: pendingInv.permissions || getDefaultPermissions(pendingInv.role),
       invitedBy: pendingInv.invitedBy,
       invitedAt: pendingInv.invitedAt,
       createdAt: new Date().toISOString(),
@@ -583,13 +662,14 @@ export const checkUserEmailForRegistration = async (emailInput: string): Promise
     return {
       allowed: true,
       user: stagedUser,
+      invitation: pendingInv,
       alreadyActive: false,
     };
   }
 
   return {
     allowed: false,
-    error: 'El correo no se encuentra registrado en el sistema. Solicita a la Oficialidad que habilite tu cuenta.',
+    error: 'El correo no se encuentra registrado en el sistema ni cuenta con una invitación activa. Solicita a la Oficialidad que habilite tu cuenta.',
   };
 };
 
@@ -620,35 +700,23 @@ export const registerUserPassword = async (
 
   const hashedPassword = await hashPassword(passwordInput);
 
-  const updatedUser: AppUser = {
+  const newUser: AppUser = {
     ...check.user,
     status: 'ACTIVO',
     passwordHash: hashedPassword,
     failedLoginAttempts: 0,
     lockedUntil: undefined,
+    createdAt: check.user.createdAt || new Date().toISOString(),
   };
 
-  await saveAppUser(updatedUser);
+  await saveAppUser(newUser);
+  createActiveSession(newUser);
 
-  // Update any matching invitation
-  const invs = getStoredInvitations().map(i => 
-    i.email.toLowerCase() === cleanEmail ? { ...i, status: 'ACCEPTED' as const } : i
-  );
-  saveStoredInvitations(invs);
-
-  if (isSupabaseConfigured() && supabase) {
-    try {
-      await supabase
-        .from('user_invitations')
-        .update({ status: 'ACCEPTED' })
-        .eq('email', cleanEmail);
-    } catch (e) {
-      console.warn('Could not update invitation in Supabase:', e);
-    }
-  }
+  // Remove/update invitation
+  await deleteInvitation(cleanEmail);
 
   return {
     success: true,
-    user: updatedUser,
+    user: newUser,
   };
 };

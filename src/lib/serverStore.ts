@@ -15,6 +15,7 @@ interface ServerState {
   units: Unit[];
   branding: CompanyBranding;
   users: AppUser[];
+  invitations?: any[];
   deletedReportIds: string[];
   deletedVolunteerIds: string[];
   deletedUnitCodes: string[];
@@ -607,6 +608,82 @@ export const serverDeleteUser = async (id: string): Promise<boolean> => {
   return true;
 };
 
+export const serverGetInvitations = async (): Promise<any[]> => {
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('user_invitations')
+        .select('*')
+        .eq('status', 'PENDING')
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        const mapped = data.map((d: any) => ({
+          id: d.id || `inv-${d.token}`,
+          email: d.email,
+          fullName: d.full_name,
+          role: d.role,
+          token: d.token,
+          status: d.status,
+          invitedBy: d.invited_by,
+          invitedAt: d.created_at || d.invited_at,
+          expiresAt: d.expires_at,
+        }));
+        globalState.invitations = mapped;
+        return mapped;
+      }
+    } catch (e) {
+      console.warn('Supabase query error in serverGetInvitations:', e);
+    }
+  }
+  return globalState.invitations || [];
+};
+
+export const serverSaveInvitation = async (inv: any): Promise<any> => {
+  if (!globalState.invitations) globalState.invitations = [];
+  globalState.invitations = globalState.invitations.filter((i: any) => i.email.toLowerCase() !== inv.email.toLowerCase());
+  globalState.invitations.unshift(inv);
+  bumpRevision();
+
+  if (supabase) {
+    try {
+      await supabase.from('user_invitations').upsert({
+        email: inv.email.toLowerCase(),
+        full_name: inv.fullName,
+        role: inv.role,
+        token: inv.token,
+        status: inv.status || 'PENDING',
+        invited_by: inv.invitedBy,
+        created_at: inv.invitedAt || new Date().toISOString(),
+        expires_at: inv.expiresAt,
+      }, { onConflict: 'email' });
+    } catch (e) {
+      console.warn('Supabase save error in serverSaveInvitation:', e);
+    }
+  }
+  return inv;
+};
+
+export const serverDeleteInvitation = async (emailOrToken: string): Promise<boolean> => {
+  if (!globalState.invitations) globalState.invitations = [];
+  globalState.invitations = globalState.invitations.filter(
+    (i: any) => i.email.toLowerCase() !== emailOrToken.toLowerCase() && i.token !== emailOrToken && i.id !== emailOrToken
+  );
+  bumpRevision();
+
+  if (supabase) {
+    try {
+      await supabase
+        .from('user_invitations')
+        .delete()
+        .or(`email.eq.${emailOrToken.toLowerCase()},token.eq.${emailOrToken}`);
+    } catch (e) {
+      console.warn('Supabase delete error in serverDeleteInvitation:', e);
+    }
+  }
+  return true;
+};
+
 // ----------------------------------------------------------------------
 // SYNC STATE API
 // ----------------------------------------------------------------------
@@ -618,6 +695,8 @@ export const serverGetSyncState = () => {
     reportsCount: globalState.reports.length,
     volunteersCount: globalState.volunteers.length,
     unitsCount: globalState.units.length,
+    usersCount: globalState.users.length,
+    invitationsCount: (globalState.invitations || []).length,
     deletedReportIds: globalState.deletedReportIds,
     deletedVolunteerIds: globalState.deletedVolunteerIds,
     deletedUnitCodes: globalState.deletedUnitCodes,

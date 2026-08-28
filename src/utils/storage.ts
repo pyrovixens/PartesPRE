@@ -67,7 +67,7 @@ export const getStoredUnits = (): Unit[] => {
       return INITIAL_UNITS;
     }
     const parsed = JSON.parse(data);
-    return Array.isArray(parsed) ? parsed : INITIAL_UNITS;
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_UNITS;
   } catch (e) {
     console.error('Error loading units:', e);
     return INITIAL_UNITS;

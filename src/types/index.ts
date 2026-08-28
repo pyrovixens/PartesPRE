@@ -208,10 +208,10 @@ export interface UserInvitation {
   email: string;
   fullName: string;
   volunteerId?: string;
-  rank: VolunteerRank;
-  registrationNumber: string;
+  rank?: VolunteerRank;
+  registrationNumber?: string;
   role: UserRole;
-  permissions: UserPermissions;
+  permissions?: UserPermissions;
   token: string;
   status: 'PENDING' | 'ACCEPTED' | 'EXPIRED';
   invitedBy: string;

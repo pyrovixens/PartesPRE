@@ -122,6 +122,12 @@ export const INITIAL_VOLUNTEERS: Volunteer[] = [
   { id: 'vol-asp-01', rut: '23.456.789-0', registrationNumber: 'ASP-040', fullName: 'Martina Lopez', shortName: 'M. Lopez', category: 'Aspirante', rank: 'Aspirante', status: 'Activo' },
 ];
 
-export const INITIAL_UNITS: Unit[] = [];
+export const INITIAL_UNITS: Unit[] = [
+  { code: 'B-4', name: 'Bomba Primera Intervención B-4', plate: 'CB-401', type: 'Bomba', currentKm: 45200, currentPumpHours: 320, status: 'Operativo' },
+  { code: 'BX-4', name: 'Bomba Respaldo / Cisterna BX-4', plate: 'CB-402', type: 'Bomba', currentKm: 38100, currentPumpHours: 210, status: 'Operativo' },
+  { code: 'R-4', name: 'Unidad de Rescate Vehicular R-4', plate: 'CB-403', type: 'Rescate', currentKm: 29400, currentPumpHours: 145, status: 'Operativo' },
+  { code: 'Z-4', name: 'Unidad de Abastecimiento Z-4', plate: 'CB-404', type: 'Aljibe', currentKm: 18300, currentPumpHours: 90, status: 'Operativo' },
+  { code: 'K-4', name: 'Unidad de Transporte y Mando K-4', plate: 'CB-405', type: 'Transporte', currentKm: 52000, currentPumpHours: 0, status: 'Operativo' },
+];
 
 export const INITIAL_REPORTS: EmergencyReport[] = [];

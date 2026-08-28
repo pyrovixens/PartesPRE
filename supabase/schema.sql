@@ -1,21 +1,13 @@
 -- ==============================================================================
--- SISTEMA DE PARTES DE EMERGENCIA Y ASISTENCIAS - 4ª COMPAÑÍA "CALLE LARGA"
--- CUERPO DE BOMBEROS DE LOS ANDES
--- Script de Creación de Base de Datos para Supabase (PostgreSQL)
+-- SISTEMA OFICIAL DE CONTROL DE ASISTENCIAS Y PARTES DE EMERGENCIA
+-- 4ª COMPAÑÍA "CALLE LARGA" - CUERPO DE BOMBEROS DE LOS ANDES
+-- Schema Oficial para Supabase (PostgreSQL 15+)
 -- ==============================================================================
 
 -- 1. EXTENSIONES
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 2. LIMPIEZA DE TABLAS PREVIAS (EJECUTAR SI SE DESEA REINICIAR DE CERO)
-DROP TABLE IF EXISTS public.emergency_reports CASCADE;
-DROP TABLE IF EXISTS public.user_invitations CASCADE;
-DROP TABLE IF EXISTS public.app_users CASCADE;
-DROP TABLE IF EXISTS public.volunteers CASCADE;
-DROP TABLE IF EXISTS public.units CASCADE;
-DROP TABLE IF EXISTS public.emergency_keys CASCADE;
-
--- 3. TABLA: USUARIOS DEL SISTEMA Y PROTOCOLOS DE SEGURIDAD (RBAC + CYBERSECURITY)
+-- 2. TABLA: USUARIOS DEL SISTEMA Y PROTOCOLOS DE SEGURIDAD (RBAC + CYBERSECURITY)
 CREATE TABLE IF NOT EXISTS public.app_users (
     id TEXT PRIMARY KEY,
     email TEXT UNIQUE NOT NULL,
@@ -37,10 +29,10 @@ CREATE TABLE IF NOT EXISTS public.app_users (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 4. TABLA: INVITACIONES Y VERIFICACIONES DE CORREO
+-- 3. TABLA: INVITACIONES Y VERIFICACIONES DE CORREO (NO CREA CUENTA HASTA ACTIVAR)
 CREATE TABLE IF NOT EXISTS public.user_invitations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    email TEXT NOT NULL,
+    email TEXT UNIQUE NOT NULL,
     full_name TEXT NOT NULL,
     role TEXT NOT NULL CHECK (role IN ('SUPER_ADMIN', 'ADMIN', 'OFICIAL', 'VOLUNTARIO')),
     token TEXT UNIQUE NOT NULL,
@@ -50,7 +42,7 @@ CREATE TABLE IF NOT EXISTS public.user_invitations (
     expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '7 days')
 );
 
--- 5. TABLA: VOLUNTARIOS (PADRÓN OFICIAL)
+-- 4. TABLA: VOLUNTARIOS (PADRÓN OFICIAL DE LA COMPAÑÍA)
 CREATE TABLE IF NOT EXISTS public.volunteers (
     id TEXT PRIMARY KEY,
     registration_number TEXT NOT NULL,
@@ -66,9 +58,9 @@ CREATE TABLE IF NOT EXISTS public.volunteers (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 6. TABLA: MATERIAL MAYOR (UNIDADES / CARROS)
+-- 5. TABLA: MATERIAL MAYOR (UNIDADES / CARROS OFICIALES)
 CREATE TABLE IF NOT EXISTS public.units (
-    code TEXT PRIMARY KEY, -- 'B-4', 'BX-4', 'R-4', 'K-4'
+    code TEXT PRIMARY KEY, -- 'B-4', 'BX-4', 'R-4', 'Z-4', 'K-4'
     name TEXT NOT NULL,
     plate TEXT,
     type TEXT NOT NULL CHECK (type IN ('Bomba', 'Forestal', 'Rescate', 'Transporte', 'Aljibe')),
@@ -78,7 +70,7 @@ CREATE TABLE IF NOT EXISTS public.units (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 7. TABLA: CLAVES RADIALES Y ACTIVIDADES
+-- 6. TABLA: CLAVES RADIALES Y ACTIVIDADES INSTITUCIONALES
 CREATE TABLE IF NOT EXISTS public.emergency_keys (
     code TEXT PRIMARY KEY, -- '10-0-1', '10-4-1', 'ES', etc.
     description TEXT NOT NULL,
@@ -87,7 +79,7 @@ CREATE TABLE IF NOT EXISTS public.emergency_keys (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 8. TABLA: PARTES DE EMERGENCIA Y ASISTENCIAS
+-- 7. TABLA: PARTES DE ASISTENCIA Y EMERGENCIAS
 CREATE TABLE IF NOT EXISTS public.emergency_reports (
     id TEXT PRIMARY KEY,
     folio_year INT NOT NULL,
@@ -134,25 +126,71 @@ CREATE TABLE IF NOT EXISTS public.emergency_reports (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 9. HABILITAR ROW LEVEL SECURITY (RLS)
+-- 8. TABLA: BRANDING INSTITUCIONAL (ESCUDO Y MARCA)
+CREATE TABLE IF NOT EXISTS public.company_branding (
+    id TEXT PRIMARY KEY DEFAULT 'default_branding',
+    company_name TEXT NOT NULL DEFAULT '4ª Compañía "Bomba Calle Larga"',
+    fire_department TEXT NOT NULL DEFAULT 'Cuerpo de Bomberos de Los Andes',
+    motto TEXT NOT NULL DEFAULT 'Honor, Disciplina y Abnegación',
+    logo_url TEXT NOT NULL DEFAULT '/logo_4ta_calle_larga.png',
+    primary_color TEXT NOT NULL DEFAULT '#8B0000',
+    accent_color TEXT NOT NULL DEFAULT '#DC2626',
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 9. ÍNDICES DE RENDIMIENTO Y PREVENCIÓN DE DUPLICADOS
+CREATE INDEX IF NOT EXISTS idx_reports_folio ON public.emergency_reports (folio_year, correlativo_compania);
+CREATE INDEX IF NOT EXISTS idx_reports_date ON public.emergency_reports (incident_date DESC);
+CREATE INDEX IF NOT EXISTS idx_users_email ON public.app_users (email);
+CREATE INDEX IF NOT EXISTS idx_invitations_token ON public.user_invitations (token);
+CREATE INDEX IF NOT EXISTS idx_invitations_email ON public.user_invitations (email);
+CREATE INDEX IF NOT EXISTS idx_volunteers_rut ON public.volunteers (rut);
+CREATE INDEX IF NOT EXISTS idx_volunteers_reg ON public.volunteers (registration_number);
+
+-- 10. HABILITAR ROW LEVEL SECURITY (RLS)
 ALTER TABLE public.app_users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_invitations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.volunteers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.units ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.emergency_keys ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.emergency_reports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.company_branding ENABLE ROW LEVEL SECURITY;
 
--- 10. POLÍTICAS DE ACCESO
-CREATE POLICY "app_users_anon_read_all" ON public.app_users FOR SELECT USING (true);
-CREATE POLICY "app_users_anon_insert_update" ON public.app_users FOR ALL USING (true) WITH CHECK (true);
+-- 11. POLÍTICAS DE SEGURIDAD RLS
+DROP POLICY IF EXISTS "app_users_policy" ON public.app_users;
+CREATE POLICY "app_users_policy" ON public.app_users FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "user_invitations_policy" ON public.user_invitations;
 CREATE POLICY "user_invitations_policy" ON public.user_invitations FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "volunteers_policy" ON public.volunteers;
 CREATE POLICY "volunteers_policy" ON public.volunteers FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "units_policy" ON public.units;
 CREATE POLICY "units_policy" ON public.units FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "emergency_keys_policy" ON public.emergency_keys;
 CREATE POLICY "emergency_keys_policy" ON public.emergency_keys FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "emergency_reports_policy" ON public.emergency_reports;
 CREATE POLICY "emergency_reports_policy" ON public.emergency_reports FOR ALL USING (true) WITH CHECK (true);
 
--- 11. POBLACIÓN DE CLAVES RADIALES
+DROP POLICY IF EXISTS "company_branding_policy" ON public.company_branding;
+CREATE POLICY "company_branding_policy" ON public.company_branding FOR ALL USING (true) WITH CHECK (true);
+
+-- 12. POBLACIÓN DE MATERIAL MAYOR (UNIDADES OFICIALES 4ª COMPAÑÍA)
+INSERT INTO public.units (code, name, plate, type, current_km, current_pump_hours, status) VALUES
+  ('B-4', 'Bomba Primera Intervención B-4', 'CB-401', 'Bomba', 45200, 320, 'Operativo'),
+  ('BX-4', 'Bomba Respaldo / Cisterna BX-4', 'CB-402', 'Bomba', 38100, 210, 'Operativo'),
+  ('R-4', 'Unidad de Rescate Vehicular R-4', 'CB-403', 'Rescate', 29400, 145, 'Operativo'),
+  ('Z-4', 'Unidad de Abastecimiento Z-4', 'CB-404', 'Aljibe', 18300, 90, 'Operativo'),
+  ('K-4', 'Unidad de Transporte y Mando K-4', 'CB-405', 'Transporte', 52000, 0, 'Operativo')
+ON CONFLICT (code) DO UPDATE SET
+  name = EXCLUDED.name,
+  plate = EXCLUDED.plate,
+  type = EXCLUDED.type;
+
+-- 13. POBLACIÓN DE CLAVES RADIALES
 INSERT INTO public.emergency_keys (code, description, category, short_code) VALUES
   ('10-0-1', 'Incendio estructural – Casa habitación / inmueble ≤ 3 niveles', 'Emergencias', 'E'),
   ('10-0-2', 'Incendio estructural – Edificio (4 o más niveles)', 'Emergencias', 'E'),
@@ -224,7 +262,7 @@ INSERT INTO public.emergency_keys (code, description, category, short_code) VALU
   ('V', 'Citaciones Varias / Actos Oficiales / Desfiles', 'Citaciones Varias', 'V')
 ON CONFLICT (code) DO NOTHING;
 
--- 12. POBLACIÓN DEL PADRÓN OFICIAL (31 VOLUNTARIOS REALES BASE)
+-- 14. POBLACIÓN DEL PADRÓN OFICIAL DE VOLUNTARIOS
 INSERT INTO public.volunteers (id, registration_number, rut, full_name, short_name, category, rank, status) VALUES
   -- 1. Fundadores / Insignes
   ('vol-f-01', 'FND-001', '07.456.123-4', 'Iván Galdámez Calderón', 'I. Galdámez', 'Fundador / Insigne', 'Bombero Insigne', 'Insigne'),
@@ -273,9 +311,13 @@ INSERT INTO public.volunteers (id, registration_number, rut, full_name, short_na
 
   -- 4. Aspirantes
   ('vol-asp-01', 'ASP-040', '23.456.789-0', 'Martina Lopez', 'M. Lopez', 'Aspirante', 'Aspirante', 'Activo')
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET
+  full_name = EXCLUDED.full_name,
+  rank = EXCLUDED.rank,
+  registration_number = EXCLUDED.registration_number,
+  status = EXCLUDED.status;
 
--- 13. POBLACIÓN DEL SUPER ADMIN GENERAL
+-- 15. POBLACIÓN DEL SUPER ADMIN GENERAL
 INSERT INTO public.app_users (
     id, 
     email, 
@@ -297,31 +339,22 @@ INSERT INTO public.app_users (
     '{"canCreateReports":true,"canEditReports":true,"canDeleteReports":true,"canApproveReports":true,"canManageVolunteers":true,"canManageUnits":true,"canManageUsers":true,"canExportReports":true}'::jsonb,
     'c0023972fce4d51959f33673c0bb7b465886f889d6998414d88f56fdf57f9a1e'
 )
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET
+  email = EXCLUDED.email,
+  full_name = EXCLUDED.full_name,
+  role = EXCLUDED.role,
+  status = EXCLUDED.status;
 
--- 14. TABLA: BRANDING INSTITUCIONAL (ESCUDO Y MARCA)
-CREATE TABLE IF NOT EXISTS public.company_branding (
-    id TEXT PRIMARY KEY DEFAULT 'default_branding',
-    company_name TEXT NOT NULL DEFAULT '4ª Compañía "Bomba Calle Larga"',
-    fire_department TEXT NOT NULL DEFAULT 'Cuerpo de Bomberos de Los Andes',
-    motto TEXT NOT NULL DEFAULT 'Honor, Disciplina y Abnegación',
-    logo_url TEXT NOT NULL DEFAULT '/logo_4ta_calle_larga.png',
-    primary_color TEXT NOT NULL DEFAULT '#8B0000',
-    accent_color TEXT NOT NULL DEFAULT '#DC2626',
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE public.company_branding ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "company_branding_policy" ON public.company_branding FOR ALL USING (true) WITH CHECK (true);
-
+-- 16. POBLACIÓN DE BRANDING INSTITUCIONAL
 INSERT INTO public.company_branding (id, company_name, fire_department, motto, logo_url, primary_color, accent_color)
 VALUES ('default_branding', '4ª Compañía "Bomba Calle Larga"', 'Cuerpo de Bomberos de Los Andes', 'Honor, Disciplina y Abnegación', '/logo_4ta_calle_larga.png', '#8B0000', '#DC2626')
 ON CONFLICT (id) DO NOTHING;
 
--- 15. HABILITAR PUBLICACIÓN EN TIEMPO REAL (SUPABASE REALTIME WEBSOCKETS)
+-- 17. HABILITAR PUBLICACIÓN EN TIEMPO REAL (SUPABASE REALTIME WEBSOCKETS)
 ALTER PUBLICATION supabase_realtime ADD TABLE public.emergency_reports;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.volunteers;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.units;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.app_users;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.user_invitations;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.emergency_keys;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.company_branding;
-
