@@ -11,20 +11,104 @@ import {
 } from '../utils/storage';
 
 // -------------------------------------------------------------------
+// DELETED IDS LOCAL STORAGE HELPERS (TOMBSTONES)
+// -------------------------------------------------------------------
+
+const getDeletedIds = (key: string): string[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+const addDeletedId = (key: string, id: string) => {
+  if (typeof window === 'undefined') return;
+  try {
+    const current = getDeletedIds(key);
+    if (!current.includes(id)) {
+      current.push(id);
+      localStorage.setItem(key, JSON.stringify(current));
+    }
+  } catch {}
+};
+
+const mergeDeletedIds = (key: string, serverDeleted: string[]) => {
+  if (typeof window === 'undefined' || !serverDeleted || serverDeleted.length === 0) return;
+  try {
+    const current = getDeletedIds(key);
+    const combined = Array.from(new Set([...current, ...serverDeleted]));
+    localStorage.setItem(key, JSON.stringify(combined));
+  } catch {}
+};
+
+const purgeFromAllReportStorages = (reportId: string) => {
+  if (typeof window === 'undefined') return;
+  const keysToCheck = [
+    'bomberos_partes_emergencia_v5', 
+    'bomberos_emergency_reports', 
+    'bomberos_reports', 
+    'bomberos_partes',
+    'bomberos_reports_v4',
+    'bomberos_partes_v1'
+  ];
+  for (const k of keysToCheck) {
+    try {
+      const raw = localStorage.getItem(k);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          const filtered = parsed.filter((r: any) => r && r.id !== reportId);
+          localStorage.setItem(k, JSON.stringify(filtered));
+        }
+      }
+    } catch {}
+  }
+};
+
+// -------------------------------------------------------------------
 // EMERGENCY REPORTS SERVICE (ONLINE API + SUPABASE + LOCAL CACHE)
 // -------------------------------------------------------------------
 
 export const fetchReports = async (): Promise<EmergencyReport[]> => {
-  // 1. Gather all local reports from all possible local keys
+  // 1. Fetch from online server API
+  let serverReports: EmergencyReport[] = [];
+  let serverDeletedIds: string[] = [];
+
+  try {
+    const res = await fetch('/api/reports', { cache: 'no-store' });
+    if (res.ok) {
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        serverReports = json.data;
+      }
+      if (Array.isArray(json.deletedIds)) {
+        serverDeletedIds = json.deletedIds;
+        mergeDeletedIds('bomberos_deleted_report_ids', serverDeletedIds);
+      }
+    }
+  } catch (apiErr) {
+    console.warn('API /api/reports fetch error:', apiErr);
+  }
+
+  // 2. Read local tombstones
+  const deletedSet = new Set([...getDeletedIds('bomberos_deleted_report_ids'), ...serverDeletedIds]);
+
+  // 3. Purge deleted from local storages
+  for (const delId of Array.from(deletedSet)) {
+    purgeFromAllReportStorages(delId);
+  }
+
+  // 4. Gather remaining valid local reports
   const localCandidates: EmergencyReport[] = [];
   if (typeof window !== 'undefined') {
     const keysToCheck = [
       'bomberos_partes_emergencia_v5', 
       'bomberos_emergency_reports', 
       'bomberos_reports', 
-      'bomberos_partes',
-      'bomberos_reports_v4',
-      'bomberos_partes_v1'
+      'bomberos_partes'
     ];
     for (const k of keysToCheck) {
       try {
@@ -33,7 +117,7 @@ export const fetchReports = async (): Promise<EmergencyReport[]> => {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed)) {
             for (const r of parsed) {
-              if (r && r.id && !localCandidates.some(c => c.id === r.id)) {
+              if (r && r.id && !deletedSet.has(r.id) && !localCandidates.some(c => c.id === r.id)) {
                 localCandidates.push(r);
               }
             }
@@ -43,21 +127,7 @@ export const fetchReports = async (): Promise<EmergencyReport[]> => {
     }
   }
 
-  // 2. Fetch from online server API
-  let serverReports: EmergencyReport[] = [];
-  try {
-    const res = await fetch('/api/reports', { cache: 'no-store' });
-    if (res.ok) {
-      const json = await res.json();
-      if (json.success && Array.isArray(json.data)) {
-        serverReports = json.data;
-      }
-    }
-  } catch (apiErr) {
-    console.warn('API /api/reports fetch error:', apiErr);
-  }
-
-  // 3. Direct Supabase query if configured
+  // 5. Direct Supabase query if serverReports was empty and Supabase configured
   if (serverReports.length === 0 && isSupabaseConfigured() && supabase) {
     try {
       const { data, error } = await supabase
@@ -66,57 +136,59 @@ export const fetchReports = async (): Promise<EmergencyReport[]> => {
         .order('incident_date', { ascending: false });
 
       if (!error && data && data.length > 0) {
-        serverReports = data.map(row => ({
-          id: row.id,
-          folioYear: row.folio_year,
-          folioNumber: row.folio_number,
-          fullFolio: row.full_folio,
-          correlativoCompania: row.correlativo_compania,
-          correlativoComandancia: row.correlativo_comandancia || '',
-          incidentDate: row.incident_date,
-          incidentTime: row.incident_time || '12:00',
-          keyCode: row.key_code,
-          keyDescription: row.key_description,
-          category: row.category,
-          address: row.address,
-          cornerOrReference: row.corner_or_reference,
-          sector: row.sector,
-          commune: row.commune,
-          officerInChargeId: row.officer_in_charge_id,
-          officerInChargeName: row.officer_in_charge_name,
-          officerInChargeRank: row.officer_in_charge_rank,
-          units: row.units || [],
-          attendees: row.attendees || [],
-          totalFirefighters: row.total_firefighters || (row.attendees ? row.attendees.length : 0),
-          callerName: row.caller_name,
-          callerPhone: row.caller_phone,
-          affectedPropertyType: row.affected_property_type,
-          damageLevel: row.damage_level,
-          injuredCount: row.injured_count || 0,
-          fatalCount: row.fatal_count || 0,
-          civilianInjuredCount: row.civilian_injured_count || 0,
-          firefighterInjuredCount: row.firefighter_injured_count || 0,
-          externalAgencies: row.external_agencies || {},
-          summaryNotes: row.summary_notes || '',
-          status: row.status || 'APROBADO',
-          createdAt: row.created_at,
-          createdBy: row.created_by,
-          updatedAt: row.updated_at,
-          approvedBy: row.approved_by,
-          approvedAt: row.approved_at,
-          captainName: row.captain_name,
-          captainRank: row.captain_rank,
-          digitalSignature: row.digital_signature && Object.keys(row.digital_signature).length > 0 ? row.digital_signature : undefined,
-        }));
+        serverReports = data
+          .filter((row: any) => !deletedSet.has(row.id))
+          .map(row => ({
+            id: row.id,
+            folioYear: row.folio_year,
+            folioNumber: row.folio_number,
+            fullFolio: row.full_folio,
+            correlativoCompania: row.correlativo_compania,
+            correlativoComandancia: row.correlativo_comandancia || '',
+            incidentDate: row.incident_date,
+            incidentTime: row.incident_time || '12:00',
+            keyCode: row.key_code,
+            keyDescription: row.key_description,
+            category: row.category,
+            address: row.address,
+            cornerOrReference: row.corner_or_reference,
+            sector: row.sector,
+            commune: row.commune,
+            officerInChargeId: row.officer_in_charge_id,
+            officerInChargeName: row.officer_in_charge_name,
+            officerInChargeRank: row.officer_in_charge_rank,
+            units: row.units || [],
+            attendees: row.attendees || [],
+            totalFirefighters: row.total_firefighters || (row.attendees ? row.attendees.length : 0),
+            callerName: row.caller_name,
+            callerPhone: row.caller_phone,
+            affectedPropertyType: row.affected_property_type,
+            damageLevel: row.damage_level,
+            injuredCount: row.injured_count || 0,
+            fatalCount: row.fatal_count || 0,
+            civilianInjuredCount: row.civilian_injured_count || 0,
+            firefighterInjuredCount: row.firefighter_injured_count || 0,
+            externalAgencies: row.external_agencies || {},
+            summaryNotes: row.summary_notes || '',
+            status: row.status || 'APROBADO',
+            createdAt: row.created_at,
+            createdBy: row.created_by,
+            updatedAt: row.updated_at,
+            approvedBy: row.approved_by,
+            approvedAt: row.approved_at,
+            captainName: row.captain_name,
+            captainRank: row.captain_rank,
+            digitalSignature: row.digital_signature && Object.keys(row.digital_signature).length > 0 ? row.digital_signature : undefined,
+          }));
       }
     } catch (err) {
       console.warn('Direct Supabase fetch error:', err);
     }
   }
 
-  // 4. If user entered reports previously that are not on the server, auto-upload to server
+  // 6. Auto-upload valid non-deleted local reports missing on server
   const serverIds = new Set(serverReports.map(r => r.id));
-  const missingOnServer = localCandidates.filter(r => !serverIds.has(r.id));
+  const missingOnServer = localCandidates.filter(r => !serverIds.has(r.id) && !deletedSet.has(r.id));
   if (missingOnServer.length > 0) {
     for (const r of missingOnServer) {
       try {
@@ -130,18 +202,23 @@ export const fetchReports = async (): Promise<EmergencyReport[]> => {
     }
   }
 
-  const finalReports = serverReports.length > 0 ? serverReports : (localCandidates.length > 0 ? localCandidates : getStoredReports());
+  const finalReports = (serverReports.length > 0 ? serverReports : (localCandidates.length > 0 ? localCandidates : getStoredReports()))
+    .filter(r => !deletedSet.has(r.id));
+
   saveReports(finalReports);
   return finalReports;
 };
 
 export const saveReportToDatabase = async (report: EmergencyReport): Promise<boolean> => {
+  // If report was previously in deleted set, remove it
+  if (typeof window !== 'undefined') {
+    const deleted = getDeletedIds('bomberos_deleted_report_ids').filter(id => id !== report.id);
+    localStorage.setItem('bomberos_deleted_report_ids', JSON.stringify(deleted));
+  }
+
   // Update local cache immediately
-  const currentLocal = getStoredReports();
-  const existsLocal = currentLocal.some(r => r.id === report.id);
-  const updatedLocal = existsLocal 
-    ? currentLocal.map(r => r.id === report.id ? report : r)
-    : [report, ...currentLocal];
+  const currentLocal = getStoredReports().filter(r => r.id !== report.id);
+  const updatedLocal = [report, ...currentLocal];
   saveReports(updatedLocal);
   broadcastLiveChange('REPORT_CHANGED', report);
 
@@ -209,15 +286,22 @@ export const saveReportToDatabase = async (report: EmergencyReport): Promise<boo
 };
 
 export const deleteReportFromDatabase = async (reportId: string): Promise<boolean> => {
+  // 1. Mark as permanently deleted in local tombstones
+  addDeletedId('bomberos_deleted_report_ids', reportId);
+  purgeFromAllReportStorages(reportId);
+
+  // 2. Update local state cache
   const current = getStoredReports();
   const updated = current.filter(r => r.id !== reportId);
   saveReports(updated);
   broadcastLiveChange('REPORT_CHANGED', { id: reportId, deleted: true });
 
+  // 3. Request deletion on online server API
   try {
     fetch(`/api/reports?id=${encodeURIComponent(reportId)}`, { method: 'DELETE' }).catch(() => {});
   } catch {}
 
+  // 4. Request deletion on Supabase if configured
   if (isSupabaseConfigured() && supabase) {
     try {
       await supabase.from('emergency_reports').delete().eq('id', reportId);
@@ -231,7 +315,27 @@ export const deleteReportFromDatabase = async (reportId: string): Promise<boolea
 // -------------------------------------------------------------------
 
 export const fetchVolunteers = async (): Promise<Volunteer[]> => {
-  // 1. Gather all local volunteers
+  let serverVolunteers: Volunteer[] = [];
+  let serverDeletedIds: string[] = [];
+
+  try {
+    const res = await fetch('/api/volunteers', { cache: 'no-store' });
+    if (res.ok) {
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        serverVolunteers = json.data;
+      }
+      if (Array.isArray(json.deletedIds)) {
+        serverDeletedIds = json.deletedIds;
+        mergeDeletedIds('bomberos_deleted_volunteer_ids', serverDeletedIds);
+      }
+    }
+  } catch (apiErr) {
+    console.warn('API /api/volunteers fetch error:', apiErr);
+  }
+
+  const deletedSet = new Set([...getDeletedIds('bomberos_deleted_volunteer_ids'), ...serverDeletedIds]);
+
   const localCandidates: Volunteer[] = [];
   if (typeof window !== 'undefined') {
     const keysToCheck = ['bomberos_voluntarios_v5', 'bomberos_volunteers', 'bomberos_voluntarios'];
@@ -242,7 +346,7 @@ export const fetchVolunteers = async (): Promise<Volunteer[]> => {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed)) {
             for (const v of parsed) {
-              if (v && v.id && !localCandidates.some(c => c.id === v.id)) {
+              if (v && v.id && !deletedSet.has(v.id) && !localCandidates.some(c => c.id === v.id)) {
                 localCandidates.push(v);
               }
             }
@@ -252,21 +356,6 @@ export const fetchVolunteers = async (): Promise<Volunteer[]> => {
     }
   }
 
-  // 2. Try online backend API
-  let serverVolunteers: Volunteer[] = [];
-  try {
-    const res = await fetch('/api/volunteers', { cache: 'no-store' });
-    if (res.ok) {
-      const json = await res.json();
-      if (json.success && Array.isArray(json.data)) {
-        serverVolunteers = json.data;
-      }
-    }
-  } catch (apiErr) {
-    console.warn('API /api/volunteers fetch error:', apiErr);
-  }
-
-  // 3. Direct Supabase
   if (serverVolunteers.length === 0 && isSupabaseConfigured() && supabase) {
     try {
       const { data, error } = await supabase
@@ -275,27 +364,28 @@ export const fetchVolunteers = async (): Promise<Volunteer[]> => {
         .order('registration_number', { ascending: true });
 
       if (!error && data && data.length > 0) {
-        serverVolunteers = data.map(row => ({
-          id: row.id,
-          registrationNumber: row.registration_number,
-          rut: row.rut,
-          fullName: row.full_name,
-          shortName: row.short_name,
-          category: row.category,
-          rank: row.rank,
-          status: row.status,
-          phone: row.phone,
-          email: row.email,
-        }));
+        serverVolunteers = data
+          .filter((row: any) => !deletedSet.has(row.id))
+          .map(row => ({
+            id: row.id,
+            registrationNumber: row.registration_number,
+            rut: row.rut,
+            fullName: row.full_name,
+            shortName: row.short_name,
+            category: row.category,
+            rank: row.rank,
+            status: row.status,
+            phone: row.phone,
+            email: row.email,
+          }));
       }
     } catch (err) {
       console.warn('Supabase fetchVolunteers error:', err);
     }
   }
 
-  // 4. Auto-sync missing volunteers to server
   const serverIds = new Set(serverVolunteers.map(v => v.id));
-  const missing = localCandidates.filter(v => !serverIds.has(v.id));
+  const missing = localCandidates.filter(v => !serverIds.has(v.id) && !deletedSet.has(v.id));
   if (missing.length > 0) {
     for (const v of missing) {
       try {
@@ -309,12 +399,19 @@ export const fetchVolunteers = async (): Promise<Volunteer[]> => {
     }
   }
 
-  const finalVolunteers = serverVolunteers.length > 0 ? serverVolunteers : (localCandidates.length > 0 ? localCandidates : getStoredVolunteers());
+  const finalVolunteers = (serverVolunteers.length > 0 ? serverVolunteers : (localCandidates.length > 0 ? localCandidates : getStoredVolunteers()))
+    .filter(v => !deletedSet.has(v.id));
+
   saveVolunteers(finalVolunteers);
   return finalVolunteers;
 };
 
 export const saveVolunteerToDatabase = async (volunteer: Volunteer): Promise<boolean> => {
+  if (typeof window !== 'undefined') {
+    const deleted = getDeletedIds('bomberos_deleted_volunteer_ids').filter(id => id !== volunteer.id);
+    localStorage.setItem('bomberos_deleted_volunteer_ids', JSON.stringify(deleted));
+  }
+
   const current = getStoredVolunteers();
   const exists = current.some(v => v.id === volunteer.id);
   const updated = exists ? current.map(v => v.id === volunteer.id ? volunteer : v) : [...current, volunteer];
@@ -350,6 +447,8 @@ export const saveVolunteerToDatabase = async (volunteer: Volunteer): Promise<boo
 };
 
 export const deleteVolunteerFromDatabase = async (volunteerId: string): Promise<boolean> => {
+  addDeletedId('bomberos_deleted_volunteer_ids', volunteerId);
+
   const current = getStoredVolunteers();
   const updated = current.filter(v => v.id !== volunteerId);
   saveVolunteers(updated);
@@ -372,18 +471,26 @@ export const deleteVolunteerFromDatabase = async (volunteerId: string): Promise<
 // -------------------------------------------------------------------
 
 export const fetchUnits = async (): Promise<Unit[]> => {
+  let serverUnits: Unit[] = [];
+  let serverDeletedCodes: string[] = [];
+
   try {
     const res = await fetch('/api/units', { cache: 'no-store' });
     if (res.ok) {
       const json = await res.json();
-      if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-        saveUnits(json.data);
-        return json.data;
+      if (json.success && Array.isArray(json.data)) {
+        serverUnits = json.data;
+      }
+      if (Array.isArray(json.deletedCodes)) {
+        serverDeletedCodes = json.deletedCodes;
+        mergeDeletedIds('bomberos_deleted_unit_codes', serverDeletedCodes);
       }
     }
   } catch {}
 
-  if (isSupabaseConfigured() && supabase) {
+  const deletedSet = new Set([...getDeletedIds('bomberos_deleted_unit_codes'), ...serverDeletedCodes]);
+
+  if (serverUnits.length === 0 && isSupabaseConfigured() && supabase) {
     try {
       const { data, error } = await supabase
         .from('units')
@@ -391,25 +498,34 @@ export const fetchUnits = async (): Promise<Unit[]> => {
         .order('code', { ascending: true });
 
       if (!error && data && data.length > 0) {
-        const mapped: Unit[] = data.map(row => ({
-          code: row.code,
-          name: row.name,
-          plate: row.plate || row.plate_number || '',
-          type: row.type || 'Bomba',
-          currentKm: row.current_km || row.currentKm || 0,
-          currentPumpHours: row.current_pump_hours || row.currentPumpHours || 0,
-          status: row.status || 'Operativo',
-        }));
-        saveUnits(mapped);
-        return mapped;
+        serverUnits = data
+          .filter((row: any) => !deletedSet.has(row.code))
+          .map(row => ({
+            code: row.code,
+            name: row.name,
+            plate: row.plate || row.plate_number || '',
+            type: row.type || 'Bomba',
+            currentKm: row.current_km || row.currentKm || 0,
+            currentPumpHours: row.current_pump_hours || row.currentPumpHours || 0,
+            status: row.status || 'Operativo',
+          }));
       }
     } catch {}
   }
 
-  return getStoredUnits();
+  const finalUnits = (serverUnits.length > 0 ? serverUnits : getStoredUnits())
+    .filter(u => !deletedSet.has(u.code));
+
+  saveUnits(finalUnits);
+  return finalUnits;
 };
 
 export const saveUnitToDatabase = async (unit: Unit): Promise<boolean> => {
+  if (typeof window !== 'undefined') {
+    const deleted = getDeletedIds('bomberos_deleted_unit_codes').filter(c => c !== unit.code);
+    localStorage.setItem('bomberos_deleted_unit_codes', JSON.stringify(deleted));
+  }
+
   const current = getStoredUnits();
   const exists = current.some(u => u.code === unit.code);
   const updated = exists ? current.map(u => u.code === unit.code ? unit : u) : [...current, unit];
@@ -442,6 +558,8 @@ export const saveUnitToDatabase = async (unit: Unit): Promise<boolean> => {
 };
 
 export const deleteUnitFromDatabase = async (unitCode: string): Promise<boolean> => {
+  addDeletedId('bomberos_deleted_unit_codes', unitCode);
+
   const current = getStoredUnits();
   const updated = current.filter(u => u.code !== unitCode);
   saveUnits(updated);
@@ -568,11 +686,11 @@ export const subscribeToRealtimeChanges = (
 
   // 2. Storage event fallback
   const handleStorageEvent = (e: StorageEvent) => {
-    if (e.key === 'bomberos_emergency_reports' || e.key === 'bomberos_partes_emergencia_v5') {
+    if (e.key === 'bomberos_emergency_reports' || e.key === 'bomberos_partes_emergencia_v5' || e.key === 'bomberos_deleted_report_ids') {
       onReportsChange();
-    } else if (e.key === 'bomberos_volunteers' || e.key === 'bomberos_voluntarios_v5') {
+    } else if (e.key === 'bomberos_volunteers' || e.key === 'bomberos_voluntarios_v5' || e.key === 'bomberos_deleted_volunteer_ids') {
       onVolunteersChange();
-    } else if ((e.key === 'bomberos_units' || e.key === 'bomberos_unidades_v5') && onUnitsChange) {
+    } else if ((e.key === 'bomberos_units' || e.key === 'bomberos_unidades_v5' || e.key === 'bomberos_deleted_unit_codes') && onUnitsChange) {
       onUnitsChange();
     } else if (e.key === 'bomberos_branding' && onBrandingChange) {
       onBrandingChange();

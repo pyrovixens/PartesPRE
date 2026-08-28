@@ -15,6 +15,10 @@ interface ServerState {
   units: Unit[];
   branding: CompanyBranding;
   users: AppUser[];
+  deletedReportIds: string[];
+  deletedVolunteerIds: string[];
+  deletedUnitCodes: string[];
+  deletedUserIds: string[];
   revision: number;
   lastUpdate: string;
 }
@@ -58,9 +62,18 @@ const globalState: ServerState = (global as any).__BOMBEROS_SERVER_STATE__ || {
   units: [...INITIAL_UNITS],
   branding: { ...DEFAULT_BRANDING },
   users: [{ ...DEFAULT_SUPER_ADMIN }],
+  deletedReportIds: [],
+  deletedVolunteerIds: [],
+  deletedUnitCodes: [],
+  deletedUserIds: [],
   revision: 1,
   lastUpdate: new Date().toISOString(),
 };
+
+if (!globalState.deletedReportIds) globalState.deletedReportIds = [];
+if (!globalState.deletedVolunteerIds) globalState.deletedVolunteerIds = [];
+if (!globalState.deletedUnitCodes) globalState.deletedUnitCodes = [];
+if (!globalState.deletedUserIds) globalState.deletedUserIds = [];
 
 (global as any).__BOMBEROS_SERVER_STATE__ = globalState;
 
@@ -73,6 +86,10 @@ const bumpRevision = () => {
 // REPORTS API
 // ----------------------------------------------------------------------
 
+export const serverGetDeletedReportIds = (): string[] => {
+  return globalState.deletedReportIds || [];
+};
+
 export const serverGetReports = async (): Promise<EmergencyReport[]> => {
   if (supabase) {
     try {
@@ -82,48 +99,50 @@ export const serverGetReports = async (): Promise<EmergencyReport[]> => {
         .order('incident_date', { ascending: false });
 
       if (!error && data && data.length > 0) {
-        const mapped: EmergencyReport[] = data.map((row: any) => ({
-          id: row.id,
-          folioYear: row.folio_year,
-          folioNumber: row.folio_number,
-          fullFolio: row.full_folio,
-          correlativoCompania: row.correlativo_compania,
-          correlativoComandancia: row.correlativo_comandancia || '',
-          incidentDate: row.incident_date,
-          incidentTime: row.incident_time || '12:00',
-          keyCode: row.key_code,
-          keyDescription: row.key_description,
-          category: row.category,
-          address: row.address,
-          cornerOrReference: row.corner_or_reference,
-          sector: row.sector,
-          commune: row.commune,
-          officerInChargeId: row.officer_in_charge_id,
-          officerInChargeName: row.officer_in_charge_name,
-          officerInChargeRank: row.officer_in_charge_rank,
-          units: row.units || [],
-          attendees: row.attendees || [],
-          totalFirefighters: row.total_firefighters || (row.attendees ? row.attendees.length : 0),
-          callerName: row.caller_name,
-          callerPhone: row.caller_phone,
-          affectedPropertyType: row.affected_property_type,
-          damageLevel: row.damage_level,
-          injuredCount: row.injured_count || 0,
-          fatalCount: row.fatal_count || 0,
-          civilianInjuredCount: row.civilian_injured_count || 0,
-          firefighterInjuredCount: row.firefighter_injured_count || 0,
-          externalAgencies: row.external_agencies || {},
-          summaryNotes: row.summary_notes || '',
-          status: row.status || 'APROBADO',
-          createdAt: row.created_at,
-          createdBy: row.created_by,
-          updatedAt: row.updated_at,
-          approvedBy: row.approved_by,
-          approvedAt: row.approved_at,
-          captainName: row.captain_name,
-          captainRank: row.captain_rank,
-          digitalSignature: row.digital_signature && Object.keys(row.digital_signature).length > 0 ? row.digital_signature : undefined,
-        }));
+        const mapped: EmergencyReport[] = data
+          .filter((row: any) => !globalState.deletedReportIds.includes(row.id))
+          .map((row: any) => ({
+            id: row.id,
+            folioYear: row.folio_year,
+            folioNumber: row.folio_number,
+            fullFolio: row.full_folio,
+            correlativoCompania: row.correlativo_compania,
+            correlativoComandancia: row.correlativo_comandancia || '',
+            incidentDate: row.incident_date,
+            incidentTime: row.incident_time || '12:00',
+            keyCode: row.key_code,
+            keyDescription: row.key_description,
+            category: row.category,
+            address: row.address,
+            cornerOrReference: row.corner_or_reference,
+            sector: row.sector,
+            commune: row.commune,
+            officerInChargeId: row.officer_in_charge_id,
+            officerInChargeName: row.officer_in_charge_name,
+            officerInChargeRank: row.officer_in_charge_rank,
+            units: row.units || [],
+            attendees: row.attendees || [],
+            totalFirefighters: row.total_firefighters || (row.attendees ? row.attendees.length : 0),
+            callerName: row.caller_name,
+            callerPhone: row.caller_phone,
+            affectedPropertyType: row.affected_property_type,
+            damageLevel: row.damage_level,
+            injuredCount: row.injured_count || 0,
+            fatalCount: row.fatal_count || 0,
+            civilianInjuredCount: row.civilian_injured_count || 0,
+            firefighterInjuredCount: row.firefighter_injured_count || 0,
+            externalAgencies: row.external_agencies || {},
+            summaryNotes: row.summary_notes || '',
+            status: row.status || 'APROBADO',
+            createdAt: row.created_at,
+            createdBy: row.created_by,
+            updatedAt: row.updated_at,
+            approvedBy: row.approved_by,
+            approvedAt: row.approved_at,
+            captainName: row.captain_name,
+            captainRank: row.captain_rank,
+            digitalSignature: row.digital_signature && Object.keys(row.digital_signature).length > 0 ? row.digital_signature : undefined,
+          }));
         globalState.reports = mapped;
         return mapped;
       }
@@ -131,10 +150,13 @@ export const serverGetReports = async (): Promise<EmergencyReport[]> => {
       console.warn('Supabase query error in serverGetReports:', e);
     }
   }
-  return globalState.reports;
+  return globalState.reports.filter(r => !globalState.deletedReportIds.includes(r.id));
 };
 
 export const serverSaveReport = async (report: EmergencyReport): Promise<EmergencyReport> => {
+  // If report was previously deleted, un-delete it
+  globalState.deletedReportIds = globalState.deletedReportIds.filter(id => id !== report.id);
+
   const index = globalState.reports.findIndex(r => r.id === report.id);
   if (index >= 0) {
     globalState.reports[index] = report;
@@ -196,6 +218,9 @@ export const serverSaveReport = async (report: EmergencyReport): Promise<Emergen
 
 export const serverDeleteReport = async (id: string): Promise<boolean> => {
   globalState.reports = globalState.reports.filter(r => r.id !== id);
+  if (!globalState.deletedReportIds.includes(id)) {
+    globalState.deletedReportIds.push(id);
+  }
   bumpRevision();
 
   if (supabase) {
@@ -212,6 +237,10 @@ export const serverDeleteReport = async (id: string): Promise<boolean> => {
 // VOLUNTEERS API
 // ----------------------------------------------------------------------
 
+export const serverGetDeletedVolunteerIds = (): string[] => {
+  return globalState.deletedVolunteerIds || [];
+};
+
 export const serverGetVolunteers = async (): Promise<Volunteer[]> => {
   if (supabase) {
     try {
@@ -221,18 +250,20 @@ export const serverGetVolunteers = async (): Promise<Volunteer[]> => {
         .order('registration_number', { ascending: true });
 
       if (!error && data && data.length > 0) {
-        const mapped: Volunteer[] = data.map((row: any) => ({
-          id: row.id,
-          registrationNumber: row.registration_number,
-          rut: row.rut,
-          fullName: row.full_name,
-          shortName: row.short_name,
-          category: row.category,
-          rank: row.rank,
-          status: row.status,
-          phone: row.phone,
-          email: row.email,
-        }));
+        const mapped: Volunteer[] = data
+          .filter((row: any) => !globalState.deletedVolunteerIds.includes(row.id))
+          .map((row: any) => ({
+            id: row.id,
+            registrationNumber: row.registration_number,
+            rut: row.rut,
+            fullName: row.full_name,
+            shortName: row.short_name,
+            category: row.category,
+            rank: row.rank,
+            status: row.status,
+            phone: row.phone,
+            email: row.email,
+          }));
         globalState.volunteers = mapped;
         return mapped;
       }
@@ -240,10 +271,11 @@ export const serverGetVolunteers = async (): Promise<Volunteer[]> => {
       console.warn('Supabase query error in serverGetVolunteers:', e);
     }
   }
-  return globalState.volunteers;
+  return globalState.volunteers.filter(v => !globalState.deletedVolunteerIds.includes(v.id));
 };
 
 export const serverSaveVolunteer = async (vol: Volunteer): Promise<Volunteer> => {
+  globalState.deletedVolunteerIds = globalState.deletedVolunteerIds.filter(id => id !== vol.id);
   const index = globalState.volunteers.findIndex(v => v.id === vol.id);
   if (index >= 0) {
     globalState.volunteers[index] = vol;
@@ -276,6 +308,9 @@ export const serverSaveVolunteer = async (vol: Volunteer): Promise<Volunteer> =>
 
 export const serverDeleteVolunteer = async (id: string): Promise<boolean> => {
   globalState.volunteers = globalState.volunteers.filter(v => v.id !== id);
+  if (!globalState.deletedVolunteerIds.includes(id)) {
+    globalState.deletedVolunteerIds.push(id);
+  }
   bumpRevision();
 
   if (supabase) {
@@ -292,6 +327,10 @@ export const serverDeleteVolunteer = async (id: string): Promise<boolean> => {
 // UNITS API
 // ----------------------------------------------------------------------
 
+export const serverGetDeletedUnitCodes = (): string[] => {
+  return globalState.deletedUnitCodes || [];
+};
+
 export const serverGetUnits = async (): Promise<Unit[]> => {
   if (supabase) {
     try {
@@ -301,15 +340,17 @@ export const serverGetUnits = async (): Promise<Unit[]> => {
         .order('code', { ascending: true });
 
       if (!error && data && data.length > 0) {
-        const mapped: Unit[] = data.map((row: any) => ({
-          code: row.code,
-          name: row.name,
-          plate: row.plate || '',
-          type: row.type || 'Bomba',
-          currentKm: row.current_km || 0,
-          currentPumpHours: row.current_pump_hours || 0,
-          status: row.status || 'Operativo',
-        }));
+        const mapped: Unit[] = data
+          .filter((row: any) => !globalState.deletedUnitCodes.includes(row.code))
+          .map((row: any) => ({
+            code: row.code,
+            name: row.name,
+            plate: row.plate || '',
+            type: row.type || 'Bomba',
+            currentKm: row.current_km || 0,
+            currentPumpHours: row.current_pump_hours || 0,
+            status: row.status || 'Operativo',
+          }));
         globalState.units = mapped;
         return mapped;
       }
@@ -317,10 +358,11 @@ export const serverGetUnits = async (): Promise<Unit[]> => {
       console.warn('Supabase query error in serverGetUnits:', e);
     }
   }
-  return globalState.units;
+  return globalState.units.filter(u => !globalState.deletedUnitCodes.includes(u.code));
 };
 
 export const serverSaveUnit = async (unit: Unit): Promise<Unit> => {
+  globalState.deletedUnitCodes = globalState.deletedUnitCodes.filter(c => c !== unit.code);
   const index = globalState.units.findIndex(u => u.code === unit.code);
   if (index >= 0) {
     globalState.units[index] = unit;
@@ -350,6 +392,9 @@ export const serverSaveUnit = async (unit: Unit): Promise<Unit> => {
 
 export const serverDeleteUnit = async (code: string): Promise<boolean> => {
   globalState.units = globalState.units.filter(u => u.code !== code);
+  if (!globalState.deletedUnitCodes.includes(code)) {
+    globalState.deletedUnitCodes.push(code);
+  }
   bumpRevision();
 
   if (supabase) {
@@ -421,6 +466,10 @@ export const serverSaveBranding = async (branding: CompanyBranding): Promise<Com
 // USERS API
 // ----------------------------------------------------------------------
 
+export const serverGetDeletedUserIds = (): string[] => {
+  return globalState.deletedUserIds || [];
+};
+
 export const serverGetUsers = async (): Promise<AppUser[]> => {
   if (supabase) {
     try {
@@ -430,25 +479,27 @@ export const serverGetUsers = async (): Promise<AppUser[]> => {
         .order('created_at', { ascending: true });
 
       if (!error && data && data.length > 0) {
-        const mapped: AppUser[] = data.map((row: any) => ({
-          id: row.id,
-          email: row.email,
-          fullName: row.full_name,
-          volunteerId: row.volunteer_id,
-          rank: row.rank,
-          registrationNumber: row.registration_number,
-          role: row.role,
-          status: row.status,
-          permissions: row.permissions || {},
-          password: row.password,
-          passwordHash: row.password_hash,
-          failedLoginAttempts: row.failed_login_attempts || 0,
-          lockedUntil: row.locked_until,
-          invitedBy: row.invited_by,
-          invitedAt: row.invited_at,
-          lastLogin: row.last_login,
-          createdAt: row.created_at,
-        }));
+        const mapped: AppUser[] = data
+          .filter((row: any) => !globalState.deletedUserIds.includes(row.id))
+          .map((row: any) => ({
+            id: row.id,
+            email: row.email,
+            fullName: row.full_name,
+            volunteerId: row.volunteer_id,
+            rank: row.rank,
+            registrationNumber: row.registration_number,
+            role: row.role,
+            status: row.status,
+            permissions: row.permissions || {},
+            password: row.password,
+            passwordHash: row.password_hash,
+            failedLoginAttempts: row.failed_login_attempts || 0,
+            lockedUntil: row.locked_until,
+            invitedBy: row.invited_by,
+            invitedAt: row.invited_at,
+            lastLogin: row.last_login,
+            createdAt: row.created_at,
+          }));
         globalState.users = mapped;
         return mapped;
       }
@@ -456,10 +507,11 @@ export const serverGetUsers = async (): Promise<AppUser[]> => {
       console.warn('Supabase query error in serverGetUsers:', e);
     }
   }
-  return globalState.users;
+  return globalState.users.filter(u => !globalState.deletedUserIds.includes(u.id));
 };
 
 export const serverSaveUser = async (user: AppUser): Promise<AppUser> => {
+  globalState.deletedUserIds = globalState.deletedUserIds.filter(id => id !== user.id);
   const index = globalState.users.findIndex(u => u.id === user.id || u.email.toLowerCase() === user.email.toLowerCase());
   if (index >= 0) {
     globalState.users[index] = { ...globalState.users[index], ...user };
@@ -498,6 +550,9 @@ export const serverSaveUser = async (user: AppUser): Promise<AppUser> => {
 
 export const serverDeleteUser = async (id: string): Promise<boolean> => {
   globalState.users = globalState.users.filter(u => u.id !== id);
+  if (!globalState.deletedUserIds.includes(id)) {
+    globalState.deletedUserIds.push(id);
+  }
   bumpRevision();
 
   if (supabase) {
@@ -521,5 +576,9 @@ export const serverGetSyncState = () => {
     reportsCount: globalState.reports.length,
     volunteersCount: globalState.volunteers.length,
     unitsCount: globalState.units.length,
+    deletedReportIds: globalState.deletedReportIds,
+    deletedVolunteerIds: globalState.deletedVolunteerIds,
+    deletedUnitCodes: globalState.deletedUnitCodes,
+    deletedUserIds: globalState.deletedUserIds,
   };
 };

@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { serverGetReports, serverSaveReport, serverDeleteReport } from '../../../lib/serverStore';
+import { serverGetReports, serverSaveReport, serverDeleteReport, serverGetDeletedReportIds } from '../../../lib/serverStore';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
     const reports = await serverGetReports();
-    return NextResponse.json({ success: true, data: reports });
+    const deletedIds = serverGetDeletedReportIds();
+    return NextResponse.json({ success: true, data: reports, deletedIds });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }

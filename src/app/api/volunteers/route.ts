@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { serverGetVolunteers, serverSaveVolunteer, serverDeleteVolunteer } from '../../../lib/serverStore';
+import { serverGetVolunteers, serverSaveVolunteer, serverDeleteVolunteer, serverGetDeletedVolunteerIds } from '../../../lib/serverStore';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
     const volunteers = await serverGetVolunteers();
-    return NextResponse.json({ success: true, data: volunteers });
+    const deletedIds = serverGetDeletedVolunteerIds();
+    return NextResponse.json({ success: true, data: volunteers, deletedIds });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
