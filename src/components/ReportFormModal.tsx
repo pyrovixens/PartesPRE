@@ -388,8 +388,8 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
     });
   }, [volunteers, volunteerSearch, selectedCategoryTab]);
 
-  // Submit Handler
-  const handleSubmit = (e: React.FormEvent) => {
+  // Submit Handler: supports saving as Draft or Official Report
+  const handleSubmit = (e?: React.FormEvent, asDraft: boolean = false) => {
     if (e && typeof e.preventDefault === 'function') {
       e.preventDefault();
     }
@@ -397,6 +397,7 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
     if (isSubmitting) return;
     setIsSubmitting(true);
 
+    const finalStatus: ReportStatus = asDraft ? 'BORRADOR' : status;
     const fullFolio = `${folioYear}-${String(folioNumber).padStart(3, '0')}`;
 
     const reportToSave: EmergencyReport = {
@@ -440,12 +441,12 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
         seguridadCiudadana,
       },
       summaryNotes: summaryNotes.trim(),
-      status,
+      status: finalStatus,
       createdAt: editingReport ? editingReport.createdAt : new Date().toISOString(),
       createdBy: editingReport ? editingReport.createdBy : (selectedOBAC?.fullName || 'Oficial de Guardia'),
       updatedAt: new Date().toISOString(),
-      approvedBy: status === 'APROBADO' ? (editingReport?.approvedBy || volunteers.find(v => v.rank === 'Capitán')?.fullName || 'Capitán de Compañía') : undefined,
-      approvedAt: status === 'APROBADO' ? (editingReport?.approvedAt || new Date().toISOString()) : undefined,
+      approvedBy: finalStatus === 'APROBADO' ? (editingReport?.approvedBy || volunteers.find(v => v.rank === 'Capitán')?.fullName || 'Capitán de Compañía') : undefined,
+      approvedAt: finalStatus === 'APROBADO' ? (editingReport?.approvedAt || new Date().toISOString()) : undefined,
       captainName: editingReport?.captainName || volunteers.find(v => v.rank === 'Capitán')?.fullName || 'Capitán de Compañía',
       captainRank: editingReport?.captainRank || 'Capitán 4ª Cía. Calle Larga',
       digitalSignature: editingReport?.digitalSignature,
@@ -481,13 +482,12 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
             <button
               type="button"
               disabled={isSubmitting}
-              onClick={(e) => handleSubmit(e as any)}
-              className={`flex items-center space-x-1 bg-red-700 hover:bg-red-800 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow-md transition active:scale-95 border border-red-500/50 ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
-              title="Guardar Parte Oficial"
+              onClick={(e) => handleSubmit(e, true)}
+              className={`hidden sm:flex items-center space-x-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 font-bold text-xs px-2.5 py-1.5 rounded-xl border border-amber-500/30 transition active:scale-95 ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+              title="Guardar como borrador para ir completando después"
             >
-              <Save className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">{isSubmitting ? 'Guardando...' : 'Guardar Parte'}</span>
-              <span className="inline sm:hidden">{isSubmitting ? '...' : 'Guardar'}</span>
+              <FileText className="w-3.5 h-3.5 text-amber-400" />
+              <span>{isSubmitting ? 'Guardando...' : 'Guardar Borrador'}</span>
             </button>
             <button
               type="button"
@@ -1168,7 +1168,7 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveStep(activeStep - 1)}
-                  className="text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-slate-900 px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 transition active:scale-95"
+                  className="text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 transition active:scale-95"
                 >
                   ← Anterior
                 </button>
@@ -1184,25 +1184,40 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
                 Cancelar
               </button>
 
-              {activeStep < 5 && (
-                <button
-                  type="button"
-                  onClick={() => setActiveStep(activeStep + 1)}
-                  className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-sm transition active:scale-95 border border-slate-700"
-                >
-                  Siguiente paso →
-                </button>
-              )}
-
+              {/* Botón Guardar Borrador: disponible en todos los pasos */}
               <button
                 type="button"
                 disabled={isSubmitting}
-                onClick={(e) => handleSubmit(e as any)}
-                className={`flex items-center gap-1.5 bg-red-700 hover:bg-red-800 text-white text-xs font-black px-4 sm:px-5 py-2 rounded-xl shadow-md transition active:scale-95 border border-red-500/40 ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                onClick={(e) => handleSubmit(e, true)}
+                className={`flex items-center gap-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold text-xs px-3.5 py-2 rounded-xl border border-amber-500/40 transition active:scale-95 ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                title="Guardar como borrador para continuar después"
               >
-                <Save className="w-4 h-4" />
-                <span>{isSubmitting ? 'Guardando...' : 'Guardar Parte Oficial'}</span>
+                <FileText className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                <span>{isSubmitting ? 'Guardando...' : 'Guardar Borrador'}</span>
               </button>
+
+              {activeStep < 5 ? (
+                /* Pasos 1 al 4: Botón Siguiente */
+                <button
+                  type="button"
+                  onClick={() => setActiveStep(activeStep + 1)}
+                  className="flex items-center gap-1 bg-red-700 hover:bg-red-800 text-white text-xs font-bold px-4 sm:px-5 py-2 rounded-xl shadow-md transition active:scale-95 border border-red-600"
+                >
+                  <span>Siguiente paso</span>
+                  <span>→</span>
+                </button>
+              ) : (
+                /* Solo en el Paso 5: Botón Guardar Parte Oficial */
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={(e) => handleSubmit(e, false)}
+                  className={`flex items-center gap-1.5 bg-red-700 hover:bg-red-800 text-white text-xs font-black px-5 py-2.5 rounded-xl shadow-lg transition active:scale-95 border border-red-500/40 ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{isSubmitting ? 'Guardando...' : 'Guardar Parte Oficial'}</span>
+                </button>
+              )}
             </div>
           </div>
         </form>

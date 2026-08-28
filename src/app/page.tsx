@@ -243,10 +243,13 @@ export default function Home() {
       return [reportToSave, ...filtered];
     });
 
+    const isDraft = reportToSave.status === 'BORRADOR';
     addToast({
-      type: 'success',
-      title: 'Parte Ingresado',
-      message: `Parte #${reportToSave.correlativoCompania || reportToSave.fullFolio} ingresado exitosamente.`,
+      type: isDraft ? 'info' : 'success',
+      title: isDraft ? 'Borrador Guardado' : 'Parte Ingresado',
+      message: isDraft 
+        ? `Borrador del Parte #${reportToSave.correlativoCompania || reportToSave.fullFolio} guardado exitosamente.`
+        : `Parte #${reportToSave.correlativoCompania || reportToSave.fullFolio} ingresado exitosamente.`,
       duration: 2500,
     });
 
