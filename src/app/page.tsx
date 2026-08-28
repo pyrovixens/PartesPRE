@@ -162,7 +162,6 @@ export default function Home() {
           fetchReports().then(reps => {
             if (reps && reps.length > 0) setReports(reps);
           });
-          addToast({ type: 'info', title: 'Sincronización en Vivo', message: 'Los partes y asistencias se han actualizado en tiempo real.' });
         },
         () => {
           fetchVolunteers().then(vols => {
@@ -185,7 +184,7 @@ export default function Home() {
         unsubscribe();
       };
     }
-  }, [currentUser, addToast]);
+  }, [currentUser]);
 
   const toggleDarkMode = () => {
     setIsDarkMode(prev => {
@@ -238,8 +237,9 @@ export default function Home() {
     setEditingReport(null);
     addToast({
       type: 'success',
-      title: 'Parte de Asistencia Registrado',
-      message: `Parte #${reportToSave.correlativoCompania || reportToSave.fullFolio} guardado oficialmente.`,
+      title: 'Parte Ingresado',
+      message: `Parte #${reportToSave.correlativoCompania || reportToSave.fullFolio} ingresado exitosamente.`,
+      duration: 2500,
     });
   };
 
