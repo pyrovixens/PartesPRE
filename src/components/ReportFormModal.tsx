@@ -277,13 +277,13 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
     }));
   };
 
-  // Volunteer Attendance Toggles
+  // Volunteer Attendance Toggles (Default: TRIPULO_CARRO)
   const handleToggleVolunteer = (volunteer: Volunteer) => {
     const isAttending = attendees.some(a => a.volunteerId === volunteer.id);
     if (isAttending) {
       setAttendees(attendees.filter(a => a.volunteerId !== volunteer.id));
     } else {
-      const defaultStatus: ArrivalStatus = selectedUnits.length > 0 ? 'TRIPULO_CARRO' : '6_3_LUGAR';
+      const defaultStatus: ArrivalStatus = 'TRIPULO_CARRO';
       const defaultUnit = selectedUnits.length > 0 ? selectedUnits[0].unitCode : (units[0]?.code || 'B-4');
       const newRec: AttendanceRecord = {
         volunteerId: volunteer.id,
@@ -292,7 +292,7 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
         rank: volunteer.rank,
         registrationNumber: volunteer.registrationNumber,
         arrivalStatus: defaultStatus,
-        unitCode: defaultStatus === 'TRIPULO_CARRO' ? defaultUnit : undefined,
+        unitCode: defaultUnit,
         roleInAction: volunteer.id === officerInChargeId ? 'Oficial a Cargo' : 'Bombero de Fila',
       };
       setAttendees([...attendees, newRec]);
@@ -318,7 +318,7 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
   const handleSelectGroup = (category: VolunteerCategory) => {
     const groupVols = volunteers.filter(v => v.category === category);
     const existingIds = new Set(attendees.map(a => a.volunteerId));
-    const defaultStatus: ArrivalStatus = selectedUnits.length > 0 ? 'TRIPULO_CARRO' : '6_3_LUGAR';
+    const defaultStatus: ArrivalStatus = 'TRIPULO_CARRO';
     const defaultUnit = selectedUnits.length > 0 ? selectedUnits[0].unitCode : (units[0]?.code || 'B-4');
     
     const newRecords: AttendanceRecord[] = groupVols
@@ -330,14 +330,14 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
         rank: v.rank,
         registrationNumber: v.registrationNumber,
         arrivalStatus: defaultStatus,
-        unitCode: defaultStatus === 'TRIPULO_CARRO' ? defaultUnit : undefined,
+        unitCode: defaultUnit,
         roleInAction: v.id === officerInChargeId ? 'Oficial a Cargo' : 'Bombero de Fila',
       }));
     setAttendees([...attendees, ...newRecords]);
   };
 
   const handleSelectAllVolunteers = () => {
-    const defaultStatus: ArrivalStatus = selectedUnits.length > 0 ? 'TRIPULO_CARRO' : '6_3_LUGAR';
+    const defaultStatus: ArrivalStatus = 'TRIPULO_CARRO';
     const defaultUnit = selectedUnits.length > 0 ? selectedUnits[0].unitCode : (units[0]?.code || 'B-4');
     const allRecords: AttendanceRecord[] = volunteers.map(v => ({
       volunteerId: v.id,
@@ -346,7 +346,7 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
       rank: v.rank,
       registrationNumber: v.registrationNumber,
       arrivalStatus: defaultStatus,
-      unitCode: defaultStatus === 'TRIPULO_CARRO' ? defaultUnit : undefined,
+      unitCode: defaultUnit,
       roleInAction: v.id === officerInChargeId ? 'Oficial a Cargo' : 'Bombero de Fila',
     }));
     setAttendees(allRecords);
