@@ -83,6 +83,19 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
   const displayCaptainName = report.approvedBy || report.captainName || defaultCaptainName;
   const displayCaptainRank = report.captainRank || (report.approvedBy ? 'V°B° Capitanía de Compañía' : 'Capitán 4ª Cía. Calle Larga');
 
+  // Authorization check for Capitanía and Ayudantía
+  const isAuthorizedToSign = Boolean(
+    currentUser && (
+      currentUser.rank?.includes('Capitán') || 
+      currentUser.rank?.includes('Ayudante') ||
+      currentUser.role === 'SUPER_ADMIN' ||
+      volunteers.some(v => 
+        (v.fullName.toLowerCase() === currentUser.fullName.toLowerCase() || (currentUser.email && v.email && v.email.toLowerCase() === currentUser.email.toLowerCase()) || (currentUser.registrationNumber && v.registrationNumber === currentUser.registrationNumber)) &&
+        (v.rank.includes('Capitán') || v.rank.includes('Ayudante'))
+      )
+    )
+  );
+
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-1 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
@@ -415,14 +428,21 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                 <span>Editar</span>
               </button>
 
-              {!report.digitalSignature && (
+              {!report.digitalSignature && isAuthorizedToSign && (
                 <button
                   onClick={() => setIsSignModalOpen(true)}
                   className="bg-red-700 hover:bg-red-800 text-white font-black text-xs px-4 py-2 rounded-xl flex items-center space-x-1.5 shadow-md transition active:scale-95 border border-red-500/50"
+                  title="Cerrar y Validar Parte Oficial con Firma Digital (Capitanía / Ayudantía)"
                 >
                   <PenTool className="w-3.5 h-3.5 text-amber-300" />
-                  <span>Firmar Digitalmente</span>
+                  <span>Validar & Firmar Parte</span>
                 </button>
+              )}
+
+              {!report.digitalSignature && !isAuthorizedToSign && (
+                <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 px-2.5 py-1.5 rounded-xl">
+                  ⏳ En revisión (V°B° Capitanía / Ayudantía)
+                </span>
               )}
             </div>
           </div>

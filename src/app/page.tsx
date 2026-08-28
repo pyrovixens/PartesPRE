@@ -541,6 +541,7 @@ export default function Home() {
         units={units}
         keys={keys}
         nextFolioNumber={nextFolioNumber}
+        currentUser={currentUser}
       />
 
       <ReportDetailModal

@@ -29,7 +29,8 @@ import {
   ReportStatus, 
   VolunteerCategory,
   ArrivalStatus,
-  VolunteerRank
+  VolunteerRank,
+  AppUser
 } from '../types';
 import { searchInFields } from '../utils/searchUtils';
 
@@ -42,6 +43,7 @@ interface ReportFormModalProps {
   units: Unit[];
   keys: EmergencyKey[];
   nextFolioNumber: number;
+  currentUser?: AppUser | null;
 }
 
 export const ReportFormModal: React.FC<ReportFormModalProps> = ({
@@ -53,6 +55,7 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
   units,
   keys,
   nextFolioNumber,
+  currentUser,
 }) => {
   const [activeStep, setActiveStep] = useState<number>(1);
 
@@ -233,10 +236,18 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
       setMunicipalidad(false);
       setSeguridadCiudadana(false);
       setSummaryNotes('');
-      setStatus('APROBADO');
+      const isCapitanOrAyudante = currentUser && (
+        currentUser.rank?.includes('Capitán') ||
+        currentUser.rank?.includes('Ayudante') ||
+        volunteers.some(v => 
+          (v.fullName.toLowerCase() === currentUser.fullName.toLowerCase() || (currentUser.email && v.email && v.email.toLowerCase() === currentUser.email.toLowerCase()) || (currentUser.registrationNumber && v.registrationNumber === currentUser.registrationNumber)) &&
+          (v.rank.includes('Capitán') || v.rank.includes('Ayudante'))
+        )
+      );
+      setStatus(isCapitanOrAyudante ? 'APROBADO' : 'ENVIADO');
     }
     setActiveStep(1);
-  }, [editingReport, nextFolioNumber, isOpen, volunteers]);
+  }, [editingReport, nextFolioNumber, isOpen, volunteers, currentUser]);
 
   const selectedKeyObj = useMemo(() => {
     return keys.find(k => k.code === keyCode) || keys[0];

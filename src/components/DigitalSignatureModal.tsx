@@ -38,10 +38,29 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
 }) => {
   const [signatureMode, setSignatureMode] = useState<'SEAL' | 'DRAW'>('SEAL');
 
-  // Find captain from padrón or default
+  // Helper to extract clean institutional rank (never software role)
+  const getInstitutionalRank = (name?: string, userRank?: string): string => {
+    if (!name) return 'Ayudante';
+    const match = volunteers.find(v => 
+      v.fullName.toLowerCase() === name.toLowerCase() ||
+      (currentUser?.volunteerId && v.id === currentUser.volunteerId) ||
+      (currentUser?.registrationNumber && v.registrationNumber === currentUser.registrationNumber) ||
+      (currentUser?.email && v.email && v.email.toLowerCase() === currentUser.email.toLowerCase())
+    );
+    if (match && match.rank && !match.rank.includes('Administrador')) {
+      return match.rank;
+    }
+    if (userRank && !userRank.includes('Administrador') && !userRank.includes('SUP-')) {
+      return userRank;
+    }
+    return 'Ayudante';
+  };
+
   const captainVolunteer = volunteers.find(v => v.rank === 'Capitán');
-  const defaultSignerName = captainVolunteer ? captainVolunteer.fullName : (currentUser?.fullName || 'Capitán de Compañía');
-  const defaultSignerRank = captainVolunteer ? captainVolunteer.rank : (currentUser?.rank || 'Capitán');
+  const defaultSignerName = currentUser?.fullName || captainVolunteer?.fullName || 'Oficial de Compañía';
+  const defaultSignerRank = currentUser 
+    ? getInstitutionalRank(currentUser.fullName, currentUser.rank) 
+    : (captainVolunteer?.rank || 'Ayudante');
 
   const [signerName, setSignerName] = useState<string>(defaultSignerName);
   const [signerRank, setSignerRank] = useState<string>(defaultSignerRank);
@@ -53,12 +72,12 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      if (captainVolunteer) {
+      if (currentUser) {
+        setSignerName(currentUser.fullName);
+        setSignerRank(getInstitutionalRank(currentUser.fullName, currentUser.rank));
+      } else if (captainVolunteer) {
         setSignerName(captainVolunteer.fullName);
         setSignerRank(captainVolunteer.rank);
-      } else if (currentUser) {
-        setSignerName(currentUser.fullName);
-        setSignerRank(currentUser.rank || 'Capitán');
       }
       setHasDrawn(false);
       clearCanvas();
@@ -235,11 +254,11 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
                   type="button"
                   onClick={() => {
                     setSignerName(currentUser.fullName);
-                    setSignerRank(currentUser.rank || 'Ayudante de Compañía');
+                    setSignerRank(getInstitutionalRank(currentUser.fullName, currentUser.rank));
                   }}
                   className="text-[10px] text-red-700 dark:text-red-400 font-bold hover:underline"
                 >
-                  Usar mi usuario ({currentUser.fullName.split(' ')[0]})
+                  Usar mi usuario ({currentUser.fullName.split(' ')[0]} - {getInstitutionalRank(currentUser.fullName, currentUser.rank)})
                 </button>
               )}
             </div>
@@ -278,7 +297,7 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
                   </optgroup>
                   {currentUser && (
                     <option value={currentUser.fullName}>
-                      {currentUser.rank} - {currentUser.fullName} (Sesión Actual)
+                      {getInstitutionalRank(currentUser.fullName, currentUser.rank)} - {currentUser.fullName} (Sesión Actual)
                     </option>
                   )}
                 </select>
