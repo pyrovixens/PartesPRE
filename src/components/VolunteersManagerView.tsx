@@ -371,8 +371,130 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
         </span>
       </div>
 
-      {/* High-Efficiency Compact Table View */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+      {/* Mobile Volunteers Cards View (Visible on mobile/tablet) */}
+      <div className="block md:hidden space-y-3">
+        {filteredList.length === 0 ? (
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 text-center text-xs text-slate-400 border border-slate-200 dark:border-slate-800">
+            No se encontraron voluntarios con los filtros seleccionados.
+          </div>
+        ) : (
+          filteredList.map((v) => {
+            const isUpdatedJustNow = quickFeedbackId === v.id;
+            return (
+              <div
+                key={v.id}
+                className={`bg-white dark:bg-slate-900 rounded-2xl p-3.5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3 transition-colors ${
+                  isUpdatedJustNow ? 'ring-2 ring-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/30' : ''
+                }`}
+              >
+                {/* Header: Photo, Name, Reg, Rut */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center space-x-2.5 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-white font-black text-xs flex items-center justify-center shrink-0 border border-slate-200 dark:border-slate-700">
+                      {v.fullName.charAt(0)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-black text-slate-900 dark:text-white text-xs sm:text-sm truncate">
+                        {v.fullName}
+                      </p>
+                      <p className="text-[10px] text-slate-400 font-mono">
+                        RUT: {v.rut} • {v.phone ? `📞 ${v.phone}` : ''}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="font-mono text-[11px] font-black bg-red-50 dark:bg-red-950/80 text-red-700 dark:text-red-300 px-2 py-0.5 rounded-lg border border-red-200 dark:border-red-800 shrink-0">
+                    N° {v.registrationNumber}
+                  </span>
+                </div>
+
+                {/* Rank and Category Dropdowns */}
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-0.5">
+                      Cargo / Rango:
+                    </label>
+                    <select
+                      value={v.rank}
+                      onChange={(e) => handleQuickRankChange(v, e.target.value as VolunteerRank)}
+                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-red-600 focus:outline-none"
+                    >
+                      <optgroup label="Oficialidad de Mando">
+                        <option value="Director">Director</option>
+                        <option value="Capitán">Capitán</option>
+                        <option value="Teniente 1°">Teniente 1°</option>
+                        <option value="Teniente 2°">Teniente 2°</option>
+                        <option value="Teniente 3°">Teniente 3°</option>
+                        <option value="Ayudante">Ayudante</option>
+                        <option value="Tesorero">Tesorero</option>
+                        <option value="Secretario">Secretario</option>
+                      </optgroup>
+                      <optgroup label="Material Mayor">
+                        <option value="Maquinista General">Maquinista General</option>
+                        <option value="Maquinista">Maquinista</option>
+                      </optgroup>
+                      <optgroup label="Escalafón General">
+                        <option value="Bombero Activo">Bombero Activo</option>
+                        <option value="Bombero Honorario">Bombero Honorario</option>
+                        <option value="Bombero Insigne">Bombero Insigne</option>
+                        <option value="Bombero Fundador">Bombero Fundador</option>
+                        <option value="Aspirante">Aspirante</option>
+                      </optgroup>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-0.5">
+                      Escalafón:
+                    </label>
+                    <select
+                      value={v.category}
+                      onChange={(e) => handleQuickCategoryChange(v, e.target.value as VolunteerCategory)}
+                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-red-600 focus:outline-none"
+                    >
+                      {ALL_CATEGORIES.map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Actions Footer */}
+                <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800 text-xs">
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    v.status === 'Activo' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' :
+                    'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                  }`}>
+                    {v.status}
+                  </span>
+
+                  <div className="flex items-center space-x-1">
+                    <button
+                      onClick={() => handleOpenEdit(v)}
+                      className="p-1.5 text-slate-600 dark:text-slate-300 hover:text-blue-700 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-lg transition text-xs font-bold flex items-center gap-1"
+                    >
+                      <Edit className="w-3.5 h-3.5" />
+                      <span>Editar</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm(`¿Estás seguro de eliminar a ${v.fullName}?`)) {
+                          onDeleteVolunteer(v.id);
+                        }
+                      }}
+                      className="p-1.5 text-slate-400 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-lg transition"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* High-Efficiency Compact Table View (Desktop) */}
+      <div className="hidden md:block bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 text-[10px] font-black uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">
