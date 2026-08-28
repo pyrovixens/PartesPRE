@@ -490,7 +490,7 @@ export default function Home() {
           />
         )}
 
-        {activeTab === 'users' && (
+        {activeTab === 'users' && currentUser.role === 'SUPER_ADMIN' && (
           <UsersManagerView
             currentUser={currentUser}
             volunteers={volunteers}

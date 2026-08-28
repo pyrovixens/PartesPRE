@@ -11,19 +11,34 @@ interface LogoManagerModalProps {
 
 const PRESET_LOGOS = [
   {
-    name: '4ª Cía. Calle Larga (Oficial)',
-    url: '/logo_4ta_calle_larga.png',
+    name: 'Logo 1 (Oficial 4ª Cía)',
+    url: '/logo_1.png',
     description: 'Escudo oficial 4ª Compañía "Calle Larga"',
   },
   {
-    name: 'Cruz de Malta Dorada',
-    url: 'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=150&auto=format&fit=crop&q=80',
-    description: 'Emblema clásico de Bomberos con filigrana dorada',
+    name: 'Logo 2 (Opción 2)',
+    url: '/logo_2.png',
+    description: 'Escudo institucional opción 2',
   },
   {
-    name: 'Casco & Hacha Tradicional',
-    url: 'https://images.unsplash.com/photo-1542385151-efd9000785a0?w=150&auto=format&fit=crop&q=80',
-    description: 'Heráldica de combate contra incendios',
+    name: 'Logo 3 (Opción 3)',
+    url: '/logo_3.png',
+    description: 'Escudo institucional opción 3',
+  },
+  {
+    name: 'Logo 4 (Opción 4)',
+    url: '/logo_4.png',
+    description: 'Escudo institucional opción 4',
+  },
+  {
+    name: 'Logo 5 (Opción 5)',
+    url: '/logo_5.png',
+    description: 'Escudo institucional opción 5',
+  },
+  {
+    name: 'Logo 6 (Opción 6)',
+    url: '/logo_6.png',
+    description: 'Escudo institucional opción 6',
   },
 ];
 
@@ -198,7 +213,7 @@ export const LogoManagerModal: React.FC<LogoManagerModalProps> = ({
             <label className="block font-bold text-slate-700 dark:text-slate-300 mb-2">
               Opciones de Escudos Disponibles:
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {PRESET_LOGOS.map((preset) => (
                 <button
                   key={preset.name}

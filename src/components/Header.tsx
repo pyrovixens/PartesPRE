@@ -47,7 +47,7 @@ export const Header: React.FC<HeaderProps> = ({
     exportMatrixToExcel(reports, volunteers, new Date().getFullYear());
   };
 
-  const isSuperAdminOrAdmin = currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'ADMIN';
+  const isSuperAdmin = currentUser.role === 'SUPER_ADMIN';
 
   return (
     <header className="bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md text-white border-b border-red-800/70 shadow-lg sticky top-0 z-40 transition-colors">
@@ -57,12 +57,12 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0 flex-1">
           <button
             onClick={() => {
-              if (isSuperAdminOrAdmin) {
+              if (isSuperAdmin) {
                 onOpenLogoManager();
               }
             }}
             className="relative flex-shrink-0 group focus:outline-none"
-            title={isSuperAdminOrAdmin ? 'Personalizar escudo institucional' : branding.companyName}
+            title={isSuperAdmin ? 'Personalizar escudo institucional' : branding.companyName}
           >
             <img 
               src={branding.logoUrl || '/logo_4ta_calle_larga.png'} 
@@ -212,8 +212,8 @@ export const Header: React.FC<HeaderProps> = ({
             <span>Material Mayor</span>
           </button>
 
-          {/* Admin / Super Admin Users Management Tab */}
-          {isSuperAdminOrAdmin && (
+          {/* Super Admin Users Management & Branding Tab */}
+          {isSuperAdmin && (
             <>
               <button
                 onClick={() => setActiveTab('users')}
