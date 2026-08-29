@@ -438,48 +438,49 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* ======================================================= */}
         {/* PANEL CENTRAL: 2x2 GRÁFICOS 1, 2, 3, 4 (Col 6)          */}
         {/* ======================================================= */}
-        <div className="xl:col-span-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="xl:col-span-6 grid grid-cols-1 md:grid-cols-2 gap-5">
           
           {/* GRÁFICO 1: Cantidad de Emergencias por Clave */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-4 flex flex-col justify-between transition-colors">
-            <div className="flex items-start justify-between pb-2 border-b border-slate-100 dark:border-slate-800 gap-2">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-5 flex flex-col justify-between transition-colors">
+            <div className="flex items-start justify-between pb-3 border-b border-slate-100 dark:border-slate-800 gap-2">
               <div>
-                <h4 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white flex items-center gap-1.5">
-                  <Flame className="w-4 h-4 text-red-600" />
+                <h4 className="text-sm sm:text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <Flame className="w-5 h-5 text-red-600" />
                   <span>Gráfico 1: Emergencias por Clave</span>
                 </h4>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                  Volumen por código radial oficial (10-X)
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Volumen por código radial oficial (10-X) Bomberos de Chile
                 </p>
               </div>
-              <span className="text-[9px] font-black bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 px-1.5 py-0.5 rounded border border-red-200 dark:border-red-800 shrink-0">
+              <span className="text-[10px] font-black bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 px-2 py-1 rounded-md border border-red-200 dark:border-red-800 shrink-0">
                 10-X
               </span>
             </div>
 
-            <div className="h-56 w-full mt-3">
+            <div className="h-80 sm:h-96 w-full mt-4">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={keysChartData} margin={{ top: 10, right: 10, left: -20, bottom: 35 }}>
+                <BarChart data={keysChartData} margin={{ top: 15, right: 15, left: -10, bottom: 45 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.25} />
                   <XAxis 
                     dataKey="code" 
                     angle={-45} 
                     textAnchor="end" 
                     interval={0} 
-                    height={40} 
-                    tick={{ fontSize: 8, fill: '#64748B', fontWeight: 700 }}
+                    height={50} 
+                    tick={{ fontSize: 10, fill: '#64748B', fontWeight: 700 }}
                   />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: '#64748B' }} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#64748B', fontWeight: 600 }} />
                   <Tooltip
                     content={({ active, payload }) => {
                       if (active && payload && payload.length) {
                         const data = payload[0].payload;
                         return (
-                          <div className="bg-slate-950 text-white p-2.5 rounded-xl shadow-2xl text-[11px] border border-slate-800">
-                            <p className="font-black text-amber-400">{data.code}</p>
-                            <p className="text-slate-300 text-[10px] mt-0.5">{data.fullDesc}</p>
-                            <p className="font-bold text-white mt-1 pt-1 border-t border-slate-800">
-                              Llamados: <span className="text-red-400">{data.count}</span>
+                          <div className="bg-slate-950 text-white p-3 rounded-xl shadow-2xl text-xs border border-slate-800">
+                            <p className="font-black text-amber-400 text-sm">{data.code}</p>
+                            <p className="text-slate-300 text-xs mt-0.5">{data.fullDesc}</p>
+                            <p className="font-bold text-white mt-2 pt-2 border-t border-slate-800 flex justify-between">
+                              <span>Llamados registrados:</span>
+                              <span className="text-red-400 text-sm font-black">{data.count}</span>
                             </p>
                           </div>
                         );
@@ -487,109 +488,111 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       return null;
                     }}
                   />
-                  <Bar dataKey="count" fill="#DC2626" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="count" fill="#DC2626" radius={[4, 4, 0, 0]} maxBarSize={38} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
 
           {/* GRÁFICO 2: Evolución Mensual de Llamados y Asistencia */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-4 flex flex-col justify-between transition-colors">
-            <div className="flex items-start justify-between pb-2 border-b border-slate-100 dark:border-slate-800 gap-2">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-5 flex flex-col justify-between transition-colors">
+            <div className="flex items-start justify-between pb-3 border-b border-slate-100 dark:border-slate-800 gap-2">
               <div>
-                <h4 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white flex items-center gap-1.5">
-                  <Calendar className="w-4 h-4 text-amber-500" />
+                <h4 className="text-sm sm:text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-amber-500" />
                   <span>Gráfico 2: Evolución Mensual</span>
                 </h4>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                  Llamados (barras) vs Promedio bomberos (línea)
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Llamados (barras rojas) vs Promedio bomberos (línea verde)
                 </p>
               </div>
-              <span className="text-[9px] font-black bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800 shrink-0">
-                Mes
+              <span className="text-[10px] font-black bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 px-2 py-1 rounded-md border border-amber-200 dark:border-amber-800 shrink-0">
+                Mes a Mes
               </span>
             </div>
 
-            <div className="h-56 w-full mt-3">
+            <div className="h-80 sm:h-96 w-full mt-4">
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={monthlyChartData} margin={{ top: 10, right: 10, left: -20, bottom: 10 }}>
+                <ComposedChart data={monthlyChartData} margin={{ top: 15, right: 15, left: -10, bottom: 15 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.25} />
-                  <XAxis dataKey="month" tick={{ fontSize: 9, fill: '#64748B', fontWeight: 600 }} />
-                  <YAxis yAxisId="left" allowDecimals={false} tick={{ fontSize: 10, fill: '#DC2626' }} />
-                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#059669' }} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#64748B', fontWeight: 700 }} />
+                  <YAxis yAxisId="left" allowDecimals={false} tick={{ fontSize: 11, fill: '#DC2626', fontWeight: 600 }} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#059669', fontWeight: 600 }} />
                   <Tooltip />
-                  <Bar yAxisId="left" dataKey="calls" name="Llamados" fill="#DC2626" radius={[3, 3, 0, 0]} />
-                  <Line yAxisId="right" type="monotone" dataKey="avgFirefighters" name="Prom. Bomberos" stroke="#059669" strokeWidth={2.5} dot={{ r: 3, fill: '#059669' }} />
+                  <Legend verticalAlign="top" height={36} wrapperStyle={{ fontSize: '11px', fontWeight: 700 }} />
+                  <Bar yAxisId="left" dataKey="calls" name="Llamados" fill="#DC2626" radius={[4, 4, 0, 0]} maxBarSize={38} />
+                  <Line yAxisId="right" type="monotone" dataKey="avgFirefighters" name="Prom. Bomberos" stroke="#059669" strokeWidth={3} dot={{ r: 4, fill: '#059669' }} />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
           </div>
 
           {/* GRÁFICO 3: Cantidad de Llamados y Promedio Bomberos por Clave */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-4 flex flex-col justify-between transition-colors">
-            <div className="flex items-start justify-between pb-2 border-b border-slate-100 dark:border-slate-800 gap-2">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-5 flex flex-col justify-between transition-colors">
+            <div className="flex items-start justify-between pb-3 border-b border-slate-100 dark:border-slate-800 gap-2">
               <div>
-                <h4 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white flex items-center gap-1.5">
-                  <TrendingUp className="w-4 h-4 text-blue-600" />
+                <h4 className="text-sm sm:text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-blue-600" />
                   <span>Gráfico 3: Llamados vs Dotación</span>
                 </h4>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                  Respuesta operativa y asistencia promedio
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Respuesta operativa (barras) y asistencia promedio (línea)
                 </p>
               </div>
-              <span className="text-[9px] font-black bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800 shrink-0">
-                Mix
+              <span className="text-[10px] font-black bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 px-2 py-1 rounded-md border border-blue-200 dark:border-blue-800 shrink-0">
+                Mix Operativo
               </span>
             </div>
 
-            <div className="h-56 w-full mt-3">
+            <div className="h-80 sm:h-96 w-full mt-4">
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={callsAndFirefightersData} margin={{ top: 10, right: 10, left: -20, bottom: 35 }}>
+                <ComposedChart data={callsAndFirefightersData} margin={{ top: 15, right: 15, left: -10, bottom: 45 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.25} />
                   <XAxis 
                     dataKey="code" 
                     angle={-45} 
                     textAnchor="end" 
                     interval={0} 
-                    height={40} 
-                    tick={{ fontSize: 8, fill: '#64748B', fontWeight: 700 }}
+                    height={50} 
+                    tick={{ fontSize: 10, fill: '#64748B', fontWeight: 700 }}
                   />
-                  <YAxis yAxisId="left" allowDecimals={false} tick={{ fontSize: 10, fill: '#1E3A8A' }} />
-                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#EA580C' }} />
+                  <YAxis yAxisId="left" allowDecimals={false} tick={{ fontSize: 11, fill: '#1E3A8A', fontWeight: 600 }} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#EA580C', fontWeight: 600 }} />
                   <Tooltip />
-                  <Bar yAxisId="left" dataKey="Cantidad" fill="#1E3A8A" radius={[3, 3, 0, 0]} />
-                  <Line yAxisId="right" type="monotone" dataKey="Promedio de bomberos" stroke="#EA580C" strokeWidth={2.5} dot={{ r: 3, fill: '#EA580C' }} />
+                  <Legend verticalAlign="top" height={36} wrapperStyle={{ fontSize: '11px', fontWeight: 700 }} />
+                  <Bar yAxisId="left" dataKey="Cantidad" fill="#1E3A8A" radius={[4, 4, 0, 0]} maxBarSize={38} />
+                  <Line yAxisId="right" type="monotone" dataKey="Promedio de bomberos" stroke="#EA580C" strokeWidth={3} dot={{ r: 4, fill: '#EA580C' }} />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
           </div>
 
           {/* GRÁFICO 4: Distribución por Sectores y Jurisdicción */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-4 flex flex-col justify-between transition-colors">
-            <div className="flex items-start justify-between pb-2 border-b border-slate-100 dark:border-slate-800 gap-2">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-5 flex flex-col justify-between transition-colors">
+            <div className="flex items-start justify-between pb-3 border-b border-slate-100 dark:border-slate-800 gap-2">
               <div>
-                <h4 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white flex items-center gap-1.5">
-                  <MapPin className="w-4 h-4 text-emerald-600" />
-                  <span>Gráfico 4: Top Sectores Actos</span>
+                <h4 className="text-sm sm:text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <MapPin className="w-5 h-5 text-emerald-600" />
+                  <span>Gráfico 4: Top Sectores de Incidentes</span>
                 </h4>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                  Frecuencia de incidentes por sector
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Frecuencia de emergencias por sector / población
                 </p>
               </div>
-              <span className="text-[9px] font-black bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800 shrink-0">
+              <span className="text-[10px] font-black bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 px-2 py-1 rounded-md border border-emerald-200 dark:border-emerald-800 shrink-0">
                 Sectores
               </span>
             </div>
 
-            <div className="h-56 w-full mt-3">
+            <div className="h-80 sm:h-96 w-full mt-4">
               {sectorsChartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={sectorsChartData} layout="vertical" margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
+                  <BarChart data={sectorsChartData} layout="vertical" margin={{ top: 10, right: 30, left: 30, bottom: 10 }}>
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#334155" opacity={0.25} />
-                    <XAxis type="number" allowDecimals={false} tick={{ fontSize: 9, fill: '#64748B' }} />
-                    <YAxis type="category" dataKey="name" width={65} tick={{ fontSize: 9, fill: '#64748B', fontWeight: 700 }} />
+                    <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: '#64748B', fontWeight: 600 }} />
+                    <YAxis type="category" dataKey="name" width={85} tick={{ fontSize: 11, fill: '#64748B', fontWeight: 700 }} />
                     <Tooltip />
-                    <Bar dataKey="value" name="Actos" fill="#059669" radius={[0, 4, 4, 0]}>
+                    <Bar dataKey="value" name="Actos Registrados" fill="#059669" radius={[0, 6, 6, 0]} maxBarSize={32}>
                       {sectorsChartData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={SECTOR_COLORS[index % SECTOR_COLORS.length]} />
                       ))}
@@ -597,8 +600,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-full flex items-center justify-center text-xs text-slate-400">
-                  Sin datos de sectores para los filtros
+                <div className="h-full flex items-center justify-center text-sm text-slate-400">
+                  Sin datos de sectores para los filtros activos
                 </div>
               )}
             </div>
@@ -643,8 +646,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             {/* TAB 1: RANKING DE ASISTENCIA */}
             {rightPanelTab === 'ranking' && (
-              <div className="mt-3 space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
-                {stats.attendancesByVolunteer.slice(0, 9).map((v, index) => (
+              <div className="mt-3 space-y-2.5 max-h-[750px] overflow-y-auto pr-1">
+                {stats.attendancesByVolunteer.slice(0, 12).map((v, index) => (
                   <div key={v.volunteerId} className="flex items-center justify-between text-xs p-1.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
                     <div className="flex items-center space-x-2 min-w-0">
                       <span className={`w-5 h-5 rounded-full flex items-center justify-center font-black text-[10px] shrink-0 ${
@@ -679,8 +682,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             {/* TAB 2: BITÁCORA EN VIVO DE PARTES */}
             {rightPanelTab === 'bitacora' && (
-              <div className="mt-3 space-y-2 max-h-[500px] overflow-y-auto pr-1">
-                {filteredReports.slice(0, 7).map(rep => (
+              <div className="mt-3 space-y-2 max-h-[750px] overflow-y-auto pr-1">
+                {filteredReports.slice(0, 10).map(rep => (
                   <div
                     key={rep.id}
                     onClick={() => onSelectReport(rep)}

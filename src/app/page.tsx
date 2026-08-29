@@ -545,7 +545,7 @@ export default function Home() {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-2 sm:px-6 lg:px-8 py-3 sm:py-5 pb-24 sm:pb-8">
+      <main className={`flex-1 ${activeTab === 'dashboard' || activeTab === 'matrix' ? 'max-w-[1680px]' : 'max-w-7xl'} w-full mx-auto px-2 sm:px-4 lg:px-6 py-3 sm:py-5 pb-24 sm:pb-8 transition-all`}>
         {activeTab === 'dashboard' && (
           <DashboardView
             reports={reports}
