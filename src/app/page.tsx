@@ -603,8 +603,9 @@ export default function Home() {
         )}
       </main>
 
-      {/* Mobile Bottom Navigation Bar (Persistent & Thumbs-friendly) */}
+      {/* Mobile Bottom Navigation Bar (Persistent & Perfectly Centered + Button) */}
       <nav aria-label="Navegación Móvil" className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-xl border-t border-slate-800/90 py-1 px-1 flex items-center justify-between shadow-2xl safe-bottom">
+        {/* 1. Métricas */}
         <button
           onClick={() => setActiveTab('dashboard')}
           className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all ${
@@ -615,6 +616,7 @@ export default function Home() {
           <span className="text-[9px] truncate">Métricas</span>
         </button>
 
+        {/* 2. Matriz */}
         <button
           onClick={() => setActiveTab('matrix')}
           className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all ${
@@ -625,18 +627,7 @@ export default function Home() {
           <span className="text-[9px] truncate">Matriz</span>
         </button>
 
-        {currentUser.permissions?.canCreateReports && (
-          <div className="flex items-center justify-center -mt-5 shrink-0 px-1 z-10">
-            <button
-              onClick={handleOpenNewReport}
-              className="w-11 h-11 bg-gradient-to-tr from-red-700 to-red-500 hover:from-red-800 text-white rounded-full flex items-center justify-center shadow-xl border-2 border-slate-900 active:scale-95 transition"
-              title="Crear Nuevo Parte"
-            >
-              <Plus className="w-5 h-5 stroke-[2.5]" />
-            </button>
-          </div>
-        )}
-
+        {/* 3. Partes */}
         <button
           onClick={() => setActiveTab('reports')}
           className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all ${
@@ -647,6 +638,20 @@ export default function Home() {
           <span className="text-[9px] truncate">Partes</span>
         </button>
 
+        {/* CENTER '+' BUTTON */}
+        {currentUser.permissions?.canCreateReports && (
+          <div className="flex items-center justify-center -mt-5 shrink-0 px-1 z-10">
+            <button
+              onClick={handleOpenNewReport}
+              className="w-12 h-12 bg-gradient-to-tr from-red-700 to-red-500 hover:from-red-800 text-white rounded-full flex items-center justify-center shadow-2xl border-2 border-slate-900 active:scale-95 transition"
+              title="Crear Nuevo Parte"
+            >
+              <Plus className="w-6 h-6 stroke-[2.5]" />
+            </button>
+          </div>
+        )}
+
+        {/* 4. Padrón */}
         <button
           onClick={() => setActiveTab('volunteers')}
           className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all ${
@@ -657,6 +662,7 @@ export default function Home() {
           <span className="text-[9px] truncate">Padrón</span>
         </button>
 
+        {/* 5. Carros */}
         <button
           onClick={() => setActiveTab('units')}
           className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all ${
@@ -667,7 +673,8 @@ export default function Home() {
           <span className="text-[9px] truncate">Carros</span>
         </button>
 
-        {currentUser.role === 'SUPER_ADMIN' && (
+        {/* 6. Usuarios (o espacio simétrico) */}
+        {currentUser.role === 'SUPER_ADMIN' ? (
           <button
             onClick={() => setActiveTab('users')}
             className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all ${
@@ -677,7 +684,7 @@ export default function Home() {
             <Shield className="w-4 h-4 mb-0.5" />
             <span className="text-[9px] truncate">Usuarios</span>
           </button>
-        )}
+        ) : null}
       </nav>
 
       {/* Quick Access Floating Action Button */}
