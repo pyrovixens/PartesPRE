@@ -593,6 +593,19 @@ export const serverSaveUser = async (user: AppUser): Promise<AppUser> => {
       console.warn('Supabase save error in serverSaveUser:', e);
     }
   }
+
+  // If user is active, auto-purge pending invitations for this email
+  if (user.status === 'ACTIVO') {
+    if (globalState.invitations) {
+      globalState.invitations = globalState.invitations.filter(i => i.email.toLowerCase() !== user.email.toLowerCase());
+    }
+    if (supabase) {
+      try {
+        await supabase.from('user_invitations').delete().eq('email', user.email.toLowerCase());
+      } catch {}
+    }
+  }
+
   return user;
 };
 

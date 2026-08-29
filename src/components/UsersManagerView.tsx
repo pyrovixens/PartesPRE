@@ -201,6 +201,20 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
           setIsModalOpen(false);
           onNotify('success', 'Cuenta Creada', `Se creó la cuenta oficial activa para ${newUser.fullName}.`);
         } else {
+          // Sender display name (avoid technical internal role like Super Administrador General)
+          const matchedSenderVol = volunteers.find(
+            v => (currentUser.volunteerId && v.id === currentUser.volunteerId) ||
+                 v.fullName.toLowerCase() === currentUser.fullName.toLowerCase()
+          );
+          const senderRank = matchedSenderVol?.rank || (
+            currentUser.rank && !currentUser.rank.toLowerCase().includes('administrador')
+              ? currentUser.rank
+              : 'Oficialidad'
+          );
+          const senderDisplayName = senderRank === 'Oficialidad' 
+            ? `${currentUser.fullName} (Oficialidad 4ª Cía.)`
+            : `${senderRank} ${currentUser.fullName}`;
+
           // Send official invitation (account will only be saved when activated)
           const inv = await createInvitation({
             email: email.trim().toLowerCase(),
@@ -210,7 +224,7 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
             registrationNumber: registrationNumber || 'VOL-000',
             role,
             permissions,
-            invitedBy: `${currentUser.rank} ${currentUser.fullName}`,
+            invitedBy: senderDisplayName,
           });
 
           // Request API for email payload
@@ -415,7 +429,7 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
                   </div>
                   <p className="font-mono text-[10px] text-slate-500 truncate">{inv.email}</p>
                   <p className="text-[10px] text-slate-400 pt-1">
-                    Invitado por: {inv.invitedBy || 'Oficialidad'}
+                    Invitado por: <span className="font-medium text-slate-700 dark:text-slate-300">{inv.invitedBy ? inv.invitedBy.replace(/Super Administrador General\s*/i, '').trim() || 'Oficialidad de Compañía' : 'Oficialidad de Compañía'}</span>
                   </p>
                 </div>
 

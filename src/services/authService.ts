@@ -522,7 +522,9 @@ export const fetchInvitations = async (): Promise<UserInvitation[]> => {
     } catch {}
   }
 
-  const finalInvs = serverInvs.length > 0 ? serverInvs : getStoredInvitations();
+  let finalInvs = serverInvs.length > 0 ? serverInvs : getStoredInvitations();
+  const storedActiveUsers = getStoredUsers();
+  finalInvs = finalInvs.filter(inv => !storedActiveUsers.some(u => u.email.toLowerCase() === inv.email.toLowerCase() && u.status === 'ACTIVO' && Boolean(u.passwordHash)));
   saveStoredInvitations(finalInvs);
   return finalInvs;
 };
