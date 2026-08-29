@@ -597,6 +597,15 @@ export const serverSaveUser = async (user: AppUser): Promise<AppUser> => {
 };
 
 export const serverDeleteUser = async (id: string): Promise<boolean> => {
+  // Security guard: prevent deleting master Super Admin
+  if (id === 'usr-superadmin-01') {
+    return false;
+  }
+  const user = globalState.users.find(u => u.id === id);
+  if (user && (user.email.toLowerCase() === 'gnunezgonzalez@icloud.com' || user.role === 'SUPER_ADMIN')) {
+    return false;
+  }
+
   globalState.users = globalState.users.filter(u => u.id !== id);
   if (!globalState.deletedUserIds.includes(id)) {
     globalState.deletedUserIds.push(id);
