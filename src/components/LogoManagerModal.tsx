@@ -11,34 +11,39 @@ interface LogoManagerModalProps {
 
 const PRESET_LOGOS = [
   {
-    name: 'Logo 1 (Oficial 4ª Cía)',
-    url: '/logo_1.png',
-    description: 'Escudo oficial 4ª Compañía "Calle Larga"',
+    name: 'Emblema Oficial 4ª Cía',
+    url: '/logo_4ta_calle_larga.png',
+    description: 'Escudo oficial 4ª Compañía "Bomba Calle Larga"',
   },
   {
-    name: 'Logo 2 (Opción 2)',
-    url: '/logo_2.png',
-    description: 'Escudo institucional opción 2',
+    name: 'Escudo 1 (N° 1)',
+    url: '/logo_1.svg',
+    description: 'Emblema personalizado Opción 1',
   },
   {
-    name: 'Logo 3 (Opción 3)',
-    url: '/logo_3.png',
-    description: 'Escudo institucional opción 3',
+    name: 'Escudo 2 (N° 2)',
+    url: '/logo_2.svg',
+    description: 'Emblema personalizado Opción 2',
   },
   {
-    name: 'Logo 4 (Opción 4)',
-    url: '/logo_4.png',
-    description: 'Escudo institucional opción 4',
+    name: 'Escudo 3 (N° 3)',
+    url: '/logo_3.svg',
+    description: 'Emblema personalizado Opción 3',
   },
   {
-    name: 'Logo 5 (Opción 5)',
-    url: '/logo_5.png',
-    description: 'Escudo institucional opción 5',
+    name: 'Escudo 4 (N° 4)',
+    url: '/logo_4.svg',
+    description: 'Emblema personalizado Opción 4',
   },
   {
-    name: 'Logo 6 (Opción 6)',
-    url: '/logo_6.png',
-    description: 'Escudo institucional opción 6',
+    name: 'Escudo 5 (N° 5)',
+    url: '/logo_5.svg',
+    description: 'Emblema personalizado Opción 5',
+  },
+  {
+    name: 'Escudo 6 (N° 6)',
+    url: '/logo_6.svg',
+    description: 'Emblema personalizado Opción 6',
   },
 ];
 
