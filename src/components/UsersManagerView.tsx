@@ -62,6 +62,11 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
     resendMessage?: string;
   } | null>(null);
 
+  // Quick Activation Modal
+  const [activatingInvitation, setActivatingInvitation] = useState<UserInvitation | null>(null);
+  const [activationPassword, setActivationPassword] = useState<string>('Bombero2026!');
+  const [isActivating, setIsActivating] = useState<boolean>(false);
+
   // Form states
   const [selectedVolunteerId, setSelectedVolunteerId] = useState<string>('');
   const [email, setEmail] = useState<string>('');
@@ -363,6 +368,98 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
     }
   };
 
+  const handleOpenQuickActivate = (inv: UserInvitation) => {
+    setActivatingInvitation(inv);
+    setActivationPassword('Bombero2026!');
+  };
+
+  const handleConfirmQuickActivate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activatingInvitation || !activationPassword.trim()) return;
+
+    setIsActivating(true);
+    try {
+      const hashed = await hashPassword(activationPassword);
+      const activeUser: AppUser = {
+        id: `usr-${Date.now()}`,
+        email: activatingInvitation.email.trim().toLowerCase(),
+        fullName: activatingInvitation.fullName.trim(),
+        volunteerId: activatingInvitation.volunteerId,
+        rank: activatingInvitation.rank || 'Bombero Activo',
+        registrationNumber: activatingInvitation.registrationNumber || 'VOL-000',
+        role: activatingInvitation.role,
+        status: 'ACTIVO',
+        permissions: activatingInvitation.permissions || getDefaultPermissions(activatingInvitation.role),
+        password: activationPassword,
+        passwordHash: hashed,
+        invitedBy: activatingInvitation.invitedBy,
+        invitedAt: activatingInvitation.invitedAt,
+        createdAt: new Date().toISOString(),
+      };
+
+      await saveAppUser(activeUser);
+      await deleteInvitation(activatingInvitation.email);
+      await loadData();
+      setActivatingInvitation(null);
+
+      onNotify(
+        'success',
+        'Cuenta Activada',
+        `La cuenta de ${activeUser.fullName} ha sido activada y agregada al sistema.`
+      );
+    } catch (err: any) {
+      onNotify('error', 'Error al Activar', err?.message || 'No se pudo activar la cuenta.');
+    } finally {
+      setIsActivating(false);
+    }
+  };
+
+  const handleActivateAllInvitations = async () => {
+    if (invitations.length === 0) return;
+    if (!confirm(`¿Deseas activar directamente todas las ${invitations.length} invitaciones pendientes con la contraseña inicial "Bombero2026!"?`)) {
+      return;
+    }
+
+    setIsActivating(true);
+    try {
+      const defaultPwd = 'Bombero2026!';
+      const hashed = await hashPassword(defaultPwd);
+
+      for (const inv of invitations) {
+        const activeUser: AppUser = {
+          id: `usr-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          email: inv.email.trim().toLowerCase(),
+          fullName: inv.fullName.trim(),
+          volunteerId: inv.volunteerId,
+          rank: inv.rank || 'Bombero Activo',
+          registrationNumber: inv.registrationNumber || 'VOL-000',
+          role: inv.role,
+          status: 'ACTIVO',
+          permissions: inv.permissions || getDefaultPermissions(inv.role),
+          password: defaultPwd,
+          passwordHash: hashed,
+          invitedBy: inv.invitedBy,
+          invitedAt: inv.invitedAt,
+          createdAt: new Date().toISOString(),
+        };
+
+        await saveAppUser(activeUser);
+        await deleteInvitation(inv.email);
+      }
+
+      await loadData();
+      onNotify(
+        'success',
+        'Invitaciones Activadas',
+        `Se activaron ${invitations.length} cuentas oficiales correctamente (Contraseña inicial: Bombero2026!).`
+      );
+    } catch (err: any) {
+      onNotify('error', 'Error al Activar', err?.message || 'Ocurrió un error al activar invitaciones.');
+    } finally {
+      setIsActivating(false);
+    }
+  };
+
   const handleDeleteUser = async (userId: string, userName: string) => {
     if (userId === currentUser.id) {
       alert('No puedes eliminar tu propia cuenta de usuario activa.');
@@ -454,16 +551,26 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
       {/* Invitaciones Pendientes (Si existen) */}
       {invitations.length > 0 && (
         <div className="bg-amber-500/10 border border-amber-500/30 rounded-3xl p-4 sm:p-5 space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="flex items-center space-x-2">
               <Clock className="w-4 h-4 text-amber-500" />
               <h3 className="font-black text-xs sm:text-sm text-amber-800 dark:text-amber-300">
                 Invitaciones Pendientes de Activación ({invitations.length})
               </h3>
             </div>
-            <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
-              No generan credenciales activas hasta que el voluntario registre su contraseña
-            </span>
+            
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleActivateAllInvitations}
+                disabled={isActivating}
+                className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow-sm transition active:scale-95 disabled:opacity-50"
+                title="Activar todas las invitaciones de una vez"
+              >
+                <KeyRound className="w-3.5 h-3.5" />
+                <span>⚡ Activar Todas</span>
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -482,11 +589,21 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
                   </p>
                 </div>
 
-                <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 gap-1">
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 gap-1 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenQuickActivate(inv)}
+                    className="flex items-center gap-1 text-[10px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 rounded-lg transition shadow-sm active:scale-95"
+                    title="Activar cuenta ahora asignando contraseña"
+                  >
+                    <KeyRound className="w-3 h-3" />
+                    <span>⚡ Activar</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => handleResendInvitation(inv)}
-                    className="flex items-center gap-1 text-[10px] font-bold bg-amber-600/10 hover:bg-amber-600/20 text-amber-700 dark:text-amber-300 px-2.5 py-1 rounded-lg transition"
+                    className="flex items-center gap-1 text-[10px] font-bold bg-amber-600/10 hover:bg-amber-600/20 text-amber-700 dark:text-amber-300 px-2 py-1.5 rounded-lg transition"
                     title="Reenviar correo o enlace"
                   >
                     <Send className="w-3 h-3" />
@@ -496,11 +613,11 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
                   <button
                     type="button"
                     onClick={() => handleCopyLink(`${window.location.origin}/crear-cuenta?email=${encodeURIComponent(inv.email)}`)}
-                    className="flex items-center gap-1 text-[10px] font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 px-2.5 py-1 rounded-lg transition"
+                    className="flex items-center gap-1 text-[10px] font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 px-2 py-1.5 rounded-lg transition"
                     title="Copiar enlace directo"
                   >
                     <Copy className="w-3 h-3" />
-                    <span>Copiar Link</span>
+                    <span>Link</span>
                   </button>
 
                   <button
@@ -932,6 +1049,78 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Activar Directamente Invitación */}
+      {activatingInvitation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="bg-slate-900 dark:bg-slate-950 text-white px-6 py-4 flex items-center justify-between border-b border-emerald-800/60">
+              <div className="flex items-center space-x-3">
+                <div className="w-9 h-9 bg-emerald-600 rounded-2xl flex items-center justify-center text-white font-bold shadow-md">
+                  <KeyRound className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-white">
+                    Activar Cuenta Oficial
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    {activatingInvitation.fullName}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setActivatingInvitation(null)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmQuickActivate} className="p-6 space-y-4 text-xs text-slate-800 dark:text-slate-200">
+              <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded-2xl p-3 space-y-1">
+                <p className="font-bold text-emerald-900 dark:text-emerald-300">
+                  Activación Inmediata de Usuario
+                </p>
+                <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                  Asigna una contraseña de acceso para activar a <strong>{activatingInvitation.fullName}</strong> ({activatingInvitation.email}) de inmediato sin esperar que abra su correo.
+                </p>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Contraseña de Acceso para el Voluntario:
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={activationPassword}
+                  onChange={(e) => setActivationPassword(e.target.value)}
+                  placeholder="Ej. Bombero2026!"
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2.5 font-mono font-bold text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Mínimo 6 caracteres (letras y números). Podrá cambiarla luego si lo desea.
+                </p>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setActivatingInvitation(null)}
+                  className="px-3.5 py-2 text-slate-500 hover:text-slate-800 dark:hover:text-white font-bold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isActivating}
+                  className="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4 py-2.5 rounded-xl shadow-md transition active:scale-95 disabled:opacity-50"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>{isActivating ? 'Activando...' : 'Confirmar y Activar Usuario'}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
