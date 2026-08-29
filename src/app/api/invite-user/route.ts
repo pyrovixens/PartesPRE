@@ -26,19 +26,12 @@ export async function POST(request: Request) {
     const hostUrl = origin || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3003';
     const activationUrl = `${hostUrl}/crear-cuenta?email=${encodeURIComponent(email)}`;
 
-    const roleNameFormatted = 
-      role === 'SUPER_ADMIN' ? 'Super Administrador (Mando General)' :
-      role === 'ADMIN' ? 'Administrador (Oficial de Mando)' :
-      role === 'OFICIAL' ? 'Oficial de Guardia / Servicio' :
-      'Voluntario de Compañía';
-
     // Email Subject
     const subject = `🚒 Invitación Oficial: Sistema de Partes - 4ª Cía. Bomberos Calle Larga`;
 
-    // Email Plain Text Body (for mailto / clients without HTML)
+    // Email Plain Text Body (Discreet - does NOT expose internal system role)
     const textBody = `Estimado/a ${fullName} (${rank || 'Bombero'}),\n\n` +
       `Has recibido una invitación oficial de ${invitedBy || 'la Oficialidad'} para acceder al Sistema de Control de Asistencias y Partes de Emergencia de la 4ª Compañía "Calle Larga" (Cuerpo de Bomberos de Los Andes).\n\n` +
-      `Tu rol asignado es: ${roleNameFormatted}\n\n` +
       `Para crear tu cuenta oficial y registrar tu contraseña personal de acceso, haz clic en el siguiente enlace:\n` +
       `${activationUrl}\n\n` +
       `Este enlace de registro es de uso personal y válido por 7 días.\n\n` +
@@ -77,11 +70,8 @@ export async function POST(request: Request) {
                   <p style="color: #334155; font-size: 14px; line-height: 1.6; margin-bottom: 8px;">
                     Estimado/a <strong>${fullName}</strong> (${rank || 'Bombero'}),
                   </p>
-                  <p style="color: #334155; font-size: 14px; line-height: 1.6; margin-bottom: 8px;">
-                    Has recibido una invitación oficial emitida por <strong>${invitedBy || 'la Oficialidad de Compañía'}</strong> para acceder al sistema institucional de gestión de partes de emergencia y libro de asistencia.
-                  </p>
-                  <p style="color: #334155; font-size: 14px; margin-bottom: 0;">
-                    <strong>Rol institucional asignado:</strong> <span style="color: #8b0000; font-weight: bold;">${roleNameFormatted}</span>
+                  <p style="color: #334155; font-size: 14px; line-height: 1.6; margin-bottom: 0;">
+                    Has recibido una invitación oficial emitida por <strong>${invitedBy || 'la Oficialidad de Compañía'}</strong> para acceder al sistema institucional de control de asistencias y partes de emergencia.
                   </p>
                 </div>
                 <div style="text-align: center; margin: 32px 0;">
