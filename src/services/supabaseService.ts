@@ -637,7 +637,7 @@ export const subscribeToRealtimeChanges = (
     };
   }
 
-  // 2. Storage event fallback
+  // 2. Storage & Mobile Wake/Focus Listeners
   const handleStorageEvent = (e: StorageEvent) => {
     if (e.key === 'bomberos_emergency_reports' || e.key === 'bomberos_partes_emergencia_v5' || e.key === 'bomberos_deleted_report_ids') {
       onReportsChange();
@@ -650,8 +650,24 @@ export const subscribeToRealtimeChanges = (
     }
   };
 
+  const handleImmediateRefresh = () => {
+    onReportsChange();
+    onVolunteersChange();
+    if (onUnitsChange) onUnitsChange();
+    if (onBrandingChange) onBrandingChange();
+  };
+
+  const handleVisibilityOrFocus = () => {
+    if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+      handleImmediateRefresh();
+    }
+  };
+
   if (typeof window !== 'undefined') {
     window.addEventListener('storage', handleStorageEvent);
+    window.addEventListener('focus', handleImmediateRefresh);
+    window.addEventListener('online', handleImmediateRefresh);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
   }
 
   // 3. Online Server Synchronization (Heartbeat check every 1.5 seconds)
@@ -694,6 +710,9 @@ export const subscribeToRealtimeChanges = (
     }
     if (typeof window !== 'undefined') {
       window.removeEventListener('storage', handleStorageEvent);
+      window.removeEventListener('focus', handleImmediateRefresh);
+      window.removeEventListener('online', handleImmediateRefresh);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
     }
     clearInterval(pollInterval);
     if (supabaseChannel && supabase) {
