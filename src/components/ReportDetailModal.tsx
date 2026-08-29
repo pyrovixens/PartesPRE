@@ -167,7 +167,7 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                 <MapPin className="w-3.5 h-3.5 text-amber-400" />
                 <span>1. Información General del Acto / Emergencia</span>
               </div>
-              <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 bg-slate-50 dark:bg-slate-800/40">
+              <div className="p-3.5 sm:p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 bg-slate-50 dark:bg-slate-800/40">
                 <div>
                   <p className="text-slate-500 dark:text-slate-400 font-semibold text-[11px]">Fecha y Hora:</p>
                   <p className="font-bold text-slate-900 dark:text-white mt-0.5">{report.incidentDate} - {report.incidentTime} hrs</p>
@@ -232,13 +232,13 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                   {report.attendees.map((att) => (
                     <div 
                       key={att.volunteerId}
-                      className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs flex items-center justify-between"
+                      className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs flex flex-col xs:flex-row sm:flex-row items-start sm:items-center justify-between gap-1.5"
                     >
                       <div className="truncate mr-2">
                         <p className="font-bold text-slate-900 dark:text-white truncate">{att.volunteerName}</p>
                         <p className="text-[10px] text-slate-500 dark:text-slate-400">{att.rank}</p>
                       </div>
-                      <div>
+                      <div className="shrink-0">
                         {getArrivalStatusBadge(att.arrivalStatus, att.unitCode)}
                       </div>
                     </div>

@@ -532,7 +532,7 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
           {activeStep === 1 && (
             <div className="space-y-3 sm:space-y-4">
 
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 sm:gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 sm:gap-3">
                 <div>
                   <label className="block text-[11px] sm:text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Año</label>
                   <input
@@ -552,7 +552,7 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
                     className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 sm:px-3 py-1.5 sm:py-2 font-bold text-red-700 dark:text-red-400 focus:ring-2 focus:ring-red-600 focus:outline-none text-xs sm:text-sm"
                   />
                 </div>
-                <div className="col-span-2 sm:col-span-1">
+                <div>
                   <label className="block text-[11px] sm:text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Correlativo Comandancia</label>
                   <input
                     type="text"
@@ -971,7 +971,7 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
                   return (
                     <div 
                       key={v.id}
-                      className={`p-2.5 flex items-center justify-between gap-3 text-xs transition ${
+                      className={`p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs transition ${
                         isPresent 
                           ? 'bg-red-50/60 dark:bg-red-950/30' 
                           : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'
@@ -999,7 +999,7 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
 
                       {/* Mode Selector + Unit Selector */}
                       {isPresent && (
-                        <div className="flex items-center space-x-1.5 flex-shrink-0">
+                        <div className="flex items-center space-x-1.5 flex-wrap sm:flex-nowrap gap-1">
                           {/* Arrival Mode */}
                           <select
                             value={attendeeRec.arrivalStatus}
@@ -1080,7 +1080,7 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Lesionados Civiles</label>
                   <input
