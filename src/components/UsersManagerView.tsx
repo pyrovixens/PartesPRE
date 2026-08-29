@@ -828,6 +828,8 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
                   </label>
                   <input
                     type="password"
+                    name="admin-new-user-password"
+                    autoComplete="new-password"
                     value={directPassword}
                     onChange={(e) => setDirectPassword(e.target.value)}
                     placeholder={editingUser ? 'Dejar vacío para no cambiar' : '••••••••••••'}

@@ -108,9 +108,19 @@ export default function Home() {
     }
   }, []);
 
-  // Active Session User (If null, displays Login Gate)
-  const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
-  const [isSessionLoaded, setIsSessionLoaded] = useState<boolean>(false);
+  // Active Session User (Synchronous client check to prevent LoginScreen flash / autofill dialog on refresh)
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(() => {
+    if (typeof window !== 'undefined') {
+      return getActiveSession();
+    }
+    return null;
+  });
+  const [isSessionLoaded, setIsSessionLoaded] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return true;
+    }
+    return false;
+  });
 
   // Core Data States (Pre-loaded with official data)
   const [reports, setReports] = useState<EmergencyReport[]>(INITIAL_REPORTS);
