@@ -1,7 +1,21 @@
 import { NextResponse } from 'next/server';
+import { checkRateLimit, getClientIp } from '../../../lib/rateLimiter';
 
 export async function POST(request: Request) {
   try {
+    const clientIp = getClientIp(request);
+    const rateCheck = checkRateLimit(`invite_${clientIp}`, 6, 60);
+
+    if (!rateCheck.allowed) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          message: `Límite de envíos alcanzado por seguridad. Espera ${rateCheck.resetSeconds} segundos antes de enviar otra invitación.` 
+        },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const { 
       email, 

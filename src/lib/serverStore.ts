@@ -558,6 +558,16 @@ export const serverGetUsers = async (): Promise<AppUser[]> => {
   return globalState.users.filter(u => !globalState.deletedUserIds.includes(u.id));
 };
 
+export const serverSanitizeUser = (user: AppUser): AppUser => {
+  const { password, passwordHash, ...safe } = user;
+  return safe as AppUser;
+};
+
+export const serverGetPublicUsers = async (): Promise<AppUser[]> => {
+  const users = await serverGetUsers();
+  return users.map(serverSanitizeUser);
+};
+
 export const serverSaveUser = async (user: AppUser): Promise<AppUser> => {
   globalState.deletedUserIds = globalState.deletedUserIds.filter(id => id !== user.id);
   const index = globalState.users.findIndex(u => u.id === user.id || u.email.toLowerCase() === user.email.toLowerCase());

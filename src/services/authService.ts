@@ -325,6 +325,35 @@ export const authenticateUser = async (
     return { success: false, error: 'Por favor ingresa tu correo electrónico y contraseña.' };
   }
 
+  // 1. Primary: Authoritative Server-Side Authentication with Rate Limiting
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: cleanEmail, password: cleanPassword }),
+      cache: 'no-store',
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (res.ok && data.success && data.user) {
+      createActiveSession(data.user);
+      return {
+        success: true,
+        user: data.user,
+      };
+    } else if (res.status === 401 || res.status === 403 || res.status === 423 || res.status === 429) {
+      return {
+        success: false,
+        error: data.error || 'Credenciales inválidas.',
+        remainingAttempts: data.remainingAttempts,
+      };
+    }
+  } catch (apiErr) {
+    console.warn('Server login endpoint unavailable, attempting local verification:', apiErr);
+  }
+
+  // 2. Offline / Local Fallback
   const users = await fetchAppUsers();
   const targetUser = users.find(u => u.email.toLowerCase() === cleanEmail);
 
@@ -335,7 +364,6 @@ export const authenticateUser = async (
     };
   }
 
-  // 1. Check account suspension
   if (targetUser.status === 'SUSPENDIDO') {
     return {
       success: false,
@@ -343,7 +371,6 @@ export const authenticateUser = async (
     };
   }
 
-  // 2. Check Lockout Protocol
   if (targetUser.lockedUntil) {
     const lockTime = new Date(targetUser.lockedUntil).getTime();
     const now = Date.now();
@@ -356,7 +383,6 @@ export const authenticateUser = async (
     }
   }
 
-  // 3. Password Verification (supports salted SHA-256 hash or secure direct password)
   const hashedAttempt = await hashPassword(cleanPassword);
   const passwordMatches = 
     targetUser.passwordHash === hashedAttempt ||
@@ -378,18 +404,18 @@ export const authenticateUser = async (
       await saveAppUser(updatedUser);
       return {
         success: false,
-        error: 'Demasiados intentos fallidos. Acceso restringido temporalmente.',
+        error: 'Demasiados intentos fallidos. Acceso restringido temporalmente por 15 minutos.',
       };
     }
 
     await saveAppUser(updatedUser);
     return {
       success: false,
-      error: 'Contraseña incorrecta. Por favor intenta nuevamente.',
+      error: `Contraseña incorrecta. Te quedan ${maxAttempts - failedAttempts} intento(s).`,
+      remainingAttempts: maxAttempts - failedAttempts,
     };
   }
 
-  // 4. Successful Authentication
   const updatedUser: AppUser = {
     ...targetUser,
     failedLoginAttempts: 0,
