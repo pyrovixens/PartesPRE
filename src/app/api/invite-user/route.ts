@@ -44,10 +44,17 @@ export async function POST(request: Request) {
     // Web Gmail Direct compose link
     const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(textBody)}`;
 
+    // WhatsApp Direct share link
+    const whatsappText = `🚒 *Invitación Oficial - Bomberos Calle Larga*\nEstimado/a ${fullName}, has recibido una invitación para registrar tu acceso al Sistema de Partes.\n\nActiva tu cuenta aquí:\n${activationUrl}`;
+    const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(whatsappText)}`;
+
     // Automated Resend dispatch if configured
     let directEmailSent = false;
+    let resendMessage = '';
+
     if (process.env.RESEND_API_KEY) {
       try {
+        const fromAddress = process.env.EMAIL_FROM || 'Bomberos Calle Larga <onboarding@resend.dev>';
         const resendRes = await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: {
@@ -55,7 +62,7 @@ export async function POST(request: Request) {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            from: process.env.EMAIL_FROM || 'Bomberos Calle Larga <onboarding@resend.dev>',
+            from: fromAddress,
             to: [email],
             subject: subject,
             text: textBody,
@@ -91,20 +98,31 @@ export async function POST(request: Request) {
             `,
           }),
         });
+
         if (resendRes.ok) {
           directEmailSent = true;
+          resendMessage = 'Correo enviado exitosamente vía Resend.';
+        } else {
+          const errData = await resendRes.json().catch(() => null);
+          resendMessage = errData?.message || `Error del servidor Resend (HTTP ${resendRes.status})`;
+          console.warn('Resend dispatch not accepted:', resendRes.status, errData);
         }
-      } catch (err) {
-        console.warn('Direct Resend email dispatch failed, fallback ready:', err);
+      } catch (err: any) {
+        resendMessage = err?.message || 'Error de conexión con Resend.';
+        console.warn('Direct Resend email dispatch failed:', err);
       }
+    } else {
+      resendMessage = 'RESEND_API_KEY no configurada en este entorno.';
     }
 
     return NextResponse.json({
       success: true,
       directEmailSent,
+      resendMessage,
       activationUrl,
       mailtoUrl,
       gmailUrl,
+      whatsappUrl,
       subject,
       textBody,
       recipient: email,

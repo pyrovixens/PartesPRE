@@ -57,6 +57,9 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
     activationUrl: string;
     mailtoUrl: string;
     gmailUrl: string;
+    whatsappUrl?: string;
+    directEmailSent?: boolean;
+    resendMessage?: string;
   } | null>(null);
 
   // Form states
@@ -232,6 +235,9 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
           let activationUrl = `${origin}/crear-cuenta?email=${encodeURIComponent(inv.email)}`;
           let mailtoUrl = `mailto:${inv.email}`;
           let gmailUrl = `https://mail.google.com`;
+          let whatsappUrl = `https://api.whatsapp.com`;
+          let directEmailSent = false;
+          let resendMessage = '';
 
           try {
             const apiRes = await fetch('/api/invite-user', {
@@ -255,6 +261,9 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
               activationUrl = apiData.activationUrl || activationUrl;
               mailtoUrl = apiData.mailtoUrl || mailtoUrl;
               gmailUrl = apiData.gmailUrl || gmailUrl;
+              whatsappUrl = apiData.whatsappUrl || whatsappUrl;
+              directEmailSent = apiData.directEmailSent || false;
+              resendMessage = apiData.resendMessage || '';
             }
           } catch {
             // fallback
@@ -269,12 +278,17 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
             activationUrl,
             mailtoUrl,
             gmailUrl,
+            whatsappUrl,
+            directEmailSent,
+            resendMessage,
           });
 
           onNotify(
             'success',
-            'Invitación Generada',
-            `Se generó el enlace de activación para ${inv.fullName}.`
+            directEmailSent ? 'Correo Enviado' : 'Invitación Generada',
+            directEmailSent 
+              ? `Se envió el correo oficial de activación a ${inv.email}.`
+              : `Se generó el enlace de activación para ${inv.fullName}.`
           );
         }
       }
@@ -287,23 +301,58 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
 
   const handleResendInvitation = async (inv: UserInvitation) => {
     const origin = window.location.origin;
-    const activationUrl = `${origin}/crear-cuenta?email=${encodeURIComponent(inv.email)}`;
-    const subject = `🚒 Invitación Oficial: Sistema de Partes - 4ª Cía. Bomberos Calle Larga`;
-    const textBody = `Estimado/a ${inv.fullName} (${inv.rank}),\n\n` +
-      `Te reenviamos la invitación oficial para acceder al Sistema de Control de Asistencias y Partes de la 4ª Cía. "Calle Larga".\n\n` +
-      `Para registrar tu contraseña personal de acceso, haz clic en el siguiente enlace:\n` +
-      `${activationUrl}\n\n` +
-      `4ª Cía. Bomberos Calle Larga • C.B. Los Andes`;
+    let activationUrl = `${origin}/crear-cuenta?email=${encodeURIComponent(inv.email)}`;
+    let mailtoUrl = `mailto:${inv.email}`;
+    let gmailUrl = `https://mail.google.com`;
+    let whatsappUrl = `https://api.whatsapp.com`;
+    let directEmailSent = false;
+    let resendMessage = '';
 
-    const mailtoUrl = `mailto:${encodeURIComponent(inv.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(textBody)}`;
-    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(inv.email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(textBody)}`;
+    try {
+      const apiRes = await fetch('/api/invite-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: inv.email,
+          fullName: inv.fullName,
+          rank: inv.rank,
+          registrationNumber: inv.registrationNumber,
+          role: inv.role,
+          permissions: inv.permissions,
+          invitedBy: inv.invitedBy,
+          token: inv.token,
+          origin,
+        }),
+      });
+
+      if (apiRes.ok) {
+        const apiData = await apiRes.json();
+        activationUrl = apiData.activationUrl || activationUrl;
+        mailtoUrl = apiData.mailtoUrl || mailtoUrl;
+        gmailUrl = apiData.gmailUrl || gmailUrl;
+        whatsappUrl = apiData.whatsappUrl || whatsappUrl;
+        directEmailSent = apiData.directEmailSent || false;
+        resendMessage = apiData.resendMessage || '';
+      }
+    } catch {}
 
     setInvitationResult({
       invitation: inv,
       activationUrl,
       mailtoUrl,
       gmailUrl,
+      whatsappUrl,
+      directEmailSent,
+      resendMessage,
     });
+
+    onNotify(
+      'info',
+      directEmailSent ? 'Correo Reenviado' : 'Opciones de Reenvío',
+      directEmailSent
+        ? `Correo de activación reenviado a ${inv.email}.`
+        : `Enlace de activación listo para compartir con ${inv.fullName}.`
+    );
   };
 
   const handleDeleteInvitation = async (email: string, name: string) => {
@@ -778,9 +827,9 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
       {invitationResult && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="bg-slate-900 dark:bg-slate-950 text-white px-6 py-4 flex items-center justify-between border-b border-emerald-800/60">
+            <div className="bg-slate-900 dark:bg-slate-950 text-white px-6 py-4 flex items-center justify-between border-b border-red-800/60">
               <div className="flex items-center space-x-3">
-                <div className="w-9 h-9 bg-emerald-700 rounded-2xl flex items-center justify-center text-white font-bold shadow-md">
+                <div className="w-9 h-9 bg-red-700 rounded-2xl flex items-center justify-center text-white font-bold shadow-md">
                   <CheckCircle2 className="w-5 h-5" />
                 </div>
                 <div>
@@ -798,15 +847,36 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
             </div>
 
             <div className="p-6 space-y-4 text-xs text-slate-800 dark:text-slate-200">
+              {/* Delivery Status Banner */}
+              {invitationResult.directEmailSent ? (
+                <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded-2xl p-3 flex items-center gap-2.5 text-emerald-800 dark:text-emerald-300 font-bold text-xs">
+                  <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-600" />
+                  <div>
+                    <p>Correo enviado automáticamente</p>
+                    <p className="text-[10px] font-normal text-emerald-700 dark:text-emerald-400">Se despachó a {invitationResult.invitation.email} vía Resend.</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-2xl p-3 space-y-1 text-amber-900 dark:text-amber-300 text-xs">
+                  <div className="flex items-center gap-2 font-bold">
+                    <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
+                    <span>Enlace de activación listo para compartir</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                    Puedes enviar la invitación con 1 clic usando los botones rápidos a continuación:
+                  </p>
+                </div>
+              )}
+
               <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl p-3.5 space-y-1">
                 <p className="font-bold text-slate-900 dark:text-white text-xs">
                   {invitationResult.invitation.fullName}
                 </p>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Rol asignado: <span className="font-bold text-red-700 dark:text-red-400">{invitationResult.invitation.role}</span> • {invitationResult.invitation.rank}
+                  {invitationResult.invitation.rank} • N° {invitationResult.invitation.registrationNumber}
                 </p>
                 <p className="text-[10px] text-slate-500 pt-1">
-                  El enlace es válido por 7 días. Cuando el usuario acceda y configure su contraseña, quedará activado en el sistema.
+                  El enlace es válido por 7 días. Cuando el voluntario acceda y cree su contraseña, quedará activado de inmediato.
                 </p>
               </div>
 
@@ -820,24 +890,36 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
                 <span>Copiar Enlace de Activación</span>
               </button>
 
-              {/* Dispatch options */}
-              <div className="grid grid-cols-2 gap-2 pt-1">
+              {/* Dispatch options: Gmail, WhatsApp, Mail */}
+              <div className="grid grid-cols-3 gap-2 pt-1">
                 <a
                   href={invitationResult.gmailUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center justify-center space-x-1.5 bg-red-700 hover:bg-red-800 text-white font-bold p-3 rounded-xl text-center shadow-sm transition active:scale-95"
+                  className="flex flex-col items-center justify-center bg-red-700 hover:bg-red-800 text-white font-bold p-2.5 rounded-xl text-center shadow-sm transition active:scale-95 text-[11px]"
                 >
-                  <ExternalLink className="w-4 h-4" />
-                  <span>Enviar con Gmail</span>
+                  <ExternalLink className="w-4 h-4 mb-1" />
+                  <span>Gmail</span>
                 </a>
+
+                {invitationResult.whatsappUrl && (
+                  <a
+                    href={invitationResult.whatsappUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex flex-col items-center justify-center bg-emerald-600 hover:bg-emerald-700 text-white font-bold p-2.5 rounded-xl text-center shadow-sm transition active:scale-95 text-[11px]"
+                  >
+                    <Send className="w-4 h-4 mb-1" />
+                    <span>WhatsApp</span>
+                  </a>
+                )}
 
                 <a
                   href={invitationResult.mailtoUrl}
-                  className="flex items-center justify-center space-x-1.5 bg-blue-700 hover:bg-blue-800 text-white font-bold p-3 rounded-xl text-center shadow-sm transition active:scale-95"
+                  className="flex flex-col items-center justify-center bg-blue-700 hover:bg-blue-800 text-white font-bold p-2.5 rounded-xl text-center shadow-sm transition active:scale-95 text-[11px]"
                 >
-                  <Mail className="w-4 h-4" />
-                  <span>Enviar con Correo</span>
+                  <Mail className="w-4 h-4 mb-1" />
+                  <span>Correo</span>
                 </a>
               </div>
 
