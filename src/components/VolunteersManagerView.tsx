@@ -16,13 +16,14 @@ import {
   Zap,
   X
 } from 'lucide-react';
-import { Volunteer, VolunteerRank, VolunteerCategory } from '../types';
+import { Volunteer, VolunteerRank, VolunteerCategory, AppUser } from '../types';
 import { searchInFields } from '../utils/searchUtils';
 
 interface VolunteersManagerViewProps {
   volunteers: Volunteer[];
   onSaveVolunteer: (volunteer: Volunteer) => void;
   onDeleteVolunteer: (volunteerId: string) => void;
+  currentUser?: AppUser;
 }
 
 const ALL_RANKS: VolunteerRank[] = [
@@ -54,7 +55,9 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
   volunteers,
   onSaveVolunteer,
   onDeleteVolunteer,
+  currentUser,
 }) => {
+  const canManage = currentUser?.role === 'SUPER_ADMIN' || (currentUser?.permissions ? currentUser.permissions.canManageVolunteers : true);
   const [search, setSearch] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -268,13 +271,15 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
           </div>
         </div>
 
-        <button
-          onClick={handleOpenAdd}
-          className="flex items-center justify-center gap-1.5 bg-red-700 hover:bg-red-800 text-white text-xs font-black px-4 py-2.5 rounded-xl shadow-md transition active:scale-95 border border-red-500/50"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Agregar Voluntario</span>
-        </button>
+        {canManage && (
+          <button
+            onClick={handleOpenAdd}
+            className="flex items-center justify-center gap-1.5 bg-red-700 hover:bg-red-800 text-white text-xs font-black px-4 py-2.5 rounded-xl shadow-md transition active:scale-95 border border-red-500/50"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Agregar Voluntario</span>
+          </button>
+        )}
       </div>
 
       {/* Quick Filter Bar & Summary Counters */}
@@ -415,8 +420,9 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
                     </label>
                     <select
                       value={v.rank}
+                      disabled={!canManage}
                       onChange={(e) => handleQuickRankChange(v, e.target.value as VolunteerRank)}
-                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-red-600 focus:outline-none"
+                      className={`w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-red-600 focus:outline-none ${!canManage ? 'opacity-90 cursor-default' : ''}`}
                     >
                       <optgroup label="Oficialidad de Mando">
                         <option value="Director">Director</option>
@@ -448,8 +454,9 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
                     </label>
                     <select
                       value={v.category}
+                      disabled={!canManage}
                       onChange={(e) => handleQuickCategoryChange(v, e.target.value as VolunteerCategory)}
-                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-red-600 focus:outline-none"
+                      className={`w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-red-600 focus:outline-none ${!canManage ? 'opacity-90 cursor-default' : ''}`}
                     >
                       {ALL_CATEGORIES.map(cat => (
                         <option key={cat} value={cat}>{cat}</option>
@@ -467,25 +474,27 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
                     {v.status}
                   </span>
 
-                  <div className="flex items-center space-x-1">
-                    <button
-                      onClick={() => handleOpenEdit(v)}
-                      className="p-1.5 text-slate-600 dark:text-slate-300 hover:text-blue-700 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-lg transition text-xs font-bold flex items-center gap-1"
-                    >
-                      <Edit className="w-3.5 h-3.5" />
-                      <span>Editar</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (confirm(`¿Estás seguro de eliminar a ${v.fullName}?`)) {
-                          onDeleteVolunteer(v.id);
-                        }
-                      }}
-                      className="p-1.5 text-slate-400 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-lg transition"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                  {canManage && (
+                    <div className="flex items-center space-x-1">
+                      <button
+                        onClick={() => handleOpenEdit(v)}
+                        className="p-1.5 text-slate-600 dark:text-slate-300 hover:text-blue-700 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-lg transition text-xs font-bold flex items-center gap-1"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                        <span>Editar</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm(`¿Estás seguro de eliminar a ${v.fullName}?`)) {
+                            onDeleteVolunteer(v.id);
+                          }
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-lg transition"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -565,8 +574,9 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
                       <td className="py-2 px-3 whitespace-nowrap">
                         <select
                           value={v.category}
+                          disabled={!canManage}
                           onChange={(e) => handleQuickCategoryChange(v, e.target.value as VolunteerCategory)}
-                          className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-lg px-2 py-1 focus:ring-1 focus:ring-red-600 focus:outline-none cursor-pointer"
+                          className={`bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-lg px-2 py-1 focus:ring-1 focus:ring-red-600 focus:outline-none cursor-pointer ${!canManage ? 'opacity-90 cursor-default' : ''}`}
                         >
                           {ALL_CATEGORIES.map(cat => (
                             <option key={cat} value={cat}>{cat}</option>
@@ -579,8 +589,9 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
                         <div className="flex items-center gap-1.5">
                           <select
                             value={v.rank}
+                            disabled={!canManage}
                             onChange={(e) => handleQuickRankChange(v, e.target.value as VolunteerRank)}
-                            className={`text-xs font-black rounded-lg px-2.5 py-1 border transition-all cursor-pointer focus:ring-2 focus:ring-red-600 focus:outline-none ${
+                            className={`text-xs font-black rounded-lg px-2.5 py-1 border transition-all cursor-pointer focus:ring-2 focus:ring-red-600 focus:outline-none ${!canManage ? 'opacity-90 cursor-default' : ''} ${
                               v.rank.includes('Director') || v.rank.includes('Capitán') || v.rank.includes('Teniente')
                                 ? 'bg-red-50 dark:bg-red-950/60 text-red-800 dark:text-red-300 border-red-300 dark:border-red-800'
                                 : v.rank.includes('Maquinista')
@@ -623,8 +634,9 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
                       <td className="py-2 px-3 whitespace-nowrap">
                         <select
                           value={v.status}
+                          disabled={!canManage}
                           onChange={(e) => handleQuickStatusChange(v, e.target.value)}
-                          className={`text-[11px] font-bold rounded-lg px-2 py-1 border cursor-pointer focus:outline-none ${
+                          className={`text-[11px] font-bold rounded-lg px-2 py-1 border cursor-pointer focus:outline-none ${!canManage ? 'opacity-90 cursor-default' : ''} ${
                             v.status === 'Activo'
                               ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
                               : v.status === 'Honorario' || v.status === 'Insigne'
@@ -642,26 +654,30 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
 
                       {/* Actions */}
                       <td className="py-2 px-3 whitespace-nowrap text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => handleOpenEdit(v)}
-                            className="p-1.5 text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-lg transition"
-                            title="Editar ficha completa"
-                          >
-                            <Edit className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (confirm(`¿Eliminar a ${v.fullName} del padrón?`)) {
-                                onDeleteVolunteer(v.id);
-                              }
-                            }}
-                            className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition"
-                            title="Eliminar"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+                        {canManage ? (
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => handleOpenEdit(v)}
+                              className="p-1.5 text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-lg transition"
+                              title="Editar ficha completa"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (confirm(`¿Eliminar a ${v.fullName} del padrón?`)) {
+                                  onDeleteVolunteer(v.id);
+                                }
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition"
+                              title="Eliminar"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 italic">Lectura</span>
+                        )}
                       </td>
                     </tr>
                   );

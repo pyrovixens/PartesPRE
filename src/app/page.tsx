@@ -532,6 +532,7 @@ export default function Home() {
             volunteers={volunteers}
             onSaveVolunteer={handleSaveVolunteer}
             onDeleteVolunteer={handleDeleteVolunteer}
+            currentUser={currentUser}
           />
         )}
 
@@ -539,6 +540,7 @@ export default function Home() {
           <UnitsManagerView
             units={units}
             onSaveUnit={handleSaveUnit}
+            currentUser={currentUser}
           />
         )}
 

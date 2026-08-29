@@ -1,16 +1,19 @@
 import React, { useState } from 'react';
 import { Truck, Plus, Edit, Activity, Gauge } from 'lucide-react';
-import { Unit } from '../types';
+import { Unit, AppUser } from '../types';
 
 interface UnitsManagerViewProps {
   units: Unit[];
   onSaveUnit: (unit: Unit) => void;
+  currentUser?: AppUser;
 }
 
 export const UnitsManagerView: React.FC<UnitsManagerViewProps> = ({
   units,
   onSaveUnit,
+  currentUser,
 }) => {
+  const canManage = currentUser?.role === 'SUPER_ADMIN' || (currentUser?.permissions ? currentUser.permissions.canManageUnits : true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUnit, setEditingUnit] = useState<Unit | null>(null);
 
@@ -23,6 +26,7 @@ export const UnitsManagerView: React.FC<UnitsManagerViewProps> = ({
   const [status, setStatus] = useState<'Operativo' | 'En Taller' | 'Fuera de Servicio'>('Operativo');
 
   const handleOpenAdd = () => {
+    if (!canManage) return;
     setEditingUnit(null);
     setCode('B-4');
     setName('');
@@ -35,6 +39,7 @@ export const UnitsManagerView: React.FC<UnitsManagerViewProps> = ({
   };
 
   const handleOpenEdit = (u: Unit) => {
+    if (!canManage) return;
     setEditingUnit(u);
     setCode(u.code);
     setName(u.name);
@@ -48,7 +53,7 @@ export const UnitsManagerView: React.FC<UnitsManagerViewProps> = ({
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!code.trim()) return;
+    if (!canManage || !code.trim()) return;
 
     const unitToSave: Unit = {
       code: code.trim().toUpperCase(),
@@ -82,13 +87,15 @@ export const UnitsManagerView: React.FC<UnitsManagerViewProps> = ({
           </div>
         </div>
 
-        <button
-          onClick={handleOpenAdd}
-          className="flex items-center justify-center space-x-1.5 bg-red-700 hover:bg-red-800 text-white text-xs sm:text-sm font-bold px-4 py-2 rounded-lg shadow-sm transition active:scale-95 border border-red-600/40"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Agregar Unidad</span>
-        </button>
+        {canManage && (
+          <button
+            onClick={handleOpenAdd}
+            className="flex items-center justify-center space-x-1.5 bg-red-700 hover:bg-red-800 text-white text-xs sm:text-sm font-bold px-4 py-2 rounded-lg shadow-sm transition active:scale-95 border border-red-600/40"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Agregar Unidad</span>
+          </button>
+        )}
       </div>
 
       {/* Units Grid */}
@@ -115,30 +122,36 @@ export const UnitsManagerView: React.FC<UnitsManagerViewProps> = ({
                 </span>
               </div>
 
-              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2 text-xs">
-                <div className="flex justify-between text-slate-500 dark:text-slate-400">
-                  <span>Patente:</span>
-                  <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{u.plate || 'S/P'}</span>
+              <div className="mt-3.5 space-y-1.5 text-xs text-slate-600 dark:text-slate-400">
+                <div className="flex justify-between">
+                  <span>Tipo:</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">{u.type}</span>
                 </div>
-                <div className="flex justify-between text-slate-500 dark:text-slate-400">
-                  <span className="flex items-center gap-1"><Activity className="w-3.5 h-3.5 text-slate-400" /> Odómetro:</span>
+                <div className="flex justify-between">
+                  <span>Patente:</span>
+                  <span className="font-mono text-slate-800 dark:text-slate-200">{u.plate || 'S/P'}</span>
+                </div>
+                <div className="flex justify-between items-center pt-1 border-t border-slate-100 dark:border-slate-800">
+                  <span className="flex items-center gap-1 text-[11px]"><Gauge className="w-3 h-3 text-slate-400" /> Odómetro:</span>
                   <span className="font-bold text-slate-900 dark:text-white">{u.currentKm.toLocaleString('es-CL')} km</span>
                 </div>
-                <div className="flex justify-between text-slate-500 dark:text-slate-400">
-                  <span className="flex items-center gap-1"><Gauge className="w-3.5 h-3.5 text-slate-400" /> Horas Bomba:</span>
-                  <span className="font-bold text-slate-900 dark:text-white">{u.currentPumpHours.toFixed(1)} hrs</span>
+                <div className="flex justify-between items-center">
+                  <span className="flex items-center gap-1 text-[11px]"><Activity className="w-3 h-3 text-slate-400" /> Horas Bomba:</span>
+                  <span className="font-bold text-slate-900 dark:text-white">{u.currentPumpHours} hrs</span>
                 </div>
               </div>
             </div>
 
-            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-end">
-              <button
-                onClick={() => handleOpenEdit(u)}
-                className="text-xs text-blue-700 dark:text-blue-400 hover:text-blue-900 font-bold px-2 py-1 rounded hover:bg-blue-50 dark:hover:bg-slate-800 transition flex items-center gap-1"
-              >
-                <Edit className="w-3.5 h-3.5" /> Editar Unidad
-              </button>
-            </div>
+            {canManage && (
+              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                <button
+                  onClick={() => handleOpenEdit(u)}
+                  className="text-xs text-blue-700 dark:text-blue-400 hover:text-blue-900 font-bold px-2 py-1 rounded hover:bg-blue-50 dark:hover:bg-slate-800 transition flex items-center gap-1"
+                >
+                  <Edit className="w-3.5 h-3.5" /> Editar Unidad
+                </button>
+              </div>
+            )}
           </div>
         ))}
       </div>

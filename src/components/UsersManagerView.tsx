@@ -724,11 +724,29 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
                   <label className="flex items-center space-x-2 cursor-pointer">
                     <input
                       type="checkbox"
+                      checked={permissions.canManageUnits}
+                      onChange={(e) => setPermissions({ ...permissions, canManageUnits: e.target.checked })}
+                      className="rounded text-red-600"
+                    />
+                    <span>Modificar Carros (Material Mayor)</span>
+                  </label>
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
                       checked={permissions.canManageUsers}
                       onChange={(e) => setPermissions({ ...permissions, canManageUsers: e.target.checked })}
                       className="rounded text-red-600"
                     />
                     <span>Administrar Usuarios</span>
+                  </label>
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={permissions.canExportReports}
+                      onChange={(e) => setPermissions({ ...permissions, canExportReports: e.target.checked })}
+                      className="rounded text-red-600"
+                    />
+                    <span>Exportar Reportes / Excel</span>
                   </label>
                 </div>
               </div>
