@@ -44,6 +44,8 @@ export interface Unit {
   code: string; // "B-4", "BX-4", "R-4", "K-4", "Z-4"
   name: string; // "Bomba Urbana Mayor"
   plate: string;
+  brand?: string;
+  model?: string;
   type: 'Bomba' | 'Forestal' | 'Rescate' | 'Transporte' | 'Aljibe';
   currentKm: number;
   currentPumpHours: number;

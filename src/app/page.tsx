@@ -579,6 +579,7 @@ export default function Home() {
           <UnitsManagerView
             units={units}
             onSaveUnit={handleSaveUnit}
+            onDeleteUnit={handleDeleteUnit}
             currentUser={currentUser}
           />
         )}

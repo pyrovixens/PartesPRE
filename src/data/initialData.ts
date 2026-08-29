@@ -123,11 +123,11 @@ export const INITIAL_VOLUNTEERS: Volunteer[] = [
 ];
 
 export const INITIAL_UNITS: Unit[] = [
-  { code: 'B-4', name: 'Bomba Primera Intervención B-4', plate: 'CB-401', type: 'Bomba', currentKm: 45200, currentPumpHours: 320, status: 'Operativo' },
-  { code: 'BX-4', name: 'Bomba Respaldo / Cisterna BX-4', plate: 'CB-402', type: 'Bomba', currentKm: 38100, currentPumpHours: 210, status: 'Operativo' },
-  { code: 'R-4', name: 'Unidad de Rescate Vehicular R-4', plate: 'CB-403', type: 'Rescate', currentKm: 29400, currentPumpHours: 145, status: 'Operativo' },
-  { code: 'Z-4', name: 'Unidad de Abastecimiento Z-4', plate: 'CB-404', type: 'Aljibe', currentKm: 18300, currentPumpHours: 90, status: 'Operativo' },
-  { code: 'K-4', name: 'Unidad de Transporte y Mando K-4', plate: 'CB-405', type: 'Transporte', currentKm: 52000, currentPumpHours: 0, status: 'Operativo' },
+  { code: 'B-4', name: 'Bomba Urbana Mayor B-4', plate: 'CB-401', brand: 'Renault / Camiva', model: 'Midlum 220 4x4', type: 'Bomba', currentKm: 0, currentPumpHours: 0, status: 'Operativo' },
+  { code: 'BX-4', name: 'Bomba Respaldo / Cisterna BX-4', plate: 'CB-402', brand: 'Mercedes-Benz / Magirus', model: 'Atego 1529', type: 'Bomba', currentKm: 0, currentPumpHours: 0, status: 'Operativo' },
+  { code: 'R-4', name: 'Unidad de Rescate Vehicular R-4', plate: 'CB-403', brand: 'Iveco / Magirus', model: 'Eurocargo', type: 'Rescate', currentKm: 0, currentPumpHours: 0, status: 'Operativo' },
+  { code: 'Z-4', name: 'Unidad de Abastecimiento Z-4', plate: 'CB-404', brand: 'MAN / Ziegler', model: 'TGM 18.290', type: 'Aljibe', currentKm: 0, currentPumpHours: 0, status: 'Operativo' },
+  { code: 'K-4', name: 'Unidad de Transporte y Mando K-4', plate: 'CB-405', brand: 'Toyota', model: 'Hilux 4x4', type: 'Transporte', currentKm: 0, currentPumpHours: 0, status: 'Operativo' },
 ];
 
 export const INITIAL_REPORTS: EmergencyReport[] = [];
