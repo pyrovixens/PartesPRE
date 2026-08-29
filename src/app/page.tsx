@@ -604,76 +604,78 @@ export default function Home() {
       </main>
 
       {/* Mobile Bottom Navigation Bar (Persistent & Thumbs-friendly) */}
-      <nav aria-label="Navegación Móvil" className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-xl border-t border-slate-800/90 py-1.5 px-1 flex justify-around items-center shadow-2xl safe-bottom">
+      <nav aria-label="Navegación Móvil" className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-xl border-t border-slate-800/90 py-1 px-1 flex items-center justify-between shadow-2xl safe-bottom">
         <button
           onClick={() => setActiveTab('dashboard')}
-          className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all ${
+          className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all ${
             activeTab === 'dashboard' ? 'text-red-500 scale-105 font-bold' : 'text-slate-400 hover:text-slate-200'
           }`}
         >
           <Flame className="w-4 h-4 mb-0.5" />
-          <span className="text-[9px]">Métricas</span>
+          <span className="text-[9px] truncate">Métricas</span>
         </button>
 
         <button
           onClick={() => setActiveTab('matrix')}
-          className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all ${
+          className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all ${
             activeTab === 'matrix' ? 'text-red-500 scale-105 font-bold' : 'text-slate-400 hover:text-slate-200'
           }`}
         >
           <Table2 className="w-4 h-4 mb-0.5" />
-          <span className="text-[9px]">Asistencia</span>
+          <span className="text-[9px] truncate">Matriz</span>
         </button>
 
         {currentUser.permissions?.canCreateReports && (
-          <button
-            onClick={handleOpenNewReport}
-            className="flex flex-col items-center justify-center -mt-3 bg-gradient-to-tr from-red-700 to-red-500 text-white rounded-full p-2.5 shadow-lg border-2 border-slate-950 active:scale-95 transition"
-            title="Crear Nuevo Parte"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
+          <div className="flex items-center justify-center -mt-5 shrink-0 px-1 z-10">
+            <button
+              onClick={handleOpenNewReport}
+              className="w-11 h-11 bg-gradient-to-tr from-red-700 to-red-500 hover:from-red-800 text-white rounded-full flex items-center justify-center shadow-xl border-2 border-slate-900 active:scale-95 transition"
+              title="Crear Nuevo Parte"
+            >
+              <Plus className="w-5 h-5 stroke-[2.5]" />
+            </button>
+          </div>
         )}
 
         <button
           onClick={() => setActiveTab('reports')}
-          className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all ${
+          className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all ${
             activeTab === 'reports' ? 'text-red-500 scale-105 font-bold' : 'text-slate-400 hover:text-slate-200'
           }`}
         >
           <FileText className="w-4 h-4 mb-0.5" />
-          <span className="text-[9px]">Partes</span>
+          <span className="text-[9px] truncate">Partes</span>
         </button>
 
         <button
           onClick={() => setActiveTab('volunteers')}
-          className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all ${
+          className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all ${
             activeTab === 'volunteers' ? 'text-red-500 scale-105 font-bold' : 'text-slate-400 hover:text-slate-200'
           }`}
         >
           <Users className="w-4 h-4 mb-0.5" />
-          <span className="text-[9px]">Padrón</span>
+          <span className="text-[9px] truncate">Padrón</span>
         </button>
 
         <button
           onClick={() => setActiveTab('units')}
-          className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all ${
+          className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all ${
             activeTab === 'units' ? 'text-red-500 scale-105 font-bold' : 'text-slate-400 hover:text-slate-200'
           }`}
         >
           <Truck className="w-4 h-4 mb-0.5" />
-          <span className="text-[9px]">Carros</span>
+          <span className="text-[9px] truncate">Carros</span>
         </button>
 
         {currentUser.role === 'SUPER_ADMIN' && (
           <button
             onClick={() => setActiveTab('users')}
-            className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all ${
+            className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all ${
               activeTab === 'users' ? 'text-amber-400 scale-105 font-bold' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             <Shield className="w-4 h-4 mb-0.5" />
-            <span className="text-[9px]">Usuarios</span>
+            <span className="text-[9px] truncate">Usuarios</span>
           </button>
         )}
       </nav>
