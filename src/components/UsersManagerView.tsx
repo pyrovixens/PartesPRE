@@ -652,8 +652,76 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
         </span>
       </div>
 
-      {/* Users Table */}
-      <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+      {/* Mobile User Cards (Visible on Phones/Small Tablets) */}
+      <div className="block md:hidden space-y-3">
+        {filteredUsers.map((u) => (
+          <div
+            key={u.id}
+            className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center space-x-3 min-w-0">
+                <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-black rounded-xl flex items-center justify-center border border-slate-300 dark:border-slate-700 shrink-0">
+                  {u.fullName.charAt(0)}
+                </div>
+                <div className="min-w-0">
+                  <p className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white truncate">{u.fullName}</p>
+                  <p className="text-[11px] text-slate-400">
+                    {u.registrationNumber} • {u.rank}
+                  </p>
+                  <p className="font-mono text-[10px] text-slate-500 truncate pt-0.5">{u.email}</p>
+                </div>
+              </div>
+
+              <div className="shrink-0">
+                {u.lockedUntil && new Date(u.lockedUntil) > new Date() ? (
+                  <span className="inline-flex items-center gap-1 bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 text-[10px] font-black px-2 py-0.5 rounded-full border border-red-300">
+                    <ShieldAlert className="w-3 h-3 text-red-600" />
+                    Bloqueado
+                  </span>
+                ) : u.status === 'ACTIVO' ? (
+                  <span className="inline-flex items-center gap-1 bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-800">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    Activo
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-300 dark:border-amber-800">
+                    <Mail className="w-3 h-3 text-amber-600" />
+                    Invitado
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 gap-2 flex-wrap">
+              <div>
+                {getRoleBadge(u.role)}
+              </div>
+
+              <div className="flex items-center space-x-1">
+                <button
+                  onClick={() => handleOpenEditUserModal(u)}
+                  className="flex items-center gap-1 text-xs font-bold text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-3 py-1.5 rounded-xl border border-blue-200 dark:border-blue-800 transition active:scale-95"
+                >
+                  <Edit className="w-3.5 h-3.5" />
+                  <span>Editar</span>
+                </button>
+
+                <button
+                  onClick={() => handleDeleteUser(u.id, u.fullName)}
+                  className="flex items-center gap-1 text-xs font-bold text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/40 px-3 py-1.5 rounded-xl border border-red-200 dark:border-red-800 transition active:scale-95"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Eliminar</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop Users Table */}
+      <div className="hidden md:block bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 text-[10px] font-black uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">

@@ -198,16 +198,16 @@ export const AttendanceMatrixView: React.FC<AttendanceMatrixViewProps> = ({
             <thead className="sticky top-0 z-20 shadow-md">
               {/* Header Row 1: Claves */}
               <tr className="bg-slate-950 text-white text-[11px] font-bold">
-                <th className="py-2.5 px-3 sticky left-0 z-30 bg-slate-950 min-w-[200px] border-b border-slate-800">
-                  CLAVE / TIPO
+                <th className="py-2.5 px-3 sticky left-0 z-30 bg-slate-950 min-w-[150px] sm:min-w-[210px] border-b border-r border-slate-800 shadow-sm">
+                  VOLUNTARIO / CLAVE
                 </th>
-                <th className="py-2.5 px-2 text-center sticky left-[200px] z-30 bg-slate-950 border-b border-slate-800">
+                <th className="py-2.5 px-2 text-center min-w-[60px] bg-slate-950 border-b border-slate-800">
                   N° REG
                 </th>
-                <th className="py-2.5 px-3 text-center sticky left-[270px] z-30 bg-slate-950 border-b border-slate-800">
+                <th className="py-2.5 px-3 text-center min-w-[70px] bg-slate-950 border-b border-slate-800">
                   % ASIST.
                 </th>
-                <th className="py-2.5 px-2 text-center sticky left-[350px] z-30 bg-slate-950 border-b border-slate-800 border-r border-slate-700">
+                <th className="py-2.5 px-2 text-center min-w-[55px] bg-slate-950 border-b border-slate-800 border-r border-slate-700">
                   TOTAL
                 </th>
                 {filteredReports.map(r => (
@@ -219,12 +219,12 @@ export const AttendanceMatrixView: React.FC<AttendanceMatrixViewProps> = ({
 
               {/* Header Row 2: Correlativo Compañía */}
               <tr className="bg-slate-900 text-slate-300 text-[10px]">
-                <th className="py-1 px-3 sticky left-0 z-30 bg-slate-900 font-bold border-b border-slate-800">
+                <th className="py-1 px-3 sticky left-0 z-30 bg-slate-900 font-bold border-b border-r border-slate-800 shadow-sm">
                   CORRELATIVO COMPAÑÍA
                 </th>
-                <th className="py-1 px-2 sticky left-[200px] z-30 bg-slate-900 border-b border-slate-800"></th>
-                <th className="py-1 px-3 sticky left-[270px] z-30 bg-slate-900 border-b border-slate-800"></th>
-                <th className="py-1 px-2 sticky left-[350px] z-30 bg-slate-900 border-b border-slate-800 border-r border-slate-700"></th>
+                <th className="py-1 px-2 bg-slate-900 border-b border-slate-800"></th>
+                <th className="py-1 px-3 bg-slate-900 border-b border-slate-800"></th>
+                <th className="py-1 px-2 bg-slate-900 border-b border-slate-800 border-r border-slate-700"></th>
                 {filteredReports.map(r => (
                   <th key={r.id} className="py-1 px-2 text-center border-l border-b border-slate-800 text-white font-mono">
                     #{r.correlativoCompania || r.fullFolio}
@@ -234,12 +234,12 @@ export const AttendanceMatrixView: React.FC<AttendanceMatrixViewProps> = ({
 
               {/* Header Row 3: Correlativo Comandancia */}
               <tr className="bg-slate-900 text-slate-400 text-[10px]">
-                <th className="py-1 px-3 sticky left-0 z-30 bg-slate-900 font-bold border-b border-slate-800">
+                <th className="py-1 px-3 sticky left-0 z-30 bg-slate-900 font-bold border-b border-r border-slate-800 shadow-sm">
                   CORRELATIVO COMANDANCIA
                 </th>
-                <th className="py-1 px-2 sticky left-[200px] z-30 bg-slate-900 border-b border-slate-800"></th>
-                <th className="py-1 px-3 sticky left-[270px] z-30 bg-slate-900 border-b border-slate-800"></th>
-                <th className="py-1 px-2 sticky left-[350px] z-30 bg-slate-900 border-b border-slate-800 border-r border-slate-700"></th>
+                <th className="py-1 px-2 bg-slate-900 border-b border-slate-800"></th>
+                <th className="py-1 px-3 bg-slate-900 border-b border-slate-800"></th>
+                <th className="py-1 px-2 bg-slate-900 border-b border-slate-800 border-r border-slate-700"></th>
                 {filteredReports.map(r => (
                   <th key={r.id} className="py-1 px-2 text-center border-l border-b border-slate-800 text-slate-300 font-mono">
                     {r.correlativoComandancia || '—'}
@@ -249,12 +249,12 @@ export const AttendanceMatrixView: React.FC<AttendanceMatrixViewProps> = ({
 
               {/* Header Row 4: Fecha */}
               <tr className="bg-slate-900 text-slate-400 text-[10px]">
-                <th className="py-1.5 px-3 sticky left-0 z-30 bg-slate-900 font-bold border-b border-slate-700">
+                <th className="py-1.5 px-3 sticky left-0 z-30 bg-slate-900 font-bold border-b border-r border-slate-700 shadow-sm">
                   FECHA DEL ACTO
                 </th>
-                <th className="py-1.5 px-2 sticky left-[200px] z-30 bg-slate-900 border-b border-slate-700"></th>
-                <th className="py-1.5 px-3 sticky left-[270px] z-30 bg-slate-900 border-b border-slate-700"></th>
-                <th className="py-1.5 px-2 sticky left-[350px] z-30 bg-slate-900 border-b border-slate-700 border-r border-slate-700"></th>
+                <th className="py-1.5 px-2 bg-slate-900 border-b border-slate-700"></th>
+                <th className="py-1.5 px-3 bg-slate-900 border-b border-slate-700"></th>
+                <th className="py-1.5 px-2 bg-slate-900 border-b border-slate-700 border-r border-slate-700"></th>
                 {filteredReports.map(r => (
                   <th key={r.id} className="py-1.5 px-2 text-center border-l border-b border-slate-700 text-slate-200">
                     {r.incidentDate.substring(5)}
@@ -292,18 +292,18 @@ export const AttendanceMatrixView: React.FC<AttendanceMatrixViewProps> = ({
                       return (
                         <tr key={v.id} className="hover:bg-red-50/40 dark:hover:bg-slate-800/50 transition">
                           {/* Volunteer Name */}
-                          <td className="py-2 px-3 sticky left-0 z-10 bg-white dark:bg-slate-900 font-bold text-slate-900 dark:text-slate-100 min-w-[200px] shadow-xs">
+                          <td className="py-2 px-3 sticky left-0 z-10 bg-white dark:bg-slate-900 font-bold text-slate-900 dark:text-slate-100 min-w-[150px] sm:min-w-[210px] border-r border-slate-200 dark:border-slate-800 shadow-sm">
                             <div className="truncate">{v.fullName}</div>
                             <div className="text-[10px] text-slate-400 font-normal">{v.rank}</div>
                           </td>
 
                           {/* Registration */}
-                          <td className="py-2 px-2 text-center sticky left-[200px] z-10 bg-white dark:bg-slate-900 font-mono text-[10px] text-slate-500 dark:text-slate-400 shadow-xs">
+                          <td className="py-2 px-2 text-center font-mono text-[10px] text-slate-500 dark:text-slate-400">
                             {v.registrationNumber}
                           </td>
 
                           {/* Percentage */}
-                          <td className="py-2 px-3 text-center sticky left-[270px] z-10 bg-white dark:bg-slate-900 shadow-xs">
+                          <td className="py-2 px-3 text-center">
                             <span className={`px-2 py-0.5 rounded-full font-black text-[11px] ${
                               percentage >= 70 ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' :
                               percentage >= 40 ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' :
@@ -314,7 +314,7 @@ export const AttendanceMatrixView: React.FC<AttendanceMatrixViewProps> = ({
                           </td>
 
                           {/* Total */}
-                          <td className="py-2 px-2 text-center sticky left-[350px] z-10 bg-white dark:bg-slate-900 font-extrabold text-slate-900 dark:text-white shadow-xs border-r border-slate-200 dark:border-slate-700">
+                          <td className="py-2 px-2 text-center font-extrabold text-slate-900 dark:text-white border-r border-slate-200 dark:border-slate-700">
                             {attendedCount}
                           </td>
 
