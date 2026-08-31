@@ -34,6 +34,8 @@ export interface Volunteer {
   category: VolunteerCategory;
   rank: VolunteerRank;
   status: 'Activo' | 'Honorario' | 'Insigne' | 'Licencia' | 'Suspendido';
+  isDriver?: boolean; // Conductor / Maquinista habilitado (Licencia Clase F)
+  driverLicense?: string; // e.g. "Clase F", "Clase A2", etc.
   phone?: string;
   email?: string;
   joinDate?: string;

@@ -146,13 +146,13 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
     });
   }, [volunteers, obacSearch, selectedObacFilter]);
 
-  // Machinists filtered list
+  // Machinists & authorized drivers filtered list
   const availableMachinists = useMemo(() => {
     const officialMachinists = volunteers.filter(v => 
-      v.rank === 'Maquinista General' || v.rank === 'Maquinista'
+      v.isDriver === true || v.rank === 'Maquinista General' || v.rank === 'Maquinista'
     );
     const otherVolunteers = volunteers.filter(v => 
-      v.rank !== 'Maquinista General' && v.rank !== 'Maquinista'
+      !v.isDriver && v.rank !== 'Maquinista General' && v.rank !== 'Maquinista'
     );
     return {
       officialMachinists,
@@ -852,12 +852,14 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
                             onChange={(e) => handleUpdateUnitDriver(su.unitCode, e.target.value)}
                             className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-red-600"
                           >
-                            <optgroup label="⭐ Maquinistas de la Compañía (Filtrado Rápido)">
+                            <optgroup label="🚒 ⭐ Conductores / Maquinistas Habilitados (Clase F)">
                               {availableMachinists.officialMachinists.map(v => (
-                                <option key={v.id} value={v.id}>{v.fullName} ({v.rank})</option>
+                                <option key={v.id} value={v.id}>
+                                  {v.fullName} • {v.rank} {v.driverLicense ? `[${v.driverLicense}]` : '[Habilitado]'}
+                                </option>
                               ))}
                             </optgroup>
-                            <optgroup label="Otros Voluntarios Autorizados">
+                            <optgroup label="Otros Voluntarios del Padrón">
                               {availableMachinists.otherVolunteers.map(v => (
                                 <option key={v.id} value={v.id}>{v.fullName} ({v.rank})</option>
                               ))}
