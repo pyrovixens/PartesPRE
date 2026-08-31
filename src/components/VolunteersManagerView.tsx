@@ -78,6 +78,11 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
 
+  // Helper to check if a volunteer is an authorized driver / machinist
+  const isVolunteerDriver = (v: Volunteer): boolean => {
+    return v.isDriver === true || (!!v.driverLicense && v.driverLicense !== 'NO') || v.rank === 'Maquinista General' || v.rank === 'Maquinista';
+  };
+
   // Summary counts
   const stats = useMemo(() => {
     const total = volunteers.length;
@@ -86,7 +91,7 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
     const activos = volunteers.filter(v => v.category === 'Activo').length;
     const aspirantes = volunteers.filter(v => v.category === 'Aspirante').length;
     // Maquinistas y Conductores Habilitados (independiente de su cargo)
-    const maquinistas = volunteers.filter(v => v.isDriver === true || v.rank === 'Maquinista General' || v.rank === 'Maquinista').length;
+    const maquinistas = volunteers.filter(isVolunteerDriver).length;
 
     return { total, fundadores, honorarios, activos, aspirantes, maquinistas };
   }, [volunteers]);
@@ -96,7 +101,7 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
     return volunteers.filter(v => {
       const matchCat = 
         selectedCategory === 'ALL' ? true :
-        selectedCategory === 'MAQUINISTAS' ? (v.isDriver === true || v.rank === 'Maquinista General' || v.rank === 'Maquinista') :
+        selectedCategory === 'MAQUINISTAS' ? isVolunteerDriver(v) :
         v.category === selectedCategory;
 
       const matchQuery = searchInFields([
@@ -109,7 +114,7 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
         v.status,
         v.phone,
         v.email,
-        v.isDriver ? 'Conductor Maquinista Habilitado' : ''
+        isVolunteerDriver(v) ? `Conductor Maquinista Habilitado ${v.driverLicense || 'Clase F'}` : ''
       ], search);
 
       return matchCat && matchQuery;
@@ -171,13 +176,13 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
     setTimeout(() => setQuickFeedbackId(null), 1200);
   };
 
-  // Fast Inline Driver / Machinist Toggle
-  const handleQuickDriverToggle = (volunteer: Volunteer) => {
-    const isCurrentlyDriver = volunteer.isDriver === true || volunteer.rank === 'Maquinista General' || volunteer.rank === 'Maquinista';
+  // Fast Inline Driver / Machinist Class Change (Direct dropdown selection)
+  const handleQuickDriverClassChange = (volunteer: Volunteer, newClass: string) => {
+    const isNowDriver = newClass !== 'NO';
     const updated: Volunteer = {
       ...volunteer,
-      isDriver: !isCurrentlyDriver,
-      driverLicense: !isCurrentlyDriver ? (volunteer.driverLicense || 'Clase F') : undefined,
+      isDriver: isNowDriver,
+      driverLicense: isNowDriver ? newClass : undefined,
     };
 
     onSaveVolunteer(updated);
@@ -494,38 +499,32 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
                   </div>
                 </div>
 
-                {/* Conductor / Maquinista Toggle Card */}
-                <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80">
-                  <div className="flex items-center space-x-2 min-w-0">
-                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                      isAuthorizedDriver
-                        ? 'bg-blue-600 text-white shadow-xs'
-                        : 'bg-slate-200 dark:bg-slate-700 text-slate-500'
-                    }`}>
-                      <Truck className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-black text-slate-900 dark:text-white truncate">
-                        {isAuthorizedDriver ? 'Conductor / Maquinista Habilitado' : 'No Habilitado como Conductor'}
-                      </p>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                        {isAuthorizedDriver ? `Licencia ${v.driverLicense || 'Clase F'} (Material Mayor)` : 'Sin autorización de conducción'}
-                      </p>
-                    </div>
-                  </div>
-                  {canManage && (
-                    <button
-                      type="button"
-                      onClick={() => handleQuickDriverToggle(v)}
-                      className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition active:scale-95 shrink-0 ${
-                        isAuthorizedDriver
-                          ? 'bg-blue-700 hover:bg-blue-800 text-white shadow-xs'
-                          : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300'
-                      }`}
-                    >
-                      {isAuthorizedDriver ? 'Habilitado ✓' : 'Habilitar'}
-                    </button>
-                  )}
+                {/* Conductor / Maquinista Direct Select in Mobile Card */}
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-0.5 flex items-center gap-1">
+                    <Truck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                    <span>Conductor / Maquinista:</span>
+                  </label>
+                  <select
+                    value={
+                      (v.isDriver || v.rank === 'Maquinista General' || v.rank === 'Maquinista')
+                        ? (v.driverLicense || 'Clase F')
+                        : 'NO'
+                    }
+                    disabled={!canManage}
+                    onChange={(e) => handleQuickDriverClassChange(v, e.target.value)}
+                    className={`w-full text-xs font-black rounded-lg px-2.5 py-1.5 border transition-all focus:ring-2 focus:ring-blue-600 focus:outline-none ${!canManage ? 'opacity-90 cursor-default' : 'cursor-pointer'} ${
+                      (v.isDriver || v.rank?.includes('Maquinista'))
+                        ? 'bg-blue-50 dark:bg-blue-950/80 text-blue-900 dark:text-blue-200 border-blue-300 dark:border-blue-700'
+                        : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                    }`}
+                  >
+                    <option value="NO">❌ No Conductor</option>
+                    <option value="Clase F">🚒 Habilitado (Clase F)</option>
+                    <option value="Clase F + A4">🚒 Habilitado (Clase F + A4)</option>
+                    <option value="Clase F + A2">🚒 Habilitado (Clase F + A2)</option>
+                    <option value="Clase B">🚗 Habilitado (Clase B - K4)</option>
+                  </select>
                 </div>
 
                 {/* Actions Footer */}
@@ -582,7 +581,7 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
                 </th>
                 <th className="py-2.5 px-3">
                   <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
-                    <Truck className="w-3 h-3" /> Conductor / Maquinista
+                    <Truck className="w-3.5 h-3.5" /> Conductor / Maquinista
                   </span>
                 </th>
                 <th className="py-2.5 px-3">Estado</th>
@@ -599,7 +598,9 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
               ) : (
                 filteredList.map((v) => {
                   const isUpdatedJustNow = quickFeedbackId === v.id;
-                  const isAuthorizedDriver = v.isDriver === true || v.rank === 'Maquinista General' || v.rank === 'Maquinista';
+                  const currentDriverVal = (v.isDriver || v.rank === 'Maquinista General' || v.rank === 'Maquinista')
+                    ? (v.driverLicense || 'Clase F')
+                    : 'NO';
 
                   return (
                     <tr
@@ -699,26 +700,30 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
                         </div>
                       </td>
 
-                      {/* Fast Conductor / Maquinista Toggle Button */}
+                      {/* Conductor / Maquinista Direct Select Dropdown */}
                       <td className="py-2 px-3 whitespace-nowrap">
-                        <button
-                          type="button"
-                          disabled={!canManage}
-                          onClick={() => handleQuickDriverToggle(v)}
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-black border transition-all active:scale-95 ${
-                            isAuthorizedDriver
-                              ? 'bg-blue-50 dark:bg-blue-950/70 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-800 shadow-xs hover:bg-blue-100 dark:hover:bg-blue-900/60'
-                              : 'bg-slate-50 dark:bg-slate-800/60 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 hover:text-slate-600 dark:hover:text-slate-300 hover:border-slate-300'
-                          } ${!canManage ? 'cursor-default opacity-90' : 'cursor-pointer'}`}
-                          title={isAuthorizedDriver ? 'Habilitado para Material Mayor (Clase F). Haz clic para cambiar.' : 'No habilitado como conductor. Haz clic para habilitar.'}
-                        >
-                          <Truck className={`w-3.5 h-3.5 ${isAuthorizedDriver ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`} />
-                          <span>
-                            {isAuthorizedDriver
-                              ? `Habilitado (${v.driverLicense || 'Clase F'})`
-                              : 'No Conductor'}
-                          </span>
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <select
+                            value={currentDriverVal}
+                            disabled={!canManage}
+                            onChange={(e) => handleQuickDriverClassChange(v, e.target.value)}
+                            className={`text-xs font-black rounded-lg px-2.5 py-1 border transition-all cursor-pointer focus:ring-2 focus:ring-blue-600 focus:outline-none ${!canManage ? 'opacity-90 cursor-default' : ''} ${
+                              currentDriverVal !== 'NO'
+                                ? 'bg-blue-50 dark:bg-blue-950/80 text-blue-900 dark:text-blue-200 border-blue-300 dark:border-blue-700 shadow-xs'
+                                : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                            }`}
+                          >
+                            <option value="NO">❌ No Conductor</option>
+                            <option value="Clase F">🚒 Habilitado (Clase F)</option>
+                            <option value="Clase F + A4">🚒 Habilitado (Clase F + A4)</option>
+                            <option value="Clase F + A2">🚒 Habilitado (Clase F + A2)</option>
+                            <option value="Clase B">🚗 Habilitado (Clase B - K4)</option>
+                          </select>
+
+                          {isUpdatedJustNow && (
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500 animate-in zoom-in shrink-0" />
+                          )}
+                        </div>
                       </td>
 
                       {/* Fast Status Dropdown */}

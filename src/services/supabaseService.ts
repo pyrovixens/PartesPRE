@@ -333,6 +333,8 @@ export const fetchVolunteers = async (): Promise<Volunteer[]> => {
             category: row.category,
             rank: row.rank,
             status: row.status,
+            isDriver: row.is_driver ?? row.isDriver ?? (row.rank === 'Maquinista General' || row.rank === 'Maquinista'),
+            driverLicense: row.driver_license ?? row.driverLicense ?? ((row.is_driver || row.rank?.includes('Maquinista')) ? 'Clase F' : undefined),
             phone: row.phone,
             email: row.email,
           }));
@@ -379,6 +381,8 @@ export const saveVolunteerToDatabase = async (volunteer: Volunteer): Promise<boo
         category: volunteer.category,
         rank: volunteer.rank,
         status: volunteer.status,
+        is_driver: volunteer.isDriver,
+        driver_license: volunteer.driverLicense,
         phone: volunteer.phone,
         email: volunteer.email,
         updated_at: new Date().toISOString(),

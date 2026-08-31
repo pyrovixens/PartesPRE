@@ -309,6 +309,8 @@ export const serverGetVolunteers = async (): Promise<Volunteer[]> => {
             category: row.category,
             rank: row.rank,
             status: row.status,
+            isDriver: row.is_driver ?? row.isDriver ?? (row.rank === 'Maquinista General' || row.rank === 'Maquinista'),
+            driverLicense: row.driver_license ?? row.driverLicense ?? ((row.is_driver || row.rank?.includes('Maquinista')) ? 'Clase F' : undefined),
             phone: row.phone,
             email: row.email,
           }));
@@ -343,6 +345,8 @@ export const serverSaveVolunteer = async (vol: Volunteer): Promise<Volunteer> =>
         category: vol.category,
         rank: vol.rank,
         status: vol.status,
+        is_driver: vol.isDriver,
+        driver_license: vol.driverLicense,
         phone: vol.phone,
         email: vol.email,
         updated_at: new Date().toISOString(),
