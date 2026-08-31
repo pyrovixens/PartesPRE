@@ -52,6 +52,8 @@ CREATE TABLE IF NOT EXISTS public.volunteers (
     category TEXT NOT NULL CHECK (category IN ('Fundador / Insigne', 'Honorario', 'Activo', 'Aspirante')),
     rank TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'Activo' CHECK (status IN ('Activo', 'Honorario', 'Insigne', 'Licencia', 'Suspendido')),
+    is_driver BOOLEAN DEFAULT FALSE,
+    driver_license TEXT,
     phone TEXT,
     email TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -376,3 +378,10 @@ BEGIN
     END IF;
   END LOOP;
 END $$;
+
+-- ==============================================================================
+-- 18. MIGRACIÓN / ACTUALIZACIÓN NO DESTRUCTIVA (EJECUTAR EN SUPABASE SQL EDITOR SI YA TIENES DATOS)
+-- ==============================================================================
+ALTER TABLE public.volunteers ADD COLUMN IF NOT EXISTS is_driver BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.volunteers ADD COLUMN IF NOT EXISTS driver_license TEXT;
+
