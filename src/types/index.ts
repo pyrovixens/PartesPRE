@@ -58,6 +58,10 @@ export interface DispatchedUnit {
   unitCode: string;
   driverId?: string;
   driverName?: string;
+  pumpHours?: number;
+  startKm?: number;
+  endKm?: number;
+  distanceKm?: number;
 }
 
 export type ArrivalStatus = 'TRIPULO_CARRO' | '6_3_LUGAR' | 'CUBRE_CUARTEL';

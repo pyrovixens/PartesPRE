@@ -197,11 +197,11 @@ export const UnitsManagerView: React.FC<UnitsManagerViewProps> = ({
                 </div>
                 <div className="flex justify-between items-center pt-1 border-t border-slate-100 dark:border-slate-800">
                   <span className="flex items-center gap-1 text-[11px]"><Gauge className="w-3.5 h-3.5 text-slate-400" /> Odómetro:</span>
-                  <span className="font-bold text-slate-900 dark:text-white font-mono">{u.currentKm.toLocaleString('es-CL')} km</span>
+                  <span className="font-bold text-slate-900 dark:text-white font-mono">{(u.currentKm || 0).toLocaleString('es-CL')} km</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="flex items-center gap-1 text-[11px]"><Activity className="w-3.5 h-3.5 text-slate-400" /> Horas Bomba:</span>
-                  <span className="font-bold text-slate-900 dark:text-white font-mono">{u.currentPumpHours} hrs</span>
+                  <span className="font-bold text-slate-900 dark:text-white font-mono">{u.currentPumpHours || 0} hrs</span>
                 </div>
               </div>
             </div>

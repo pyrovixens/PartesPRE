@@ -33,13 +33,33 @@ export const calculateStats = (
     monthMap[i] = { count: 0, totalF: 0 };
   }
 
+  // Aggregate pump hours and km from report units
+  let totalPumpHours = 0;
+  let totalDistanceKm = 0;
+
   reports.forEach(r => {
+    if (Array.isArray(r.units)) {
+      r.units.forEach(u => {
+        if (u.pumpHours && typeof u.pumpHours === 'number') totalPumpHours += u.pumpHours;
+        if (u.distanceKm && typeof u.distanceKm === 'number') totalDistanceKm += u.distanceKm;
+        else if (u.endKm && u.startKm && u.endKm >= u.startKm) totalDistanceKm += (u.endKm - u.startKm);
+      });
+    }
+
     if (r.incidentDate) {
-      const d = new Date(r.incidentDate);
-      const m = d.getMonth();
-      if (!isNaN(m) && monthMap[m]) {
+      // Safe parsing of YYYY-MM-DD to avoid timezone shifting
+      const parts = r.incidentDate.split('-');
+      let m = -1;
+      if (parts.length >= 2) {
+        m = parseInt(parts[1], 10) - 1;
+      } else {
+        const d = new Date(r.incidentDate);
+        m = d.getMonth();
+      }
+
+      if (!isNaN(m) && m >= 0 && m < 12 && monthMap[m]) {
         monthMap[m].count += 1;
-        monthMap[m].totalF += r.totalFirefighters || 0;
+        monthMap[m].totalF += (r.totalFirefighters || 0);
       }
     }
   });
@@ -58,7 +78,7 @@ export const calculateStats = (
   const totalReportsCount = reports.length;
   const attendancesByVolunteer = volunteers.map(v => {
     const attendedCount = reports.filter(r => 
-      r.attendees.some(a => a.volunteerId === v.id)
+      r.attendees && r.attendees.some(a => a.volunteerId === v.id)
     ).length;
 
     const percentage = totalReportsCount > 0 
@@ -80,8 +100,8 @@ export const calculateStats = (
     totalEmergencies: emergencies.length,
     totalActivities: activities.length,
     avgFirefightersPerCall: Number(avgFirefightersPerCall.toFixed(1)),
-    totalPumpHours: 0,
-    totalDistanceKm: 0,
+    totalPumpHours: Number(totalPumpHours.toFixed(1)),
+    totalDistanceKm: Number(totalDistanceKm.toFixed(1)),
     callsByKeyCode,
     callsByMonth,
     attendancesByVolunteer,
