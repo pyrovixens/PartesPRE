@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   X, 
   Save, 
@@ -13,11 +13,14 @@ import {
   Star,
   Award,
   Shield,
+  ShieldCheck,
   Sparkles,
   UserCheck,
   Search,
   Radio,
-  CheckCircle2
+  CheckCircle2,
+  AlertCircle,
+  RotateCcw
 } from 'lucide-react';
 import { 
   EmergencyReport, 
@@ -33,6 +36,8 @@ import {
   AppUser
 } from '../types';
 import { searchInFields } from '../utils/searchUtils';
+
+const DRAFT_STORAGE_KEY = 'bomberos_active_emergency_draft_v1';
 
 interface ReportFormModalProps {
   isOpen: boolean;
@@ -59,6 +64,11 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
 }) => {
   const [activeStep, setActiveStep] = useState<number>(1);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [hasRestoredDraft, setHasRestoredDraft] = useState<boolean>(false);
+
+  // Protected refs to avoid form wipe/close on tab/window switch or background updates
+  const hasInitializedRef = useRef<boolean>(false);
+  const activeReportIdRef = useRef<string | null>(null);
 
   // Form State
   const [folioYear, setFolioYear] = useState<number>(new Date().getFullYear());
@@ -83,6 +93,11 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
   const [officerInChargeId, setOfficerInChargeId] = useState<string>('');
   const [obacSearch, setObacSearch] = useState<string>('');
   const [selectedObacFilter, setSelectedObacFilter] = useState<string>('ALL');
+
+  // Oficial Designado para Revisión y V°B° / Firma (Solo Oficiales)
+  const [reviewerOfficerId, setReviewerOfficerId] = useState<string>('');
+  const [reviewerOfficerName, setReviewerOfficerName] = useState<string>('');
+  const [reviewerOfficerRank, setReviewerOfficerRank] = useState<string>('Capitán de Compañía');
 
   // Material Mayor (Solo unidad + maquinista)
   const [selectedUnits, setSelectedUnits] = useState<DispatchedUnit[]>([]);
@@ -114,6 +129,14 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
   // Relato y Estado
   const [summaryNotes, setSummaryNotes] = useState<string>('');
   const [status, setStatus] = useState<ReportStatus>('APROBADO');
+
+  // Strictly company officers for review and signature (Capitán, Ayudante, Tenientes, Director, Secretario, Tesorero)
+  const officersList = useMemo(() => {
+    const officerRanks = ['Director', 'Capitán', 'Teniente', 'Ayudante', 'Secretario', 'Tesorero', 'Comandante'];
+    return volunteers.filter(v => 
+      officerRanks.some(r => v.rank.toLowerCase().includes(r.toLowerCase()))
+    );
+  }, [volunteers]);
 
   // Claves filtered list with normalized search & category filter
   const filteredKeys = useMemo(() => {
@@ -168,9 +191,115 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
     return units.map(u => u.code);
   }, [selectedUnits, units]);
 
-  // Load existing or reset
+  // Auto-save in-progress draft to localStorage
+  const saveDraftToStorage = () => {
+    if (editingReport) return;
+    try {
+      const draftPayload = {
+        folioYear,
+        folioNumber,
+        correlativoCompania,
+        correlativoComandancia,
+        incidentDate,
+        incidentTime,
+        keyCode,
+        address,
+        cornerOrReference,
+        sector,
+        commune,
+        officerInChargeId,
+        selectedUnits,
+        attendees,
+        callerName,
+        callerPhone,
+        affectedPropertyType,
+        damageLevel,
+        civilianInjuredCount,
+        firefighterInjuredCount,
+        fatalCount,
+        carabineros,
+        carabinerosUnit,
+        samu,
+        samuUnit,
+        conaf,
+        cgeChilquinta,
+        municipalidad,
+        seguridadCiudadana,
+        summaryNotes,
+        status,
+        reviewerOfficerId,
+        reviewerOfficerName,
+        reviewerOfficerRank,
+        activeStep,
+        timestamp: Date.now(),
+      };
+      localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draftPayload));
+    } catch {}
+  };
+
+  // 1. Debounced auto-save draft while typing
   useEffect(() => {
+    if (!isOpen || editingReport) return;
+    const timer = setTimeout(() => {
+      saveDraftToStorage();
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [
+    isOpen, editingReport, folioYear, folioNumber, correlativoCompania, correlativoComandancia,
+    incidentDate, incidentTime, keyCode, address, cornerOrReference, sector, commune,
+    officerInChargeId, selectedUnits, attendees, callerName, callerPhone, affectedPropertyType,
+    damageLevel, civilianInjuredCount, firefighterInjuredCount, fatalCount, carabineros,
+    carabinerosUnit, samu, samuUnit, conaf, cgeChilquinta, municipalidad, seguridadCiudadana,
+    summaryNotes, status, reviewerOfficerId, reviewerOfficerName, reviewerOfficerRank, activeStep
+  ]);
+
+  // 2. Window focus, visibility & unload listeners to guarantee draft persistence
+  useEffect(() => {
+    if (!isOpen || editingReport) return;
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      const hasContent = Boolean(address.trim() || attendees.length > 0 || summaryNotes.trim() || selectedUnits.length > 0);
+      if (hasContent) {
+        saveDraftToStorage();
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        saveDraftToStorage();
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isOpen, editingReport, address, attendees, summaryNotes, selectedUnits]);
+
+  // Load existing, restore draft, or reset form (Safe against background updates)
+  useEffect(() => {
+    if (!isOpen) {
+      hasInitializedRef.current = false;
+      activeReportIdRef.current = null;
+      return;
+    }
+
+    const currentId = editingReport ? editingReport.id : 'NEW_REPORT';
+    // If modal is already open and initialized for this exact report, do NOT wipe on volunteer/sync changes!
+    if (hasInitializedRef.current && activeReportIdRef.current === currentId) {
+      return;
+    }
+
+    hasInitializedRef.current = true;
+    activeReportIdRef.current = currentId;
+
     if (editingReport) {
+      setHasRestoredDraft(false);
       setFolioYear(editingReport.folioYear);
       setFolioNumber(editingReport.folioNumber);
       setCorrelativoCompania(editingReport.correlativoCompania || String(editingReport.folioNumber).padStart(3, '0'));
@@ -202,54 +331,124 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
       setSeguridadCiudadana(editingReport.externalAgencies?.seguridadCiudadana || false);
       setSummaryNotes(editingReport.summaryNotes || '');
       setStatus(editingReport.status || 'APROBADO');
+
+      // Initialize reviewer officer
+      const initialReviewerName = editingReport.captainName || editingReport.approvedBy || '';
+      const matchedOff = officersList.find(o => o.fullName.toLowerCase() === initialReviewerName.toLowerCase());
+      if (matchedOff) {
+        setReviewerOfficerId(matchedOff.id);
+        setReviewerOfficerName(matchedOff.fullName);
+        setReviewerOfficerRank(editingReport.captainRank || matchedOff.rank);
+      } else {
+        const defaultCap = officersList.find(o => o.rank.includes('Capitán')) || officersList[0] || volunteers[0];
+        setReviewerOfficerId(defaultCap?.id || '');
+        setReviewerOfficerName(editingReport.captainName || defaultCap?.fullName || 'Capitán de Compañía');
+        setReviewerOfficerRank(editingReport.captainRank || defaultCap?.rank || 'Capitán de Compañía');
+      }
+      setActiveStep(1);
     } else {
-      const curYear = new Date().getFullYear();
-      setFolioYear(curYear);
-      setFolioNumber(nextFolioNumber);
-      setCorrelativoCompania(String(nextFolioNumber).padStart(3, '0'));
-      setCorrelativoComandancia('');
-      setIncidentDate(new Date().toISOString().substring(0, 10));
-      const now = new Date();
-      const pad = (n: number) => String(n).padStart(2, '0');
-      setIncidentTime(`${pad(now.getHours())}:${pad(now.getMinutes())}`);
-      setKeyCode('10-0-1');
-      setAddress('');
-      setCornerOrReference('');
-      setSector('Calle Larga');
-      setCommune('Calle Larga');
-      const defaultOBAC = volunteers.find(v => v.rank === 'Capitán') || volunteers[0];
-      setOfficerInChargeId(defaultOBAC?.id || '');
-      setSelectedUnits([]);
-      setAttendees([]);
-      setCallerName('');
-      setCallerPhone('');
-      setAffectedPropertyType('');
-      setDamageLevel('Leve');
-      setCivilianInjuredCount(0);
-      setFirefighterInjuredCount(0);
-      setFatalCount(0);
-      setCarabineros(false);
-      setCarabinerosUnit('');
-      setSamu(false);
-      setSamuUnit('');
-      setConaf(false);
-      setCgeChilquinta(false);
-      setMunicipalidad(false);
-      setSeguridadCiudadana(false);
-      setSummaryNotes('');
-      const isCapitanOrAyudante = currentUser && (
-        currentUser.rank?.includes('Capitán') ||
-        currentUser.rank?.includes('Ayudante') ||
-        volunteers.some(v => 
-          (v.fullName.toLowerCase() === currentUser.fullName.toLowerCase() || (currentUser.email && v.email && v.email.toLowerCase() === currentUser.email.toLowerCase()) || (currentUser.registrationNumber && v.registrationNumber === currentUser.registrationNumber)) &&
-          (v.rank.includes('Capitán') || v.rank.includes('Ayudante'))
-        )
-      );
-      setStatus(isCapitanOrAyudante ? 'APROBADO' : 'ENVIADO');
+      // Check for saved in-progress draft in localStorage
+      let restored = false;
+      try {
+        const savedDraftJson = localStorage.getItem(DRAFT_STORAGE_KEY);
+        if (savedDraftJson) {
+          const draft = JSON.parse(savedDraftJson);
+          if (draft && (draft.address || draft.attendees?.length > 0 || draft.summaryNotes || draft.selectedUnits?.length > 0)) {
+            setFolioYear(draft.folioYear || new Date().getFullYear());
+            setFolioNumber(draft.folioNumber || nextFolioNumber);
+            setCorrelativoCompania(draft.correlativoCompania || String(nextFolioNumber).padStart(3, '0'));
+            setCorrelativoComandancia(draft.correlativoComandancia || '');
+            setIncidentDate(draft.incidentDate || new Date().toISOString().substring(0, 10));
+            setIncidentTime(draft.incidentTime || '14:00');
+            setKeyCode(draft.keyCode || '10-0-1');
+            setAddress(draft.address || '');
+            setCornerOrReference(draft.cornerOrReference || '');
+            setSector(draft.sector || 'Calle Larga');
+            setCommune(draft.commune || 'Calle Larga');
+            setOfficerInChargeId(draft.officerInChargeId || '');
+            setSelectedUnits(draft.selectedUnits || []);
+            setAttendees(draft.attendees || []);
+            setCallerName(draft.callerName || '');
+            setCallerPhone(draft.callerPhone || '');
+            setAffectedPropertyType(draft.affectedPropertyType || '');
+            setDamageLevel(draft.damageLevel || 'Leve');
+            setCivilianInjuredCount(draft.civilianInjuredCount || 0);
+            setFirefighterInjuredCount(draft.firefighterInjuredCount || 0);
+            setFatalCount(draft.fatalCount || 0);
+            setCarabineros(draft.carabineros || false);
+            setCarabinerosUnit(draft.carabinerosUnit || '');
+            setSamu(draft.samu || false);
+            setSamuUnit(draft.samuUnit || '');
+            setConaf(draft.conaf || false);
+            setCgeChilquinta(draft.cgeChilquinta || false);
+            setMunicipalidad(draft.municipalidad || false);
+            setSeguridadCiudadana(draft.seguridadCiudadana || false);
+            setSummaryNotes(draft.summaryNotes || '');
+            setStatus(draft.status || 'APROBADO');
+            setReviewerOfficerId(draft.reviewerOfficerId || '');
+            setReviewerOfficerName(draft.reviewerOfficerName || '');
+            setReviewerOfficerRank(draft.reviewerOfficerRank || 'Capitán de Compañía');
+            setActiveStep(draft.activeStep || 1);
+            setHasRestoredDraft(true);
+            restored = true;
+          }
+        }
+      } catch {}
+
+      if (!restored) {
+        setHasRestoredDraft(false);
+        const curYear = new Date().getFullYear();
+        setFolioYear(curYear);
+        setFolioNumber(nextFolioNumber);
+        setCorrelativoCompania(String(nextFolioNumber).padStart(3, '0'));
+        setCorrelativoComandancia('');
+        setIncidentDate(new Date().toISOString().substring(0, 10));
+        const now = new Date();
+        const pad = (n: number) => String(n).padStart(2, '0');
+        setIncidentTime(`${pad(now.getHours())}:${pad(now.getMinutes())}`);
+        setKeyCode('10-0-1');
+        setAddress('');
+        setCornerOrReference('');
+        setSector('Calle Larga');
+        setCommune('Calle Larga');
+        const defaultOBAC = volunteers.find(v => v.rank === 'Capitán') || volunteers[0];
+        setOfficerInChargeId(defaultOBAC?.id || '');
+        setSelectedUnits([]);
+        setAttendees([]);
+        setCallerName('');
+        setCallerPhone('');
+        setAffectedPropertyType('');
+        setDamageLevel('Leve');
+        setCivilianInjuredCount(0);
+        setFirefighterInjuredCount(0);
+        setFatalCount(0);
+        setCarabineros(false);
+        setCarabinerosUnit('');
+        setSamu(false);
+        setSamuUnit('');
+        setConaf(false);
+        setCgeChilquinta(false);
+        setMunicipalidad(false);
+        setSeguridadCiudadana(false);
+        setSummaryNotes('');
+
+        const isOfficerUser = currentUser && (
+          currentUser.role === 'SUPER_ADMIN' ||
+          currentUser.role === 'ADMIN' ||
+          currentUser.role === 'OFICIAL' ||
+          officersList.some(o => currentUser.rank?.includes(o.rank))
+        );
+        setStatus(isOfficerUser ? 'APROBADO' : 'ENVIADO');
+
+        const defaultReviewer = officersList.find(o => o.rank.includes('Capitán')) || officersList[0] || volunteers[0];
+        setReviewerOfficerId(defaultReviewer?.id || '');
+        setReviewerOfficerName(defaultReviewer?.fullName || 'Capitán de Compañía');
+        setReviewerOfficerRank(defaultReviewer?.rank || 'Capitán de Compañía');
+        setActiveStep(1);
+      }
     }
-    setActiveStep(1);
     setIsSubmitting(false);
-  }, [editingReport, nextFolioNumber, isOpen, volunteers, currentUser]);
+  }, [isOpen, editingReport?.id]);
 
   const selectedKeyObj = useMemo(() => {
     return keys.find(k => k.code === keyCode) || keys[0];
@@ -445,14 +644,64 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
       createdAt: editingReport ? editingReport.createdAt : new Date().toISOString(),
       createdBy: editingReport ? editingReport.createdBy : (selectedOBAC?.fullName || 'Oficial de Guardia'),
       updatedAt: new Date().toISOString(),
-      approvedBy: finalStatus === 'APROBADO' ? (editingReport?.approvedBy || volunteers.find(v => v.rank === 'Capitán')?.fullName || 'Capitán de Compañía') : undefined,
+      approvedBy: finalStatus === 'APROBADO' 
+        ? (reviewerOfficerName || editingReport?.approvedBy || volunteers.find(v => v.rank === 'Capitán')?.fullName || 'Capitán de Compañía') 
+        : undefined,
       approvedAt: finalStatus === 'APROBADO' ? (editingReport?.approvedAt || new Date().toISOString()) : undefined,
-      captainName: editingReport?.captainName || volunteers.find(v => v.rank === 'Capitán')?.fullName || 'Capitán de Compañía',
-      captainRank: editingReport?.captainRank || 'Capitán 4ª Cía. Calle Larga',
+      captainName: reviewerOfficerName || editingReport?.captainName || volunteers.find(v => v.rank === 'Capitán')?.fullName || 'Capitán de Compañía',
+      captainRank: reviewerOfficerRank || editingReport?.captainRank || 'Capitán de Compañía',
       digitalSignature: editingReport?.digitalSignature,
     };
 
+    // Clean up local draft after explicit save
+    try {
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
+    } catch {}
+    setHasRestoredDraft(false);
+
     onSave(reportToSave);
+  };
+
+  const handleCloseModal = () => {
+    const hasDirtyContent = Boolean(address.trim() || attendees.length > 0 || summaryNotes.trim() || selectedUnits.length > 0);
+    if (hasDirtyContent && !editingReport) {
+      if (confirm('Tienes información ingresada en el parte.\n\n¿Deseas salir? Tu avance quedará guardado automáticamente como borrador para que sigas completándolo en cualquier momento.')) {
+        saveDraftToStorage();
+        onClose();
+      }
+    } else {
+      onClose();
+    }
+  };
+
+  const handleDiscardDraft = () => {
+    if (confirm('¿Deseas descartar el borrador en curso y comenzar con el formulario en blanco?')) {
+      try {
+        localStorage.removeItem(DRAFT_STORAGE_KEY);
+      } catch {}
+      setHasRestoredDraft(false);
+      setAddress('');
+      setCornerOrReference('');
+      setSelectedUnits([]);
+      setAttendees([]);
+      setSummaryNotes('');
+      setCallerName('');
+      setCallerPhone('');
+      setAffectedPropertyType('');
+      setDamageLevel('Leve');
+      setCivilianInjuredCount(0);
+      setFirefighterInjuredCount(0);
+      setFatalCount(0);
+      setCarabineros(false);
+      setCarabinerosUnit('');
+      setSamu(false);
+      setSamuUnit('');
+      setConaf(false);
+      setCgeChilquinta(false);
+      setMunicipalidad(false);
+      setSeguridadCiudadana(false);
+      setActiveStep(1);
+    }
   };
 
   if (!isOpen) return null;
@@ -491,7 +740,7 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
             </button>
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleCloseModal}
               className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition"
               title="Cerrar ventana"
             >
@@ -499,6 +748,24 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Restored Draft Banner Notification */}
+        {hasRestoredDraft && !editingReport && (
+          <div className="bg-amber-500/15 border-b border-amber-500/30 px-3 sm:px-5 py-2 flex items-center justify-between text-xs text-amber-800 dark:text-amber-200 shrink-0">
+            <span className="flex items-center gap-1.5 font-bold truncate">
+              <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+              <span className="truncate">Se recuperó tu borrador en curso automáticamente para que sigas completando sin perder datos.</span>
+            </span>
+            <button
+              type="button"
+              onClick={handleDiscardDraft}
+              className="text-[11px] underline font-extrabold text-amber-900 dark:text-amber-200 hover:text-red-600 transition shrink-0 ml-2"
+              title="Descartar borrador y empezar de cero"
+            >
+              Descartar
+            </button>
+          </div>
+        )}
 
         {/* Step Tabs */}
         <div className="bg-slate-100 dark:bg-slate-800/70 px-2 sm:px-4 py-1.5 sm:py-2 border-b border-slate-200 dark:border-slate-700 flex items-center space-x-1 overflow-x-auto text-[11px] sm:text-xs no-scrollbar flex-shrink-0">
@@ -579,6 +846,83 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
                     onChange={(e) => setIncidentTime(e.target.value)}
                     className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 sm:px-3 py-1.5 sm:py-2 font-bold focus:ring-2 focus:ring-red-600 focus:outline-none text-xs sm:text-sm"
                   />
+                </div>
+              </div>
+
+              {/* Oficial Responsable de Revisión y Firma V°B° (Solo Oficiales) */}
+              <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-300 dark:border-amber-800/60 rounded-xl p-3 sm:p-4 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <ShieldCheck className="w-4 h-4 text-amber-700 dark:text-amber-400" />
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                      Oficial Asignado para Revisión y Firma V°B°
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60 px-2 py-0.5 rounded-full border border-amber-300 dark:border-amber-800">
+                    Solo Oficiales
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[10px] sm:text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                      Oficial Revisor / Firmante:
+                    </label>
+                    <select
+                      value={reviewerOfficerId}
+                      onChange={(e) => {
+                        const sel = officersList.find(o => o.id === e.target.value);
+                        if (sel) {
+                          setReviewerOfficerId(sel.id);
+                          setReviewerOfficerName(sel.fullName);
+                          setReviewerOfficerRank(sel.rank);
+                        }
+                      }}
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-600"
+                    >
+                      {officersList.map(o => (
+                        <option key={o.id} value={o.id}>
+                          {o.rank} - {o.fullName} ({o.registrationNumber})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] sm:text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                      Cargo Institucional en el Documento:
+                    </label>
+                    <input
+                      type="text"
+                      value={reviewerOfficerRank}
+                      onChange={(e) => setReviewerOfficerRank(e.target.value)}
+                      placeholder="Ej. Capitán de Compañía, Ayudante, Teniente..."
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-600"
+                    />
+                  </div>
+                </div>
+
+                {/* Quick preset chips */}
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  <span className="text-[10px] text-slate-500 font-medium">Asignación rápida:</span>
+                  {officersList.map(o => (
+                    <button
+                      key={o.id}
+                      type="button"
+                      onClick={() => {
+                        setReviewerOfficerId(o.id);
+                        setReviewerOfficerName(o.fullName);
+                        setReviewerOfficerRank(o.rank);
+                      }}
+                      className={`text-[10px] px-2 py-0.5 rounded-md font-bold transition ${
+                        reviewerOfficerId === o.id
+                          ? 'bg-red-700 text-white shadow-sm'
+                          : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      {o.rank.replace(' de Compañía', '')}: {o.shortName || o.fullName.split(' ')[0]}
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
@@ -1160,6 +1504,46 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
                   <option value="CERRADO">Cerrado / Archivado</option>
                 </select>
               </div>
+
+              {/* Oficial de Revisión y Firma en Paso 5 */}
+              <div className="bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                    <span>Oficial que Revisa y Otorga V°B° / Firma (Solo Oficiales)</span>
+                  </label>
+                  <span className="text-[10px] font-bold text-slate-500">
+                    Aparecerá en la firma del PDF
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <select
+                    value={reviewerOfficerId}
+                    onChange={(e) => {
+                      const sel = officersList.find(o => o.id === e.target.value);
+                      if (sel) {
+                        setReviewerOfficerId(sel.id);
+                        setReviewerOfficerName(sel.fullName);
+                        setReviewerOfficerRank(sel.rank);
+                      }
+                    }}
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-900 dark:text-white"
+                  >
+                    {officersList.map(o => (
+                      <option key={o.id} value={o.id}>
+                        {o.rank} - {o.fullName}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={reviewerOfficerRank}
+                    onChange={(e) => setReviewerOfficerRank(e.target.value)}
+                    placeholder="Cargo en el documento"
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-900 dark:text-white"
+                  />
+                </div>
+              </div>
             </div>
           )}
 
@@ -1180,7 +1564,7 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
             <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={handleCloseModal}
                 className="text-xs font-bold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white px-3 py-2 rounded-xl transition"
               >
                 Cancelar

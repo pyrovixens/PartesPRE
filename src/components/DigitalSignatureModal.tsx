@@ -72,9 +72,25 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      if (currentUser) {
+      const officerRanks = ['Director', 'Capitán', 'Teniente', 'Ayudante', 'Secretario', 'Tesorero', 'Comandante'];
+      const designatedName = report.captainName || report.approvedBy;
+      const designatedOfficer = designatedName 
+        ? volunteers.find(v => v.fullName.toLowerCase() === designatedName.toLowerCase() && officerRanks.some(r => v.rank.toLowerCase().includes(r.toLowerCase())))
+        : null;
+
+      const isUserOfficer = currentUser && (
+        currentUser.role === 'SUPER_ADMIN' ||
+        currentUser.role === 'ADMIN' ||
+        currentUser.role === 'OFICIAL' ||
+        officerRanks.some(r => currentUser.rank?.toLowerCase().includes(r.toLowerCase()))
+      );
+
+      if (isUserOfficer && currentUser) {
         setSignerName(currentUser.fullName);
         setSignerRank(getInstitutionalRank(currentUser.fullName, currentUser.rank));
+      } else if (designatedOfficer) {
+        setSignerName(designatedOfficer.fullName);
+        setSignerRank(report.captainRank || designatedOfficer.rank);
       } else if (captainVolunteer) {
         setSignerName(captainVolunteer.fullName);
         setSignerRank(captainVolunteer.rank);
@@ -82,7 +98,7 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
       setHasDrawn(false);
       clearCanvas();
     }
-  }, [isOpen, captainVolunteer, currentUser]);
+  }, [isOpen, captainVolunteer, currentUser, report]);
 
   const clearCanvas = () => {
     const canvas = canvasRef.current;
@@ -175,11 +191,14 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Officers list from padrón
+  // Officers list from padrón (Strictly company officers: Capitán, Ayudante, Tenientes, Director, Secretario, Tesorero)
   const officersList = volunteers.filter(v => 
     v.rank.includes('Capitán') || 
+    v.rank.includes('Ayudante') ||
     v.rank.includes('Teniente') || 
     v.rank.includes('Director') || 
+    v.rank.includes('Secretario') ||
+    v.rank.includes('Tesorero') ||
     v.rank.includes('Comandante')
   );
 
@@ -281,24 +300,19 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
                   }}
                   className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 dark:text-white"
                 >
-                  <optgroup label="Oficiales de Compañía">
+                  <optgroup label="Oficiales de Compañía Habilitados">
                     {officersList.map(o => (
                       <option key={o.id} value={o.fullName}>
-                        {o.rank} - {o.fullName}
-                      </option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="Todos los Voluntarios">
-                    {volunteers.map(v => (
-                      <option key={v.id} value={v.fullName}>
-                        {v.rank} - {v.fullName} ({v.registrationNumber})
+                        {o.rank} - {o.fullName} ({o.registrationNumber})
                       </option>
                     ))}
                   </optgroup>
                   {currentUser && (
-                    <option value={currentUser.fullName}>
-                      {getInstitutionalRank(currentUser.fullName, currentUser.rank)} - {currentUser.fullName} (Sesión Actual)
-                    </option>
+                    <optgroup label="Sesión Actual">
+                      <option value={currentUser.fullName}>
+                        {getInstitutionalRank(currentUser.fullName, currentUser.rank)} - {currentUser.fullName}
+                      </option>
+                    </optgroup>
                   )}
                 </select>
               </div>

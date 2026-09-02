@@ -82,20 +82,22 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
     }
   };
 
-  const captainVolunteer = volunteers.find(v => v.rank === 'Capitán');
-  const defaultCaptainName = captainVolunteer ? captainVolunteer.fullName : 'Capitán de Compañía';
-  const displayCaptainName = report.approvedBy || report.captainName || defaultCaptainName;
-  const displayCaptainRank = report.captainRank || (report.approvedBy ? 'V°B° Capitanía de Compañía' : 'Capitán 4ª Cía. Calle Larga');
+  const defaultOfficer = volunteers.find(v => v.rank === 'Capitán') || volunteers.find(v => v.rank.includes('Teniente')) || volunteers[0];
+  const defaultOfficerName = defaultOfficer ? defaultOfficer.fullName : 'Capitán de Compañía';
+  const displayCaptainName = report.approvedBy || report.captainName || defaultOfficerName;
+  const displayCaptainRank = report.captainRank || (report.approvedBy ? 'V°B° Oficialidad de Compañía' : 'Mando 4ª Cía. Calle Larga');
 
-  // Authorization check for Capitanía and Ayudantía
+  // Authorization check: Only company officers (Capitán, Ayudante, Tenientes, Director, Secretario, Tesorero) or Admin can sign
+  const officerRanks = ['Director', 'Capitán', 'Teniente', 'Ayudante', 'Secretario', 'Tesorero', 'Comandante'];
   const isAuthorizedToSign = Boolean(
     currentUser && (
-      currentUser.rank?.includes('Capitán') || 
-      currentUser.rank?.includes('Ayudante') ||
       currentUser.role === 'SUPER_ADMIN' ||
+      currentUser.role === 'ADMIN' ||
+      currentUser.role === 'OFICIAL' ||
+      officerRanks.some(r => currentUser.rank?.toLowerCase().includes(r.toLowerCase())) ||
       volunteers.some(v => 
         (v.fullName.toLowerCase() === currentUser.fullName.toLowerCase() || (currentUser.email && v.email && v.email.toLowerCase() === currentUser.email.toLowerCase()) || (currentUser.registrationNumber && v.registrationNumber === currentUser.registrationNumber)) &&
-        (v.rank.includes('Capitán') || v.rank.includes('Ayudante'))
+        officerRanks.some(r => v.rank.toLowerCase().includes(r.toLowerCase()))
       )
     )
   );
