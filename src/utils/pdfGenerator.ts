@@ -287,8 +287,8 @@ export const generateEmergencyReportPDF = async (report: EmergencyReport): Promi
 
   // Signature 2: Ayudante / Capitán de Compañía
   const rightBoxX = pageWidth - margin - 10 - boxWidth;
-  const captainDisplayName = report.digitalSignature?.signedBy || report.approvedBy || report.captainName || 'Capitán de Compañía';
-  const captainDisplayRank = report.digitalSignature?.signedByRank || report.captainRank || (report.approvedBy ? 'V°B° Mando de Compañía' : 'Capitán 4ª Cía. Calle Larga');
+  const captainDisplayName = report.digitalSignature?.signedBy || report.captainName || report.approvedBy || 'Capitán de Compañía';
+  const captainDisplayRank = report.digitalSignature?.signedByRank || report.captainRank || (report.approvedBy ? 'Oficial de Compañía' : 'Mando 4ª Cía. Calle Larga');
 
   // Embed digital signature if present
   if (report.digitalSignature) {
@@ -318,7 +318,8 @@ export const generateEmergencyReportPDF = async (report: EmergencyReport): Promi
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(100, 116, 139);
-  doc.text(captainDisplayRank, rightBoxX + (boxWidth / 2), sigY + 23, { align: 'center' });
+  const formattedRank = captainDisplayRank.includes('4ª') ? captainDisplayRank : `${captainDisplayRank} • 4ª Cía. Calle Larga`;
+  doc.text(formattedRank, rightBoxX + (boxWidth / 2), sigY + 23, { align: 'center' });
 
   // Footer
   const totalPages = doc.getNumberOfPages();

@@ -333,17 +333,22 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
       setStatus(editingReport.status || 'APROBADO');
 
       // Initialize reviewer officer
-      const initialReviewerName = editingReport.captainName || editingReport.approvedBy || '';
+      const initialReviewerName = editingReport.digitalSignature?.signedBy || editingReport.captainName || editingReport.approvedBy || '';
+      const initialReviewerRank = editingReport.digitalSignature?.signedByRank || editingReport.captainRank || '';
       const matchedOff = officersList.find(o => o.fullName.toLowerCase() === initialReviewerName.toLowerCase());
       if (matchedOff) {
         setReviewerOfficerId(matchedOff.id);
         setReviewerOfficerName(matchedOff.fullName);
-        setReviewerOfficerRank(editingReport.captainRank || matchedOff.rank);
+        setReviewerOfficerRank(initialReviewerRank || matchedOff.rank);
+      } else if (initialReviewerName) {
+        setReviewerOfficerId('');
+        setReviewerOfficerName(initialReviewerName);
+        setReviewerOfficerRank(initialReviewerRank || 'Oficial de Compañía');
       } else {
         const defaultCap = officersList.find(o => o.rank.includes('Capitán')) || officersList[0] || volunteers[0];
         setReviewerOfficerId(defaultCap?.id || '');
-        setReviewerOfficerName(editingReport.captainName || defaultCap?.fullName || 'Capitán de Compañía');
-        setReviewerOfficerRank(editingReport.captainRank || defaultCap?.rank || 'Capitán de Compañía');
+        setReviewerOfficerName(defaultCap?.fullName || 'Capitán de Compañía');
+        setReviewerOfficerRank(defaultCap?.rank || 'Capitán de Compañía');
       }
       setActiveStep(1);
     } else {
@@ -650,7 +655,15 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
       approvedAt: finalStatus === 'APROBADO' ? (editingReport?.approvedAt || new Date().toISOString()) : undefined,
       captainName: reviewerOfficerName || editingReport?.captainName || volunteers.find(v => v.rank === 'Capitán')?.fullName || 'Capitán de Compañía',
       captainRank: reviewerOfficerRank || editingReport?.captainRank || 'Capitán de Compañía',
-      digitalSignature: editingReport?.digitalSignature,
+      digitalSignature: finalStatus === 'APROBADO'
+        ? {
+            signedBy: reviewerOfficerName || editingReport?.digitalSignature?.signedBy || 'Oficial de Compañía',
+            signedByRank: reviewerOfficerRank || editingReport?.digitalSignature?.signedByRank || 'Oficial',
+            signedAt: editingReport?.digitalSignature?.signedAt || new Date().toLocaleDateString('es-CL') + ' ' + new Date().toLocaleTimeString('es-CL'),
+            signatureDataUrl: editingReport?.digitalSignature?.signatureDataUrl,
+            verificationCode: editingReport?.digitalSignature?.verificationCode || `DIG-4CIA-${String(folioNumber).padStart(3, '0')}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
+          }
+        : undefined,
     };
 
     // Clean up local draft after explicit save

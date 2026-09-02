@@ -9,7 +9,8 @@ import {
   Trash2, 
   Users, 
   Calendar,
-  Layers
+  Layers,
+  ShieldCheck
 } from 'lucide-react';
 import { EmergencyReport, EmergencyKey, AppUser } from '../types';
 import { generateEmergencyReportPDF } from '../utils/pdfGenerator';
@@ -184,13 +185,20 @@ export const ReportListView: React.FC<ReportListViewProps> = ({
                     {report.incidentDate} {report.incidentTime ? `• ${report.incidentTime} hrs` : ''}
                   </span>
                 </div>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                  report.status === 'APROBADO' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800' :
-                  report.status === 'ENVIADO' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-800' :
-                  'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-300 dark:border-slate-700'
-                }`}>
-                  {report.status === 'APROBADO' ? '✓ APROBADO' : report.status === 'ENVIADO' ? '⏳ EN REVISIÓN' : report.status}
-                </span>
+                <div className="flex flex-col items-end gap-0.5 shrink-0">
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                    report.status === 'APROBADO' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800' :
+                    report.status === 'ENVIADO' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-800' :
+                    'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-300 dark:border-slate-700'
+                  }`}>
+                    {report.status === 'APROBADO' ? '✓ APROBADO' : report.status === 'ENVIADO' ? '⏳ EN REVISIÓN' : report.status}
+                  </span>
+                  <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 truncate max-w-[130px]">
+                    {report.status === 'APROBADO' 
+                      ? `V°B° ${report.digitalSignature?.signedByRank || report.captainRank || 'Mando Cía.'}` 
+                      : `Revisión: ${report.captainRank || 'Mando Cía.'}`}
+                  </span>
+                </div>
               </div>
 
               {/* Clave and Description */}
@@ -207,13 +215,20 @@ export const ReportListView: React.FC<ReportListViewProps> = ({
               </div>
 
               {/* Address and Sector */}
-              <div className="text-xs bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/80 space-y-1">
+              <div className="text-xs bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/80 space-y-1.5">
                 <p className="font-bold text-slate-800 dark:text-slate-200 truncate">
                   📍 {report.address || 'Sin dirección especificada'}
                 </p>
                 <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 font-medium">
                   <span>{report.sector}, {report.commune}</span>
                   <span className="font-bold text-red-600 dark:text-red-400">OBAC: {report.officerInChargeName}</span>
+                </div>
+                <div className="flex items-center justify-between text-[10px] pt-1 border-t border-slate-200/60 dark:border-slate-700/60 font-medium">
+                  <span className="text-slate-400">Mando Cía (V°B°):</span>
+                  <span className="font-bold text-amber-700 dark:text-amber-400 truncate max-w-[180px]">
+                    {report.digitalSignature?.signedBy || report.captainName || report.approvedBy || 'Por revisar'} 
+                    {' '}({report.digitalSignature?.signedByRank || report.captainRank || 'Mando'})
+                  </span>
                 </div>
               </div>
 
@@ -282,7 +297,7 @@ export const ReportListView: React.FC<ReportListViewProps> = ({
                 <th className="py-3 px-3">Fecha</th>
                 <th className="py-3 px-3">Clave & Tipo</th>
                 <th className="py-3 px-3">Dirección & Sector</th>
-                <th className="py-3 px-3">Mando a Cargo</th>
+                <th className="py-3 px-3">Mando (OBAC / V°B°)</th>
                 <th className="py-3 px-3 text-center">Carros</th>
                 <th className="py-3 px-3 text-center">Dotación</th>
                 <th className="py-3 px-3 text-center">Estado</th>
@@ -348,13 +363,23 @@ export const ReportListView: React.FC<ReportListViewProps> = ({
                       </div>
                     </td>
 
-                    {/* Mando */}
+                    {/* Mando (OBAC + V°B° Mando) */}
                     <td className="py-3 px-3 whitespace-nowrap">
-                      <div className="font-bold text-slate-800 dark:text-slate-200">
-                        {report.officerInChargeName}
-                      </div>
-                      <div className="text-[10px] text-red-600 dark:text-red-400 font-medium">
-                        {report.officerInChargeRank}
+                      <div className="space-y-1">
+                        <div>
+                          <div className="font-bold text-slate-800 dark:text-slate-200 text-xs">
+                            {report.officerInChargeName}
+                          </div>
+                          <div className="text-[10px] text-red-600 dark:text-red-400 font-medium">
+                            {report.officerInChargeRank} <span className="text-slate-400 font-normal">• OBAC</span>
+                          </div>
+                        </div>
+                        <div className="pt-0.5 border-t border-slate-100 dark:border-slate-800 text-[10px] text-amber-700 dark:text-amber-400 font-semibold flex items-center gap-1">
+                          <ShieldCheck className="w-3 h-3 text-amber-600 shrink-0" />
+                          <span className="truncate max-w-[140px]" title={`${report.digitalSignature?.signedByRank || report.captainRank || 'V°B°'}: ${report.digitalSignature?.signedBy || report.captainName || report.approvedBy || 'Mando Cía.'}`}>
+                            {report.digitalSignature?.signedByRank || report.captainRank || 'V°B°'}: {report.digitalSignature?.signedBy || report.captainName || report.approvedBy || 'Por revisar'}
+                          </span>
+                        </div>
                       </div>
                     </td>
 
@@ -382,14 +407,25 @@ export const ReportListView: React.FC<ReportListViewProps> = ({
                     </td>
 
                     {/* Estado */}
-                    <td className="py-3 px-3 text-center">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                        report.status === 'APROBADO' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800' :
-                        report.status === 'ENVIADO' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-800' :
-                        'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-300 dark:border-slate-700'
-                      }`}>
-                        {report.status === 'APROBADO' ? '✓ APROBADO' : report.status === 'ENVIADO' ? '⏳ EN REVISIÓN' : report.status}
-                      </span>
+                    <td className="py-3 px-3 text-center whitespace-nowrap">
+                      <div className="flex flex-col items-center gap-0.5">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                          report.status === 'APROBADO' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800' :
+                          report.status === 'ENVIADO' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-800' :
+                          'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-300 dark:border-slate-700'
+                        }`}>
+                          {report.status === 'APROBADO' ? '✓ APROBADO' : report.status === 'ENVIADO' ? '⏳ EN REVISIÓN' : report.status}
+                        </span>
+                        {report.status === 'APROBADO' ? (
+                          <span className="text-[9px] font-semibold text-emerald-700 dark:text-emerald-400 truncate max-w-[125px]">
+                            V°B° {report.digitalSignature?.signedByRank || report.captainRank || 'Oficial'}
+                          </span>
+                        ) : report.status === 'ENVIADO' ? (
+                          <span className="text-[9px] font-semibold text-amber-700 dark:text-amber-400 truncate max-w-[125px]">
+                            Por {report.captainRank || 'Mando Cía.'}
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
 
                     {/* Acciones */}

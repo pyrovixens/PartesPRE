@@ -84,8 +84,9 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
 
   const defaultOfficer = volunteers.find(v => v.rank === 'Capitán') || volunteers.find(v => v.rank.includes('Teniente')) || volunteers[0];
   const defaultOfficerName = defaultOfficer ? defaultOfficer.fullName : 'Capitán de Compañía';
-  const displayCaptainName = report.approvedBy || report.captainName || defaultOfficerName;
-  const displayCaptainRank = report.captainRank || (report.approvedBy ? 'V°B° Oficialidad de Compañía' : 'Mando 4ª Cía. Calle Larga');
+  const defaultOfficerRank = defaultOfficer ? defaultOfficer.rank : 'Capitán de Compañía';
+  const displayCaptainName = report.digitalSignature?.signedBy || report.captainName || report.approvedBy || defaultOfficerName;
+  const displayCaptainRank = report.digitalSignature?.signedByRank || report.captainRank || (report.approvedBy ? 'Oficial de Compañía' : defaultOfficerRank);
 
   // Authorization check: Only company officers (Capitán, Ayudante, Tenientes, Director, Secretario, Tesorero) or Admin can sign
   const officerRanks = ['Director', 'Capitán', 'Teniente', 'Ayudante', 'Secretario', 'Tesorero', 'Comandante'];
@@ -123,7 +124,7 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                       ? 'bg-emerald-950 text-emerald-300 border-emerald-700'
                       : 'bg-amber-950 text-amber-300 border-amber-700'
                   }`}>
-                    {report.status === 'APROBADO' ? '✓ APROBADO' : '⏳ PENDIENTE'}
+                    {report.status === 'APROBADO' ? `✓ APROBADO (${displayCaptainRank})` : `⏳ EN REVISIÓN (${displayCaptainRank})`}
                   </span>
                 </div>
                 <h2 className="text-xs sm:text-base font-black text-white truncate mt-0.5">
@@ -337,7 +338,7 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
                   <Award className="w-4 h-4 text-red-700 dark:text-red-400" />
-                  <span>Validación Oficial & V°B° de Mando</span>
+                  <span>Validación Oficial & V°B° de Mando ({displayCaptainRank})</span>
                 </h3>
 
                 {!report.digitalSignature && (
@@ -346,7 +347,7 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                     className="bg-red-700 hover:bg-red-800 text-white font-black text-xs px-3.5 py-1.5 rounded-xl flex items-center space-x-1.5 shadow transition active:scale-95 border border-red-500/50"
                   >
                     <PenTool className="w-3.5 h-3.5 text-amber-300" />
-                    <span>Estampar Firma Digital del Capitán</span>
+                    <span>Estampar Firma Digital ({displayCaptainRank})</span>
                   </button>
                 )}
               </div>
@@ -363,7 +364,7 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                   </div>
                 </div>
 
-                {/* Signature 2: Capitán de Compañía */}
+                {/* Signature 2: Mando de Compañía (Capitán / Ayudante / Teniente) */}
                 <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 space-y-2 relative overflow-hidden">
                   {report.digitalSignature ? (
                     <div className="space-y-2 animate-in fade-in">
@@ -388,7 +389,7 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
 
                       <div>
                         <p className="font-bold text-slate-900 dark:text-white text-xs">{report.digitalSignature.signedBy}</p>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400">{report.digitalSignature.signedByRank} • 4ª Cía. Calle Larga</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">{report.digitalSignature.signedByRank} • 4ª Cía. Calle Larga</p>
                       </div>
                     </div>
                   ) : (
@@ -398,7 +399,7 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                       </div>
                       <div>
                         <p className="font-bold text-slate-900 dark:text-white text-xs">{displayCaptainName}</p>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400">{displayCaptainRank}</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">{displayCaptainRank} • 4ª Cía. Calle Larga</p>
                       </div>
                     </div>
                   )}
@@ -442,16 +443,16 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                   type="button"
                   onClick={() => setIsSignModalOpen(true)}
                   className="bg-red-700 hover:bg-red-800 text-white font-black text-xs px-4 py-2 rounded-xl flex items-center space-x-1.5 shadow-md transition active:scale-95 border border-red-500/50"
-                  title="Cerrar y Validar Parte Oficial con Firma Digital (Capitanía / Ayudantía)"
+                  title={`Cerrar y Validar Parte Oficial con Firma Digital (${displayCaptainRank})`}
                 >
                   <PenTool className="w-3.5 h-3.5 text-amber-300" />
-                  <span>Validar & Firmar Parte</span>
+                  <span>Validar & Firmar Parte ({displayCaptainRank})</span>
                 </button>
               )}
 
               {!report.digitalSignature && !isAuthorizedToSign && (
                 <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 px-2.5 py-1.5 rounded-xl">
-                  ⏳ En revisión (V°B° Capitanía / Ayudantía)
+                  ⏳ En revisión (V°B° {displayCaptainRank})
                 </span>
               )}
             </div>

@@ -73,7 +73,7 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       const officerRanks = ['Director', 'Capitán', 'Teniente', 'Ayudante', 'Secretario', 'Tesorero', 'Comandante'];
-      const designatedName = report.captainName || report.approvedBy;
+      const designatedName = report.digitalSignature?.signedBy || report.captainName || report.approvedBy;
       const designatedOfficer = designatedName 
         ? volunteers.find(v => v.fullName.toLowerCase() === designatedName.toLowerCase() && officerRanks.some(r => v.rank.toLowerCase().includes(r.toLowerCase())))
         : null;
@@ -85,12 +85,16 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
         officerRanks.some(r => currentUser.rank?.toLowerCase().includes(r.toLowerCase()))
       );
 
-      if (isUserOfficer && currentUser) {
+      // Prioritize the designated reviewing officer configured on the report
+      if (designatedOfficer) {
+        setSignerName(designatedOfficer.fullName);
+        setSignerRank(report.digitalSignature?.signedByRank || report.captainRank || designatedOfficer.rank);
+      } else if (designatedName) {
+        setSignerName(designatedName);
+        setSignerRank(report.digitalSignature?.signedByRank || report.captainRank || 'Oficial de Compañía');
+      } else if (isUserOfficer && currentUser) {
         setSignerName(currentUser.fullName);
         setSignerRank(getInstitutionalRank(currentUser.fullName, currentUser.rank));
-      } else if (designatedOfficer) {
-        setSignerName(designatedOfficer.fullName);
-        setSignerRank(report.captainRank || designatedOfficer.rank);
       } else if (captainVolunteer) {
         setSignerName(captainVolunteer.fullName);
         setSignerRank(captainVolunteer.rank);
