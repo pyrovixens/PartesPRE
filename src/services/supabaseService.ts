@@ -9,6 +9,7 @@ import {
   saveUnits, 
   getStoredKeys 
 } from '../utils/storage';
+import { INITIAL_VOLUNTEERS } from '../data/initialData';
 
 // -------------------------------------------------------------------
 // DELETED IDS LOCAL STORAGE HELPERS (TOMBSTONES)
@@ -324,20 +325,27 @@ export const fetchVolunteers = async (): Promise<Volunteer[]> => {
       if (!error && data) {
         const mapped: Volunteer[] = data
           .filter((row: any) => !deletedSet.has(row.id))
-          .map(row => ({
-            id: row.id,
-            registrationNumber: row.registration_number,
-            rut: row.rut,
-            fullName: row.full_name,
-            shortName: row.short_name,
-            category: row.category,
-            rank: row.rank,
-            status: row.status,
-            isDriver: row.is_driver ?? row.isDriver ?? (row.rank === 'Maquinista General' || row.rank === 'Maquinista'),
-            driverLicense: row.driver_license ?? row.driverLicense ?? ((row.is_driver || row.rank?.includes('Maquinista')) ? 'Clase F' : undefined),
-            phone: row.phone,
-            email: row.email,
-          }));
+          .map(row => {
+            const init = INITIAL_VOLUNTEERS.find(iv => iv.id === row.id);
+            const isDriver = (row.is_driver === true || row.isDriver === true || (row.driver_license && row.driver_license !== 'NO'))
+              ? true
+              : (row.is_driver === false ? false : (init?.isDriver || row.rank === 'Maquinista General' || row.rank === 'Maquinista'));
+            const driverLicense = row.driver_license || row.driverLicense || (isDriver ? (init?.driverLicense || 'Clase F') : undefined);
+            return {
+              id: row.id,
+              registrationNumber: row.registration_number,
+              rut: row.rut,
+              fullName: row.full_name,
+              shortName: row.short_name,
+              category: row.category,
+              rank: row.rank,
+              status: row.status,
+              isDriver: isDriver || false,
+              driverLicense: isDriver ? (driverLicense || 'Clase F') : undefined,
+              phone: row.phone,
+              email: row.email,
+            };
+          });
         saveVolunteers(mapped);
         return mapped;
       }

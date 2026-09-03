@@ -2,13 +2,13 @@ import { EmergencyReport, Volunteer, Unit, CompanyBranding, AppUser } from '../t
 import { INITIAL_REPORTS, INITIAL_VOLUNTEERS, INITIAL_UNITS } from '../data/initialData';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || 'https://uaznxrwfnneyqmldtbvk.supabase.co';
 const supabaseKey = 
   process.env.SUPABASE_SERVICE_ROLE_KEY || 
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 
   process.env.SUPABASE_ANON_KEY || 
-  '';
+  'sb_publishable_w-Ml2AzHvke457YRHM4dNg_ljPXxTUN';
 
 const supabase = (supabaseUrl && supabaseKey && supabaseUrl.startsWith('https://'))
   ? createClient(supabaseUrl, supabaseKey)
@@ -300,20 +300,27 @@ export const serverGetVolunteers = async (): Promise<Volunteer[]> => {
       if (!error && data && data.length > 0) {
         const mapped: Volunteer[] = data
           .filter((row: any) => !globalState.deletedVolunteerIds.includes(row.id))
-          .map((row: any) => ({
-            id: row.id,
-            registrationNumber: row.registration_number,
-            rut: row.rut,
-            fullName: row.full_name,
-            shortName: row.short_name,
-            category: row.category,
-            rank: row.rank,
-            status: row.status,
-            isDriver: row.is_driver ?? row.isDriver ?? (row.rank === 'Maquinista General' || row.rank === 'Maquinista'),
-            driverLicense: row.driver_license ?? row.driverLicense ?? ((row.is_driver || row.rank?.includes('Maquinista')) ? 'Clase F' : undefined),
-            phone: row.phone,
-            email: row.email,
-          }));
+          .map((row: any) => {
+            const init = INITIAL_VOLUNTEERS.find(iv => iv.id === row.id);
+            const isDriver = (row.is_driver === true || row.isDriver === true || (row.driver_license && row.driver_license !== 'NO'))
+              ? true
+              : (row.is_driver === false ? false : (init?.isDriver || row.rank === 'Maquinista General' || row.rank === 'Maquinista'));
+            const driverLicense = row.driver_license || row.driverLicense || (isDriver ? (init?.driverLicense || 'Clase F') : undefined);
+            return {
+              id: row.id,
+              registrationNumber: row.registration_number,
+              rut: row.rut,
+              fullName: row.full_name,
+              shortName: row.short_name,
+              category: row.category,
+              rank: row.rank,
+              status: row.status,
+              isDriver: isDriver || false,
+              driverLicense: isDriver ? (driverLicense || 'Clase F') : undefined,
+              phone: row.phone,
+              email: row.email,
+            };
+          });
         globalState.volunteers = mapped;
         return mapped;
       }

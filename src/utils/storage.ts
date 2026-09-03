@@ -42,7 +42,20 @@ export const getStoredVolunteers = (): Volunteer[] => {
       return INITIAL_VOLUNTEERS;
     }
     const parsed = JSON.parse(data);
-    return Array.isArray(parsed) && parsed.length >= 25 ? parsed : INITIAL_VOLUNTEERS;
+    if (Array.isArray(parsed) && parsed.length >= 25) {
+      // Heal any missing driver/license information from INITIAL_VOLUNTEERS for existing device caches
+      return parsed.map((pv: Volunteer) => {
+        const init = INITIAL_VOLUNTEERS.find(iv => iv.id === pv.id);
+        const isDriver = pv.isDriver !== undefined ? pv.isDriver : (init?.isDriver || pv.rank === 'Maquinista General' || pv.rank === 'Maquinista');
+        const driverLicense = pv.driverLicense || (isDriver ? (init?.driverLicense || 'Clase F') : undefined);
+        return {
+          ...pv,
+          isDriver: isDriver || false,
+          driverLicense: isDriver ? (driverLicense || 'Clase F') : undefined,
+        };
+      });
+    }
+    return INITIAL_VOLUNTEERS;
   } catch (e) {
     console.error('Error loading volunteers:', e);
     return INITIAL_VOLUNTEERS;

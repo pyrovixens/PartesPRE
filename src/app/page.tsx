@@ -375,13 +375,14 @@ export default function Home() {
     });
   };
 
-  // Handlers for Volunteers
+  // Handlers for Volunteers (Only SUPER_ADMIN and ADMIN can edit/manage)
   const handleSaveVolunteer = async (vol: Volunteer) => {
-    if (!currentUser?.permissions?.canManageVolunteers) {
+    const canEdit = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'ADMIN';
+    if (!canEdit) {
       addToast({
         type: 'warning',
         title: 'Permiso Denegado',
-        message: 'No tienes permisos para modificar el padrón de la compañía.',
+        message: 'Solo Administradores y Super Administradores pueden modificar el padrón y maquinistas.',
       });
       return;
     }
@@ -399,11 +400,12 @@ export default function Home() {
   };
 
   const handleDeleteVolunteer = async (volId: string) => {
-    if (!currentUser?.permissions?.canManageVolunteers) {
+    const canEdit = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'ADMIN';
+    if (!canEdit) {
       addToast({
         type: 'warning',
         title: 'Permiso Denegado',
-        message: 'Solo los administradores pueden remover voluntarios del padrón.',
+        message: 'Solo Administradores y Super Administradores pueden remover voluntarios del padrón.',
       });
       return;
     }

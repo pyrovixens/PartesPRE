@@ -171,12 +171,11 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
 
   // Machinists & authorized drivers filtered list
   const availableMachinists = useMemo(() => {
-    const officialMachinists = volunteers.filter(v => 
-      v.isDriver === true || v.rank === 'Maquinista General' || v.rank === 'Maquinista'
-    );
-    const otherVolunteers = volunteers.filter(v => 
-      !v.isDriver && v.rank !== 'Maquinista General' && v.rank !== 'Maquinista'
-    );
+    const isDriverCheck = (v: Volunteer) => 
+      v.isDriver === true || (!!v.driverLicense && v.driverLicense !== 'NO') || v.rank === 'Maquinista General' || v.rank === 'Maquinista';
+
+    const officialMachinists = volunteers.filter(isDriverCheck);
+    const otherVolunteers = volunteers.filter(v => !isDriverCheck(v));
     return {
       officialMachinists,
       otherVolunteers,

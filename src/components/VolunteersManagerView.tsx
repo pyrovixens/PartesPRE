@@ -58,7 +58,9 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
   onDeleteVolunteer,
   currentUser,
 }) => {
-  const canManage = currentUser?.role === 'SUPER_ADMIN' || (currentUser?.permissions ? currentUser.permissions.canManageVolunteers : true);
+  // Only SUPER_ADMIN and ADMIN can edit volunteers and machinists
+  const canManage = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'ADMIN';
+  const canEdit = canManage;
   const [search, setSearch] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -296,7 +298,9 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
               </span>
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Edición rápida en lista: cambia cargos, maquinistas o aspirantes en 1 clic
+              {canEdit 
+                ? 'Edición autorizada (Admin): puedes cambiar cargos, maquinistas o licencias en 1 clic.'
+                : 'Padrón oficial: consulta general de voluntarios, cargos institucionales y maquinistas habilitados con su licencia.'}
             </p>
           </div>
         </div>
@@ -446,85 +450,114 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
                   </span>
                 </div>
 
-                {/* Rank and Category Dropdowns */}
+                {/* Rank and Category */}
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div>
                     <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-0.5">
                       Cargo / Rango:
                     </label>
-                    <select
-                      value={v.rank}
-                      disabled={!canManage}
-                      onChange={(e) => handleQuickRankChange(v, e.target.value as VolunteerRank)}
-                      className={`w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-red-600 focus:outline-none ${!canManage ? 'opacity-90 cursor-default' : ''}`}
-                    >
-                      <optgroup label="Oficialidad de Mando">
-                        <option value="Director">Director</option>
-                        <option value="Capitán">Capitán</option>
-                        <option value="Teniente 1°">Teniente 1°</option>
-                        <option value="Teniente 2°">Teniente 2°</option>
-                        <option value="Teniente 3°">Teniente 3°</option>
-                        <option value="Ayudante">Ayudante</option>
-                        <option value="Tesorero">Tesorero</option>
-                        <option value="Secretario">Secretario</option>
-                      </optgroup>
-                      <optgroup label="Material Mayor">
-                        <option value="Maquinista General">Maquinista General</option>
-                        <option value="Maquinista">Maquinista</option>
-                      </optgroup>
-                      <optgroup label="Escalafón General">
-                        <option value="Bombero Activo">Bombero Activo</option>
-                        <option value="Bombero Honorario">Bombero Honorario</option>
-                        <option value="Bombero Insigne">Bombero Insigne</option>
-                        <option value="Bombero Fundador">Bombero Fundador</option>
-                        <option value="Aspirante">Aspirante</option>
-                      </optgroup>
-                    </select>
+                    {canEdit ? (
+                      <select
+                        value={v.rank}
+                        onChange={(e) => handleQuickRankChange(v, e.target.value as VolunteerRank)}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-red-600 focus:outline-none cursor-pointer"
+                      >
+                        <optgroup label="Oficialidad de Mando">
+                          <option value="Director">Director</option>
+                          <option value="Capitán">Capitán</option>
+                          <option value="Teniente 1°">Teniente 1°</option>
+                          <option value="Teniente 2°">Teniente 2°</option>
+                          <option value="Teniente 3°">Teniente 3°</option>
+                          <option value="Ayudante">Ayudante</option>
+                          <option value="Tesorero">Tesorero</option>
+                          <option value="Secretario">Secretario</option>
+                        </optgroup>
+                        <optgroup label="Material Mayor">
+                          <option value="Maquinista General">Maquinista General</option>
+                          <option value="Maquinista">Maquinista</option>
+                        </optgroup>
+                        <optgroup label="Escalafón General">
+                          <option value="Bombero Activo">Bombero Activo</option>
+                          <option value="Bombero Honorario">Bombero Honorario</option>
+                          <option value="Bombero Insigne">Bombero Insigne</option>
+                          <option value="Bombero Fundador">Bombero Fundador</option>
+                          <option value="Aspirante">Aspirante</option>
+                        </optgroup>
+                      </select>
+                    ) : (
+                      <div className="w-full bg-slate-100 dark:bg-slate-800/90 text-slate-900 dark:text-slate-100 text-xs font-bold rounded-lg px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 truncate">
+                        {v.rank}
+                      </div>
+                    )}
                   </div>
 
                   <div>
                     <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-0.5">
                       Escalafón:
                     </label>
-                    <select
-                      value={v.category}
-                      disabled={!canManage}
-                      onChange={(e) => handleQuickCategoryChange(v, e.target.value as VolunteerCategory)}
-                      className={`w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-red-600 focus:outline-none ${!canManage ? 'opacity-90 cursor-default' : ''}`}
-                    >
-                      {ALL_CATEGORIES.map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
-                    </select>
+                    {canEdit ? (
+                      <select
+                        value={v.category}
+                        onChange={(e) => handleQuickCategoryChange(v, e.target.value as VolunteerCategory)}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-red-600 focus:outline-none cursor-pointer"
+                      >
+                        {ALL_CATEGORIES.map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="w-full bg-slate-100 dark:bg-slate-800/90 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-lg px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 truncate">
+                        {v.category}
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Conductor / Maquinista Direct Select in Mobile Card */}
+                {/* Conductor / Maquinista - Editable for Admins, Clear Badge for All Users */}
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-0.5 flex items-center gap-1">
+                  <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1 flex items-center gap-1">
                     <Truck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                     <span>Conductor / Maquinista:</span>
                   </label>
-                  <select
-                    value={
-                      (v.isDriver || v.rank === 'Maquinista General' || v.rank === 'Maquinista')
-                        ? (v.driverLicense || 'Clase F')
-                        : 'NO'
-                    }
-                    disabled={!canManage}
-                    onChange={(e) => handleQuickDriverClassChange(v, e.target.value)}
-                    className={`w-full text-xs font-black rounded-lg px-2.5 py-1.5 border transition-all focus:ring-2 focus:ring-blue-600 focus:outline-none ${!canManage ? 'opacity-90 cursor-default' : 'cursor-pointer'} ${
-                      (v.isDriver || v.rank?.includes('Maquinista'))
-                        ? 'bg-blue-50 dark:bg-blue-950/80 text-blue-900 dark:text-blue-200 border-blue-300 dark:border-blue-700'
-                        : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'
-                    }`}
-                  >
-                    <option value="NO">❌ No Conductor</option>
-                    <option value="Clase F">🚒 Habilitado (Clase F)</option>
-                    <option value="Clase F + A4">🚒 Habilitado (Clase F + A4)</option>
-                    <option value="Clase F + A2">🚒 Habilitado (Clase F + A2)</option>
-                    <option value="Clase B">🚗 Habilitado (Clase B - K4)</option>
-                  </select>
+                  {canEdit ? (
+                    <select
+                      value={
+                        (v.isDriver || (!!v.driverLicense && v.driverLicense !== 'NO') || v.rank === 'Maquinista General' || v.rank === 'Maquinista')
+                          ? (v.driverLicense || 'Clase F')
+                          : 'NO'
+                      }
+                      onChange={(e) => handleQuickDriverClassChange(v, e.target.value)}
+                      className={`w-full text-xs font-black rounded-lg px-2.5 py-1.5 border transition-all cursor-pointer focus:ring-2 focus:ring-blue-600 focus:outline-none ${
+                        (v.isDriver || v.rank?.includes('Maquinista'))
+                          ? 'bg-blue-50 dark:bg-blue-950/80 text-blue-900 dark:text-blue-200 border-blue-300 dark:border-blue-700 shadow-xs'
+                          : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      <option value="NO">❌ No Conductor</option>
+                      <option value="Clase F">🚒 Habilitado (Clase F)</option>
+                      <option value="Clase F + A4">🚒 Habilitado (Clase F + A4)</option>
+                      <option value="Clase F + A2">🚒 Habilitado (Clase F + A2)</option>
+                      <option value="Clase B">🚗 Habilitado (Clase B - K4)</option>
+                    </select>
+                  ) : (
+                    <div>
+                      {isVolunteerDriver(v) ? (
+                        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-950/80 border border-blue-300 dark:border-blue-700 text-blue-900 dark:text-blue-200 shadow-xs">
+                          <span className="flex items-center gap-1.5 text-xs font-black">
+                            <Truck className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                            <span>Habilitado</span>
+                          </span>
+                          <span className="bg-blue-600 text-white dark:bg-blue-500 dark:text-slate-950 text-[11px] font-black px-2 py-0.5 rounded-md shadow-xs">
+                            {v.driverLicense || 'Clase F'}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 text-slate-400 dark:text-slate-500 text-xs font-medium">
+                          <span>❌ No Habilitado como Maquinista</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Actions Footer */}
@@ -640,117 +673,167 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
                         {v.rut}
                       </td>
 
-                      {/* Escalafón Dropdown */}
+                      {/* Escalafón */}
                       <td className="py-2 px-3 whitespace-nowrap">
-                        <select
-                          value={v.category}
-                          disabled={!canManage}
-                          onChange={(e) => handleQuickCategoryChange(v, e.target.value as VolunteerCategory)}
-                          className={`bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-lg px-2 py-1 focus:ring-1 focus:ring-red-600 focus:outline-none cursor-pointer ${!canManage ? 'opacity-90 cursor-default' : ''}`}
-                        >
-                          {ALL_CATEGORIES.map(cat => (
-                            <option key={cat} value={cat}>{cat}</option>
-                          ))}
-                        </select>
+                        {canEdit ? (
+                          <select
+                            value={v.category}
+                            onChange={(e) => handleQuickCategoryChange(v, e.target.value as VolunteerCategory)}
+                            className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-lg px-2 py-1 focus:ring-1 focus:ring-red-600 focus:outline-none cursor-pointer"
+                          >
+                            {ALL_CATEGORIES.map(cat => (
+                              <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="font-bold text-xs text-slate-700 dark:text-slate-300">
+                            {v.category}
+                          </span>
+                        )}
                       </td>
 
-                      {/* Fast Role / Rank Dropdown */}
+                      {/* Fast Role / Rank */}
                       <td className="py-2 px-3 whitespace-nowrap">
-                        <div className="flex items-center gap-1.5">
+                        {canEdit ? (
+                          <div className="flex items-center gap-1.5">
+                            <select
+                              value={v.rank}
+                              onChange={(e) => handleQuickRankChange(v, e.target.value as VolunteerRank)}
+                              className={`text-xs font-black rounded-lg px-2.5 py-1 border transition-all cursor-pointer focus:ring-2 focus:ring-red-600 focus:outline-none ${
+                                v.rank.includes('Director') || v.rank.includes('Capitán') || v.rank.includes('Teniente')
+                                  ? 'bg-red-50 dark:bg-red-950/60 text-red-800 dark:text-red-300 border-red-300 dark:border-red-800'
+                                  : v.rank.includes('Maquinista')
+                                  ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-800'
+                                  : v.rank === 'Aspirante'
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
+                                  : 'bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700'
+                              }`}
+                            >
+                              <optgroup label="Oficialidad de Mando">
+                                <option value="Director">Director</option>
+                                <option value="Capitán">Capitán</option>
+                                <option value="Teniente 1°">Teniente 1°</option>
+                                <option value="Teniente 2°">Teniente 2°</option>
+                                <option value="Teniente 3°">Teniente 3°</option>
+                                <option value="Ayudante">Ayudante</option>
+                                <option value="Tesorero">Tesorero</option>
+                                <option value="Secretario">Secretario</option>
+                              </optgroup>
+                              <optgroup label="Material Mayor">
+                                <option value="Maquinista General">Maquinista General</option>
+                                <option value="Maquinista">Maquinista</option>
+                              </optgroup>
+                              <optgroup label="Escalafón General">
+                                <option value="Bombero Activo">Bombero Activo</option>
+                                <option value="Bombero Honorario">Bombero Honorario</option>
+                                <option value="Bombero Insigne">Bombero Insigne</option>
+                                <option value="Bombero Fundador">Bombero Fundador</option>
+                                <option value="Aspirante">Aspirante</option>
+                              </optgroup>
+                            </select>
+
+                            {isUpdatedJustNow && (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-500 animate-in zoom-in shrink-0" />
+                            )}
+                          </div>
+                        ) : (
+                          <span className={`inline-block text-xs font-black rounded-lg px-2.5 py-1 border ${
+                            v.rank.includes('Director') || v.rank.includes('Capitán') || v.rank.includes('Teniente')
+                              ? 'bg-red-50 dark:bg-red-950/60 text-red-800 dark:text-red-300 border-red-300 dark:border-red-800'
+                              : v.rank.includes('Maquinista')
+                              ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-800'
+                              : v.rank === 'Aspirante'
+                              ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700'
+                          }`}>
+                            {v.rank}
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Conductor / Maquinista */}
+                      <td className="py-2 px-3 whitespace-nowrap">
+                        {canEdit ? (
+                          <div className="flex items-center gap-1.5">
+                            <select
+                              value={
+                                (v.isDriver || (!!v.driverLicense && v.driverLicense !== 'NO') || v.rank === 'Maquinista General' || v.rank === 'Maquinista')
+                                  ? (v.driverLicense || 'Clase F')
+                                  : 'NO'
+                              }
+                              onChange={(e) => handleQuickDriverClassChange(v, e.target.value)}
+                              className={`text-xs font-black rounded-lg px-2.5 py-1 border transition-all cursor-pointer focus:ring-2 focus:ring-blue-600 focus:outline-none ${
+                                (v.isDriver || (!!v.driverLicense && v.driverLicense !== 'NO') || v.rank?.includes('Maquinista'))
+                                  ? 'bg-blue-50 dark:bg-blue-950/80 text-blue-900 dark:text-blue-200 border-blue-300 dark:border-blue-700 shadow-xs'
+                                  : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                              }`}
+                            >
+                              <option value="NO">❌ No Conductor</option>
+                              <option value="Clase F">🚒 Habilitado (Clase F)</option>
+                              <option value="Clase F + A4">🚒 Habilitado (Clase F + A4)</option>
+                              <option value="Clase F + A2">🚒 Habilitado (Clase F + A2)</option>
+                              <option value="Clase B">🚗 Habilitado (Clase B - K4)</option>
+                            </select>
+
+                            {isUpdatedJustNow && (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-500 animate-in zoom-in shrink-0" />
+                            )}
+                          </div>
+                        ) : (
+                          <div>
+                            {isVolunteerDriver(v) ? (
+                              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/80 text-blue-900 dark:text-blue-200 border border-blue-300 dark:border-blue-700 shadow-xs">
+                                <Truck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                                <span className="font-black text-xs">Habilitado</span>
+                                <span className="bg-blue-600 text-white dark:bg-blue-500 dark:text-slate-950 text-[10px] font-black px-1.5 py-0.5 rounded shadow-xs">
+                                  {v.driverLicense || 'Clase F'}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 text-xs text-slate-400 dark:text-slate-500 font-medium">
+                                ❌ No Habilitado
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Fast Status */}
+                      <td className="py-2 px-3 whitespace-nowrap">
+                        {canEdit ? (
                           <select
-                            value={v.rank}
-                            disabled={!canManage}
-                            onChange={(e) => handleQuickRankChange(v, e.target.value as VolunteerRank)}
-                            className={`text-xs font-black rounded-lg px-2.5 py-1 border transition-all cursor-pointer focus:ring-2 focus:ring-red-600 focus:outline-none ${!canManage ? 'opacity-90 cursor-default' : ''} ${
-                              v.rank.includes('Director') || v.rank.includes('Capitán') || v.rank.includes('Teniente')
-                                ? 'bg-red-50 dark:bg-red-950/60 text-red-800 dark:text-red-300 border-red-300 dark:border-red-800'
-                                : v.rank.includes('Maquinista')
-                                ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-800'
-                                : v.rank === 'Aspirante'
-                                ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
-                                : 'bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700'
+                            value={v.status}
+                            onChange={(e) => handleQuickStatusChange(v, e.target.value)}
+                            className={`text-[11px] font-bold rounded-lg px-2 py-1 border cursor-pointer focus:outline-none ${
+                              v.status === 'Activo'
+                                ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                                : v.status === 'Honorario' || v.status === 'Insigne'
+                                ? 'bg-purple-50 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-800'
+                                : 'bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800'
                             }`}
                           >
-                            <optgroup label="Oficialidad de Mando">
-                              <option value="Director">Director</option>
-                              <option value="Capitán">Capitán</option>
-                              <option value="Teniente 1°">Teniente 1°</option>
-                              <option value="Teniente 2°">Teniente 2°</option>
-                              <option value="Teniente 3°">Teniente 3°</option>
-                              <option value="Ayudante">Ayudante</option>
-                              <option value="Tesorero">Tesorero</option>
-                              <option value="Secretario">Secretario</option>
-                            </optgroup>
-                            <optgroup label="Material Mayor">
-                              <option value="Maquinista General">Maquinista General</option>
-                              <option value="Maquinista">Maquinista</option>
-                            </optgroup>
-                            <optgroup label="Escalafón General">
-                              <option value="Bombero Activo">Bombero Activo</option>
-                              <option value="Bombero Honorario">Bombero Honorario</option>
-                              <option value="Bombero Insigne">Bombero Insigne</option>
-                              <option value="Bombero Fundador">Bombero Fundador</option>
-                              <option value="Aspirante">Aspirante</option>
-                            </optgroup>
+                            <option value="Activo">Activo</option>
+                            <option value="Honorario">Honorario</option>
+                            <option value="Insigne">Insigne</option>
+                            <option value="Licencia">Licencia</option>
+                            <option value="Suspendido">Suspendido</option>
                           </select>
-
-                          {isUpdatedJustNow && (
-                            <CheckCircle2 className="w-4 h-4 text-emerald-500 animate-in zoom-in shrink-0" />
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Conductor / Maquinista Direct Select Dropdown */}
-                      <td className="py-2 px-3 whitespace-nowrap">
-                        <div className="flex items-center gap-1.5">
-                          <select
-                            value={currentDriverVal}
-                            disabled={!canManage}
-                            onChange={(e) => handleQuickDriverClassChange(v, e.target.value)}
-                            className={`text-xs font-black rounded-lg px-2.5 py-1 border transition-all cursor-pointer focus:ring-2 focus:ring-blue-600 focus:outline-none ${!canManage ? 'opacity-90 cursor-default' : ''} ${
-                              currentDriverVal !== 'NO'
-                                ? 'bg-blue-50 dark:bg-blue-950/80 text-blue-900 dark:text-blue-200 border-blue-300 dark:border-blue-700 shadow-xs'
-                                : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'
-                            }`}
-                          >
-                            <option value="NO">❌ No Conductor</option>
-                            <option value="Clase F">🚒 Habilitado (Clase F)</option>
-                            <option value="Clase F + A4">🚒 Habilitado (Clase F + A4)</option>
-                            <option value="Clase F + A2">🚒 Habilitado (Clase F + A2)</option>
-                            <option value="Clase B">🚗 Habilitado (Clase B - K4)</option>
-                          </select>
-
-                          {isUpdatedJustNow && (
-                            <CheckCircle2 className="w-4 h-4 text-emerald-500 animate-in zoom-in shrink-0" />
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Fast Status Dropdown */}
-                      <td className="py-2 px-3 whitespace-nowrap">
-                        <select
-                          value={v.status}
-                          disabled={!canManage}
-                          onChange={(e) => handleQuickStatusChange(v, e.target.value)}
-                          className={`text-[11px] font-bold rounded-lg px-2 py-1 border cursor-pointer focus:outline-none ${!canManage ? 'opacity-90 cursor-default' : ''} ${
+                        ) : (
+                          <span className={`inline-block text-[11px] font-bold rounded-lg px-2 py-0.5 border ${
                             v.status === 'Activo'
                               ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
                               : v.status === 'Honorario' || v.status === 'Insigne'
                               ? 'bg-purple-50 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-800'
                               : 'bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800'
-                          }`}
-                        >
-                          <option value="Activo">Activo</option>
-                          <option value="Honorario">Honorario</option>
-                          <option value="Insigne">Insigne</option>
-                          <option value="Licencia">Licencia</option>
-                          <option value="Suspendido">Suspendido</option>
-                        </select>
+                          }`}>
+                            {v.status}
+                          </span>
+                        )}
                       </td>
 
                       {/* Actions */}
                       <td className="py-2 px-3 whitespace-nowrap text-right">
-                        {canManage ? (
+                        {canEdit ? (
                           <div className="flex items-center justify-end gap-1">
                             <button
                               onClick={() => handleOpenEdit(v)}
@@ -765,14 +848,16 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
                                   onDeleteVolunteer(v.id);
                                 }
                               }}
-                              className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition"
-                              title="Eliminar"
+                              className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-slate-800 rounded-lg transition"
+                              title="Eliminar bombero"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         ) : (
-                          <span className="text-[10px] text-slate-400 italic">Lectura</span>
+                          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                            Solo Lectura
+                          </span>
                         )}
                       </td>
                     </tr>
