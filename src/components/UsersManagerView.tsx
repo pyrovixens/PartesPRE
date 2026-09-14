@@ -33,6 +33,7 @@ import {
   hashPassword
 } from '../services/authService';
 import { searchInFields } from '../utils/searchUtils';
+import { apiFetch } from '../lib/apiClient';
 
 interface UsersManagerViewProps {
   volunteers: Volunteer[];
@@ -64,7 +65,7 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
 
   // Quick Activation Modal
   const [activatingInvitation, setActivatingInvitation] = useState<UserInvitation | null>(null);
-  const [activationPassword, setActivationPassword] = useState<string>('Bombero2026!');
+  const [activationPassword, setActivationPassword] = useState<string>('');
   const [isActivating, setIsActivating] = useState<boolean>(false);
 
   // Form states
@@ -245,7 +246,7 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
           let resendMessage = '';
 
           try {
-            const apiRes = await fetch('/api/invite-user', {
+            const apiRes = await apiFetch('/api/invite-user', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -314,7 +315,7 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
     let resendMessage = '';
 
     try {
-      const apiRes = await fetch('/api/invite-user', {
+      const apiRes = await apiFetch('/api/invite-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -370,7 +371,7 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
 
   const handleOpenQuickActivate = (inv: UserInvitation) => {
     setActivatingInvitation(inv);
-    setActivationPassword('Bombero2026!');
+    setActivationPassword('');
   };
 
   const handleConfirmQuickActivate = async (e: React.FormEvent) => {
@@ -415,49 +416,11 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
   };
 
   const handleActivateAllInvitations = async () => {
-    if (invitations.length === 0) return;
-    if (!confirm(`¿Deseas activar directamente todas las ${invitations.length} invitaciones pendientes con la contraseña inicial "Bombero2026!"?`)) {
-      return;
-    }
-
-    setIsActivating(true);
-    try {
-      const defaultPwd = 'Bombero2026!';
-      const hashed = await hashPassword(defaultPwd);
-
-      for (const inv of invitations) {
-        const activeUser: AppUser = {
-          id: `usr-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-          email: inv.email.trim().toLowerCase(),
-          fullName: inv.fullName.trim(),
-          volunteerId: inv.volunteerId,
-          rank: inv.rank || 'Bombero Activo',
-          registrationNumber: inv.registrationNumber || 'VOL-000',
-          role: inv.role,
-          status: 'ACTIVO',
-          permissions: inv.permissions || getDefaultPermissions(inv.role),
-          password: defaultPwd,
-          passwordHash: hashed,
-          invitedBy: inv.invitedBy,
-          invitedAt: inv.invitedAt,
-          createdAt: new Date().toISOString(),
-        };
-
-        await saveAppUser(activeUser);
-        await deleteInvitation(inv.email);
-      }
-
-      await loadData();
-      onNotify(
-        'success',
-        'Invitaciones Activadas',
-        `Se activaron ${invitations.length} cuentas oficiales correctamente (Contraseña inicial: Bombero2026!).`
-      );
-    } catch (err: any) {
-      onNotify('error', 'Error al Activar', err?.message || 'Ocurrió un error al activar invitaciones.');
-    } finally {
-      setIsActivating(false);
-    }
+    onNotify(
+      'warning',
+      'Activación masiva deshabilitada',
+      'Cada usuario debe recibir un enlace personal y definir su propia contraseña.'
+    );
   };
 
   const handleDeleteUser = async (userId: string, userName: string) => {

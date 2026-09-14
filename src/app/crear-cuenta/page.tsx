@@ -38,11 +38,6 @@ function CreateAccountContent() {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
 
-  // Security: Always clear any session when entering create-account flow
-  useEffect(() => {
-    clearActiveSession();
-  }, []);
-
   // Auto-verify if email is passed in URL
   useEffect(() => {
     if (initialEmail.trim()) {

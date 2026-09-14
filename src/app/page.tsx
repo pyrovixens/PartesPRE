@@ -43,18 +43,15 @@ import {
   deleteUnitFromDatabase,
   fetchBranding,
   saveBrandingToDatabase,
+  approveReportInDatabase,
   subscribeToRealtimeChanges
 } from '../services/supabaseService';
-import { 
-  getStoredUnits, 
-  saveUnits, 
-  getStoredKeys, 
-  saveKeys,
-  getStoredReports,
-  getStoredVolunteers
+import {
+  clearSensitiveLegacyCaches,
+  getStoredKeys,
 } from '../utils/storage';
 import { exportMatrixToExcel } from '../utils/excelExport';
-import { getActiveSession, clearActiveSession, saveAppUser } from '../services/authService';
+import { restoreActiveSession, clearActiveSession } from '../services/authService';
 
 const DEFAULT_BRANDING: CompanyBranding = {
   companyName: '4ª COMPAÑÍA "CALLE LARGA"',
@@ -108,23 +105,13 @@ export default function Home() {
     }
   }, []);
 
-  // Active Session User (Synchronous client check to prevent LoginScreen flash / autofill dialog on refresh)
-  const [currentUser, setCurrentUser] = useState<AppUser | null>(() => {
-    if (typeof window !== 'undefined') {
-      return getActiveSession();
-    }
-    return null;
-  });
-  const [isSessionLoaded, setIsSessionLoaded] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return true;
-    }
-    return false;
-  });
+  // Cached UI state is never trusted; Supabase and the API revalidate every session.
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
+  const [isSessionLoaded, setIsSessionLoaded] = useState<boolean>(false);
 
   // Core Data States (Pre-loaded with official data)
-  const [reports, setReports] = useState<EmergencyReport[]>(INITIAL_REPORTS);
-  const [volunteers, setVolunteers] = useState<Volunteer[]>(INITIAL_VOLUNTEERS);
+  const [reports, setReports] = useState<EmergencyReport[]>([]);
+  const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
   const [units, setUnits] = useState<Unit[]>(INITIAL_UNITS);
   const [keys, setKeys] = useState<EmergencyKey[]>(EMERGENCY_KEYS);
 
@@ -153,30 +140,22 @@ export default function Home() {
     setToasts(prev => prev.filter(t => t.id !== id));
   };
 
-  // Load Data function
+  // Protected operational data is never restored from unauthenticated local storage.
   const loadAllData = useCallback(async () => {
-    try {
-      const [fetchedReports, fetchedVolunteers, fetchedUnits] = await Promise.all([
-        fetchReports(),
-        fetchVolunteers(),
-        fetchUnits(),
-      ]);
-
-      setReports(fetchedReports !== null ? fetchedReports : getStoredReports());
-      setVolunteers(fetchedVolunteers && fetchedVolunteers.length > 0 ? fetchedVolunteers : getStoredVolunteers());
-      setUnits(fetchedUnits !== null ? fetchedUnits : getStoredUnits());
-      setKeys(getStoredKeys());
-    } catch (e) {
-      console.warn('Fallback to initial static data:', e);
-      setReports(getStoredReports());
-      setVolunteers(getStoredVolunteers());
-      setUnits(getStoredUnits());
-      setKeys(getStoredKeys());
-    }
+    const [fetchedReports, fetchedVolunteers, fetchedUnits] = await Promise.all([
+      fetchReports(),
+      fetchVolunteers(),
+      fetchUnits(),
+    ]);
+    setReports(fetchedReports);
+    setVolunteers(fetchedVolunteers);
+    setUnits(fetchedUnits);
+    setKeys(getStoredKeys());
   }, []);
 
-  // Initialize theme, active user session, and load data immediately on mount
+  // Revalidate the Supabase session and server profile before loading protected data.
   useEffect(() => {
+    clearSensitiveLegacyCaches();
     const savedTheme = localStorage.getItem('bomberos_theme');
     if (savedTheme === 'light') {
       setIsDarkMode(false);
@@ -186,21 +165,33 @@ export default function Home() {
       document.documentElement.classList.add('dark');
     }
 
-    const session = getActiveSession();
-    if (session) {
-      setCurrentUser(session);
-    }
-    setIsSessionLoaded(true);
-
     const savedBranding = localStorage.getItem('bomberos_branding');
     if (savedBranding) {
       try {
         setBranding(JSON.parse(savedBranding));
       } catch {}
     }
+    fetchBranding().then(value => {
+      if (value) setBranding(value);
+    });
 
-    // Load data immediately on page mount
-    loadAllData();
+    let active = true;
+    restoreActiveSession()
+      .then(async session => {
+        if (!active) return;
+        setCurrentUser(session);
+        if (session) await loadAllData();
+      })
+      .catch(() => {
+        if (active) setCurrentUser(null);
+      })
+      .finally(() => {
+        if (active) setIsSessionLoaded(true);
+      });
+
+    return () => {
+      active = false;
+    };
   }, [loadAllData]);
 
   // Realtime cloud & local sync subscription
@@ -337,42 +328,26 @@ export default function Home() {
     });
   };
 
-  const handleSignReport = async (reportId: string, signatureData: {
-    signedBy: string;
-    signedByRank: string;
-    signedAt: string;
-    signatureDataUrl?: string;
-    verificationCode: string;
-  }) => {
-    const target = reports.find(r => r.id === reportId);
-    if (!target) return;
-
-    const signedReport: EmergencyReport = {
-      ...target,
-      status: 'APROBADO',
-      approvedBy: signatureData.signedBy,
-      approvedAt: signatureData.signedAt,
-      captainName: signatureData.signedBy,
-      captainRank: signatureData.signedByRank,
-      digitalSignature: signatureData,
-      updatedAt: new Date().toISOString(),
-    };
-
-    await saveReportToDatabase(signedReport);
-    const updated = await fetchReports();
-    if (Array.isArray(updated)) {
-      setReports(updated);
+  const handleSignReport = async (reportId: string) => {
+    try {
+      const signedReport = await approveReportInDatabase(reportId);
+      setReports(previous =>
+        previous.map(report => report.id === reportId ? signedReport : report)
+      );
+      setViewingReport(signedReport);
+      addToast({
+        type: 'success',
+        title: 'Parte aprobado',
+        message: 'La aprobación fue validada y registrada por el servidor.',
+        duration: 3000,
+      });
+    } catch (error) {
+      addToast({
+        type: 'error',
+        title: 'No se pudo aprobar',
+        message: error instanceof Error ? error.message : 'La aprobación fue rechazada.',
+      });
     }
-
-    const freshSigned = (Array.isArray(updated) && updated.find(r => r.id === reportId)) || signedReport;
-    setViewingReport(freshSigned);
-
-    addToast({
-      type: 'success',
-      title: 'Parte Firmado Digitalmente',
-      message: `V°B° oficial estampado por ${signatureData.signedBy} (${signatureData.signedByRank}).`,
-      duration: 3000,
-    });
   };
 
   // Handlers for Volunteers
@@ -481,6 +456,7 @@ export default function Home() {
   // Handle Login & Logout
   const handleLogin = (user: AppUser) => {
     setCurrentUser(user);
+    void loadAllData();
     addToast({
       type: 'success',
       title: 'Sesión Oficial Iniciada',
@@ -490,7 +466,11 @@ export default function Home() {
 
   const handleLogout = () => {
     clearActiveSession();
+    clearSensitiveLegacyCaches();
     setCurrentUser(null);
+    setReports([]);
+    setVolunteers([]);
+    setUnits([]);
     setActiveTab('dashboard');
     addToast({
       type: 'info',

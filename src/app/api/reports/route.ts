@@ -1,61 +1,110 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { serverGetReports, serverSaveReport, serverDeleteReport, serverGetDeletedReportIds } from '../../../lib/serverStore';
-import { checkRateLimit, getClientIp } from '../../../lib/rateLimiter';
+import {
+  serverDeleteReport,
+  serverGetDeletedReportIds,
+  serverGetReports,
+  serverSaveReport,
+} from '../../../lib/serverStore';
+import {
+  ApiSecurityError,
+  apiErrorResponse,
+  cleanText,
+  hasPermission,
+  readJsonObject,
+  requireApiAuth,
+  writeAuditLog,
+} from '../../../lib/apiSecurity';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    await requireApiAuth(req);
     const reports = await serverGetReports();
-    const deletedIds = serverGetDeletedReportIds();
-    return NextResponse.json({ success: true, data: reports, deletedIds });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({
+      success: true,
+      data: reports,
+      deletedIds: serverGetDeletedReportIds(),
+    });
+  } catch (error) {
+    return apiErrorResponse(error);
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const clientIp = getClientIp(req);
-    const rateCheck = checkRateLimit(`reports_post_${clientIp}`, 40, 60);
-    if (!rateCheck.allowed) {
-      return NextResponse.json(
-        { success: false, error: 'Demasiadas solicitudes. Espera unos segundos.' },
-        { status: 429 }
-      );
+    const context = await requireApiAuth(req);
+    const body = await readJsonObject(req, 1_500_000);
+    const id = cleanText(body.id, 'id', 120);
+    cleanText(body.incidentDate, 'Fecha del incidente', 10);
+    cleanText(body.keyCode, 'Clave', 30);
+    cleanText(body.address, 'Dirección', 300);
+    cleanText(body.summaryNotes, 'Relato operativo', 12_000, false);
+
+    if (!Array.isArray(body.attendees) || body.attendees.length > 500) {
+      throw new ApiSecurityError(400, 'La asistencia es inválida o excede el límite.');
+    }
+    if (!Array.isArray(body.units) || body.units.length > 30) {
+      throw new ApiSecurityError(400, 'Las unidades son inválidas o exceden el límite.');
     }
 
-    const body = await req.json();
-    if (!body || typeof body !== 'object' || !body.id) {
-      return NextResponse.json({ success: false, error: 'Datos de parte inválidos.' }, { status: 400 });
+    const reports = await serverGetReports();
+    const existing = reports.find(report => report.id === id);
+    const permission = existing ? 'canEditReports' : 'canCreateReports';
+    if (!hasPermission(context.profile, permission)) {
+      throw new ApiSecurityError(403, 'No tienes permiso para guardar este parte.');
+    }
+    if (
+      existing &&
+      (existing.status === 'APROBADO' || existing.status === 'CERRADO') &&
+      !hasPermission(context.profile, 'canApproveReports')
+    ) {
+      throw new ApiSecurityError(403, 'Un parte aprobado solo puede ser modificado por el mando autorizado.');
     }
 
-    const saved = await serverSaveReport(body);
+    const allowedStatus =
+      body.status === 'ENVIADO' || body.status === 'BORRADOR'
+        ? body.status
+        : 'BORRADOR';
+
+    const report = {
+      ...body,
+      id,
+      status:
+        existing?.status === 'APROBADO' || existing?.status === 'CERRADO'
+          ? existing.status
+          : allowedStatus,
+      createdBy: existing?.createdBy || context.profile.id,
+      createdAt: existing?.createdAt || new Date().toISOString(),
+      approvedBy: existing?.approvedBy,
+      approvedAt: existing?.approvedAt,
+      captainName: existing?.captainName,
+      captainRank: existing?.captainRank,
+      digitalSignature: existing?.digitalSignature,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const saved = await serverSaveReport(report as any);
+    await writeAuditLog(
+      context,
+      existing ? 'report.update' : 'report.create',
+      'emergency_report',
+      id
+    );
     return NextResponse.json({ success: true, data: saved });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  } catch (error) {
+    return apiErrorResponse(error);
   }
 }
 
 export async function DELETE(req: NextRequest) {
   try {
-    const clientIp = getClientIp(req);
-    const rateCheck = checkRateLimit(`reports_delete_${clientIp}`, 30, 60);
-    if (!rateCheck.allowed) {
-      return NextResponse.json(
-        { success: false, error: 'Demasiadas solicitudes.' },
-        { status: 429 }
-      );
-    }
-
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-    if (!id) {
-      return NextResponse.json({ success: false, error: 'Report id required' }, { status: 400 });
-    }
+    const context = await requireApiAuth(req, 'canDeleteReports');
+    const id = cleanText(new URL(req.url).searchParams.get('id'), 'id', 120);
     await serverDeleteReport(id);
-    return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    await writeAuditLog(context, 'report.delete', 'emergency_report', id);
+    return NextResponse.json({ success: true, data: null });
+  } catch (error) {
+    return apiErrorResponse(error);
   }
 }
