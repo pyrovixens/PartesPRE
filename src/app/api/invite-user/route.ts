@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { checkRateLimit } from '../../../lib/rateLimiter';
 import {
   ApiSecurityError,
   apiErrorResponse,
@@ -11,6 +12,10 @@ import {
 export async function POST(request: Request) {
   try {
     const context = await requireApiAuth(request, 'canManageUsers');
+    const rateLimit = checkRateLimit('invite_user_' + context.user.id, 10, 60);
+    if (!rateLimit.allowed) {
+      throw new ApiSecurityError(429, 'Espera antes de enviar más invitaciones.');
+    }
     const body = await readJsonObject(request, 100_000);
     const email = cleanText(body.email, 'Correo', 254).toLowerCase();
     const fullName = cleanText(body.fullName, 'Nombre', 200);
@@ -45,8 +50,9 @@ export async function POST(request: Request) {
     }
 
     const authUserId = generated.data.user.id;
-    const role = ['SUPER_ADMIN', 'ADMIN', 'OFICIAL', 'VOLUNTARIO'].includes(body.role)
-      ? body.role
+    const requestedRole = body.role || existing.data?.role || 'VOLUNTARIO';
+    const role = ['SUPER_ADMIN', 'ADMIN', 'OFICIAL', 'VOLUNTARIO'].includes(requestedRole)
+      ? requestedRole
       : 'VOLUNTARIO';
     if (role === 'SUPER_ADMIN' && context.profile.role !== 'SUPER_ADMIN') {
       throw new ApiSecurityError(403, 'No puedes invitar un superadministrador.');
@@ -58,17 +64,24 @@ export async function POST(request: Request) {
       auth_user_id: authUserId,
       email,
       full_name: fullName,
-      volunteer_id: typeof body.volunteerId === 'string' ? body.volunteerId : null,
-      rank: typeof body.rank === 'string' ? body.rank.slice(0, 100) : 'Bombero Activo',
+      volunteer_id:
+        typeof body.volunteerId === 'string'
+          ? body.volunteerId
+          : existing.data?.volunteer_id || null,
+      rank:
+        typeof body.rank === 'string'
+          ? body.rank.slice(0, 100)
+          : existing.data?.rank || 'Bombero Activo',
       registration_number:
         typeof body.registrationNumber === 'string'
           ? body.registrationNumber.slice(0, 50)
-          : '',
+          : existing.data?.registration_number || '',
       role,
       status: existing.data?.status === 'ACTIVO' ? 'ACTIVO' : 'INVITADO',
-      permissions: body.permissions && typeof body.permissions === 'object'
-        ? body.permissions
-        : {},
+      permissions:
+        body.permissions && typeof body.permissions === 'object'
+          ? body.permissions
+          : existing.data?.permissions || {},
       invited_by: context.profile.fullName,
       invited_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),

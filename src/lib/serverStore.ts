@@ -669,10 +669,12 @@ export const serverDeleteInvitation = async (emailOrToken: string): Promise<bool
 
   if (supabase) {
     try {
-      await supabase
-        .from('user_invitations')
-        .delete()
-        .or(`email.eq.${emailOrToken.toLowerCase()},token.eq.${emailOrToken}`);
+      const deletion = supabase.from('user_invitations').delete();
+      if (emailOrToken.includes('@')) {
+        await deletion.eq('email', emailOrToken.toLowerCase());
+      } else {
+        await deletion.eq('token', emailOrToken);
+      }
     } catch (e) {
       console.warn('Supabase delete error in serverDeleteInvitation:', e);
     }
