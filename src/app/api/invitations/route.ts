@@ -1,43 +1,62 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { 
-  serverGetInvitations, 
-  serverSaveInvitation, 
-  serverDeleteInvitation 
+import {
+  serverDeleteInvitation,
+  serverGetInvitations,
+  serverSaveInvitation,
 } from '../../../lib/serverStore';
+import {
+  apiErrorResponse,
+  cleanText,
+  readJsonObject,
+  requireApiAuth,
+  writeAuditLog,
+} from '../../../lib/apiSecurity';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const invitations = await serverGetInvitations();
-    return NextResponse.json({ success: true, data: invitations });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    await requireApiAuth(req, 'canManageUsers');
+    return NextResponse.json({ success: true, data: await serverGetInvitations() });
+  } catch (error) {
+    return apiErrorResponse(error);
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const saved = await serverSaveInvitation(body);
+    const context = await requireApiAuth(req, 'canManageUsers');
+    const body = await readJsonObject(req, 100_000);
+    const email = cleanText(body.email, 'Correo', 254).toLowerCase();
+    const invitation = {
+      ...body,
+      id: 'inv-' + crypto.randomUUID(),
+      email,
+      fullName: cleanText(body.fullName, 'Nombre', 200),
+      token: crypto.randomUUID(),
+      status: 'PENDING',
+      invitedBy: context.profile.fullName,
+      invitedAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    };
+    const saved = await serverSaveInvitation(invitation);
+    await writeAuditLog(context, 'invitation.create', 'invitation', invitation.id, { email });
     return NextResponse.json({ success: true, data: saved });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  } catch (error) {
+    return apiErrorResponse(error);
   }
 }
 
 export async function DELETE(req: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
-    const email = searchParams.get('email');
-    const token = searchParams.get('token');
-    const target = email || token;
-    if (!target) {
-      return NextResponse.json({ success: false, error: 'Email or token required' }, { status: 400 });
-    }
-    await serverDeleteInvitation(target);
-    return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    const context = await requireApiAuth(req, 'canManageUsers');
+    const params = new URL(req.url).searchParams;
+    const target = params.get('email') || params.get('token');
+    const cleanTarget = cleanText(target, 'Invitación', 300);
+    await serverDeleteInvitation(cleanTarget);
+    await writeAuditLog(context, 'invitation.revoke', 'invitation', cleanTarget);
+    return NextResponse.json({ success: true, data: null });
+  } catch (error) {
+    return apiErrorResponse(error);
   }
 }

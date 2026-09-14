@@ -1,38 +1,56 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { serverGetUnits, serverSaveUnit, serverDeleteUnit, serverGetDeletedUnitCodes } from '../../../lib/serverStore';
+import {
+  serverDeleteUnit,
+  serverGetDeletedUnitCodes,
+  serverGetUnits,
+  serverSaveUnit,
+} from '../../../lib/serverStore';
+import {
+  apiErrorResponse,
+  cleanText,
+  readJsonObject,
+  requireApiAuth,
+  writeAuditLog,
+} from '../../../lib/apiSecurity';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const units = await serverGetUnits();
-    const deletedCodes = serverGetDeletedUnitCodes();
-    return NextResponse.json({ success: true, data: units, deletedCodes });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    await requireApiAuth(req);
+    return NextResponse.json({
+      success: true,
+      data: await serverGetUnits(),
+      deletedCodes: serverGetDeletedUnitCodes(),
+    });
+  } catch (error) {
+    return apiErrorResponse(error);
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const saved = await serverSaveUnit(body);
+    const context = await requireApiAuth(req, 'canManageUnits');
+    const body = await readJsonObject(req, 100_000);
+    cleanText(body.code, 'Código', 30);
+    cleanText(body.name, 'Nombre', 200);
+    cleanText(body.plate, 'Patente', 30);
+    const saved = await serverSaveUnit(body as any);
+    await writeAuditLog(context, 'unit.save', 'unit', body.code);
     return NextResponse.json({ success: true, data: saved });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  } catch (error) {
+    return apiErrorResponse(error);
   }
 }
 
 export async function DELETE(req: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
-    const code = searchParams.get('code');
-    if (!code) {
-      return NextResponse.json({ success: false, error: 'Unit code required' }, { status: 400 });
-    }
+    const context = await requireApiAuth(req, 'canManageUnits');
+    const code = cleanText(new URL(req.url).searchParams.get('code'), 'code', 30);
     await serverDeleteUnit(code);
-    return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    await writeAuditLog(context, 'unit.delete', 'unit', code);
+    return NextResponse.json({ success: true, data: null });
+  } catch (error) {
+    return apiErrorResponse(error);
   }
 }

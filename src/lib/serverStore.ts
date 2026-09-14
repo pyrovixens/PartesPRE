@@ -3,12 +3,7 @@ import { INITIAL_REPORTS, INITIAL_VOLUNTEERS, INITIAL_UNITS } from '../data/init
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '';
-const supabaseKey = 
-  process.env.SUPABASE_SERVICE_ROLE_KEY || 
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 
-  process.env.SUPABASE_ANON_KEY || 
-  '';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 const supabase = (supabaseUrl && supabaseKey && supabaseUrl.startsWith('https://'))
   ? createClient(supabaseUrl, supabaseKey)
@@ -38,36 +33,13 @@ const DEFAULT_BRANDING: CompanyBranding = {
   accentColor: '#DC2626',
 };
 
-const DEFAULT_SUPER_ADMIN: AppUser = {
-  id: 'usr-superadmin-01',
-  email: 'gnunezgonzalez@icloud.com',
-  fullName: 'Gustavo Núñez González',
-  rank: 'Super Administrador General',
-  registrationNumber: 'SUP-001',
-  role: 'SUPER_ADMIN',
-  status: 'ACTIVO',
-  permissions: {
-    canCreateReports: true,
-    canEditReports: true,
-    canDeleteReports: true,
-    canApproveReports: true,
-    canManageVolunteers: true,
-    canManageUnits: true,
-    canManageUsers: true,
-    canExportReports: true,
-  },
-  passwordHash: 'c0023972fce4d51959f33673c0bb7b465886f889d6998414d88f56fdf57f9a1e',
-  failedLoginAttempts: 0,
-  createdAt: new Date().toISOString(),
-};
-
 // Global singleton state on Node server runtime
 const globalState: ServerState = (global as any).__BOMBEROS_SERVER_STATE__ || {
   reports: [...INITIAL_REPORTS],
   volunteers: [...INITIAL_VOLUNTEERS],
   units: [...INITIAL_UNITS],
   branding: { ...DEFAULT_BRANDING },
-  users: [{ ...DEFAULT_SUPER_ADMIN }],
+  users: [],
   deletedReportIds: [],
   deletedVolunteerIds: [],
   deletedUnitCodes: [],
@@ -543,10 +515,6 @@ export const serverGetUsers = async (): Promise<AppUser[]> => {
             role: row.role,
             status: row.status,
             permissions: row.permissions || {},
-            password: row.password,
-            passwordHash: row.password_hash,
-            failedLoginAttempts: row.failed_login_attempts || 0,
-            lockedUntil: row.locked_until,
             invitedBy: row.invited_by,
             invitedAt: row.invited_at,
             lastLogin: row.last_login,
@@ -594,10 +562,6 @@ export const serverSaveUser = async (user: AppUser): Promise<AppUser> => {
         role: user.role,
         status: user.status,
         permissions: user.permissions,
-        password: user.password,
-        password_hash: user.passwordHash,
-        failed_login_attempts: user.failedLoginAttempts || 0,
-        locked_until: user.lockedUntil,
         invited_by: user.invitedBy,
         invited_at: user.invitedAt,
         last_login: user.lastLogin,
@@ -624,15 +588,6 @@ export const serverSaveUser = async (user: AppUser): Promise<AppUser> => {
 };
 
 export const serverDeleteUser = async (id: string): Promise<boolean> => {
-  // Security guard: prevent deleting master Super Admin
-  if (id === 'usr-superadmin-01') {
-    return false;
-  }
-  const user = globalState.users.find(u => u.id === id);
-  if (user && (user.email.toLowerCase() === 'gnunezgonzalez@icloud.com' || user.role === 'SUPER_ADMIN')) {
-    return false;
-  }
-
   globalState.users = globalState.users.filter(u => u.id !== id);
   if (!globalState.deletedUserIds.includes(id)) {
     globalState.deletedUserIds.push(id);

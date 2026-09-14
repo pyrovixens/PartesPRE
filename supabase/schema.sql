@@ -10,6 +10,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- 2. TABLA: USUARIOS DEL SISTEMA Y PROTOCOLOS DE SEGURIDAD (RBAC + CYBERSECURITY)
 CREATE TABLE IF NOT EXISTS public.app_users (
     id TEXT PRIMARY KEY,
+    auth_user_id UUID UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
     email TEXT UNIQUE NOT NULL,
     full_name TEXT NOT NULL,
     volunteer_id TEXT,
@@ -18,10 +19,6 @@ CREATE TABLE IF NOT EXISTS public.app_users (
     role TEXT NOT NULL CHECK (role IN ('SUPER_ADMIN', 'ADMIN', 'OFICIAL', 'VOLUNTARIO')),
     status TEXT NOT NULL DEFAULT 'ACTIVO' CHECK (status IN ('ACTIVO', 'INVITADO', 'PENDIENTE', 'SUSPENDIDO')),
     permissions JSONB NOT NULL DEFAULT '{}'::jsonb,
-    password TEXT,
-    password_hash TEXT,
-    failed_login_attempts INT DEFAULT 0,
-    locked_until TIMESTAMPTZ,
     invited_by TEXT,
     invited_at TIMESTAMPTZ,
     last_login TIMESTAMPTZ,
@@ -128,7 +125,19 @@ CREATE TABLE IF NOT EXISTS public.emergency_reports (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 8. TABLA: BRANDING INSTITUCIONAL (ESCUDO Y MARCA)
+-- 8. TABLA: AUDITORÍA DE SEGURIDAD (SOLO SERVIDOR)
+CREATE TABLE IF NOT EXISTS public.security_audit_log (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    actor_auth_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    actor_app_user_id TEXT,
+    action TEXT NOT NULL,
+    resource_type TEXT NOT NULL,
+    resource_id TEXT NOT NULL,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 9. TABLA: BRANDING INSTITUCIONAL (ESCUDO Y MARCA)
 CREATE TABLE IF NOT EXISTS public.company_branding (
     id TEXT PRIMARY KEY DEFAULT 'default_branding',
     company_name TEXT NOT NULL DEFAULT '4ª Compañía "Bomba Calle Larga"',
@@ -149,7 +158,7 @@ CREATE INDEX IF NOT EXISTS idx_invitations_email ON public.user_invitations (ema
 CREATE INDEX IF NOT EXISTS idx_volunteers_rut ON public.volunteers (rut);
 CREATE INDEX IF NOT EXISTS idx_volunteers_reg ON public.volunteers (registration_number);
 
--- 10. HABILITAR ROW LEVEL SECURITY (RLS)
+-- 10. HABILITAR ROW LEVEL SECURITY
 ALTER TABLE public.app_users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_invitations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.volunteers ENABLE ROW LEVEL SECURITY;
@@ -157,28 +166,18 @@ ALTER TABLE public.units ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.emergency_keys ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.emergency_reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.company_branding ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.security_audit_log ENABLE ROW LEVEL SECURITY;
 
--- 11. POLÍTICAS DE SEGURIDAD RLS
-DROP POLICY IF EXISTS "app_users_policy" ON public.app_users;
-CREATE POLICY "app_users_policy" ON public.app_users FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "user_invitations_policy" ON public.user_invitations;
-CREATE POLICY "user_invitations_policy" ON public.user_invitations FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "volunteers_policy" ON public.volunteers;
-CREATE POLICY "volunteers_policy" ON public.volunteers FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "units_policy" ON public.units;
-CREATE POLICY "units_policy" ON public.units FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "emergency_keys_policy" ON public.emergency_keys;
-CREATE POLICY "emergency_keys_policy" ON public.emergency_keys FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "emergency_reports_policy" ON public.emergency_reports;
-CREATE POLICY "emergency_reports_policy" ON public.emergency_reports FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "company_branding_policy" ON public.company_branding;
-CREATE POLICY "company_branding_policy" ON public.company_branding FOR ALL USING (true) WITH CHECK (true);
+-- 11. ACCESO A DATOS EXCLUSIVAMENTE DESDE LA API CON SERVICE ROLE
+-- No se crean políticas para anon/authenticated. La service role omite RLS.
+REVOKE ALL ON public.app_users FROM anon, authenticated;
+REVOKE ALL ON public.user_invitations FROM anon, authenticated;
+REVOKE ALL ON public.volunteers FROM anon, authenticated;
+REVOKE ALL ON public.units FROM anon, authenticated;
+REVOKE ALL ON public.emergency_keys FROM anon, authenticated;
+REVOKE ALL ON public.emergency_reports FROM anon, authenticated;
+REVOKE ALL ON public.company_branding FROM anon, authenticated;
+REVOKE ALL ON public.security_audit_log FROM anon, authenticated;
 
 -- 12. POBLACIÓN DE MATERIAL MAYOR (UNIDADES OFICIALES 4ª COMPAÑÍA)
 INSERT INTO public.units (code, name, plate, type, current_km, current_pump_hours, status) VALUES
@@ -264,88 +263,9 @@ INSERT INTO public.emergency_keys (code, description, category, short_code) VALU
   ('V', 'Citaciones Varias / Actos Oficiales / Desfiles', 'Citaciones Varias', 'V')
 ON CONFLICT (code) DO NOTHING;
 
--- 14. POBLACIÓN DEL PADRÓN OFICIAL DE VOLUNTARIOS
-INSERT INTO public.volunteers (id, registration_number, rut, full_name, short_name, category, rank, status) VALUES
-  -- 1. Fundadores / Insignes
-  ('vol-f-01', 'FND-001', '07.456.123-4', 'Iván Galdámez Calderón', 'I. Galdámez', 'Fundador / Insigne', 'Bombero Insigne', 'Insigne'),
-  ('vol-f-02', 'FND-002', '08.123.456-7', 'Patricio Urbina Zamora', 'P. Urbina Z.', 'Fundador / Insigne', 'Bombero Insigne', 'Insigne'),
-  ('vol-f-03', 'FND-003', '08.789.012-3', 'Eduardo Liberón Figueroa', 'E. Liberón', 'Fundador / Insigne', 'Bombero Insigne', 'Insigne'),
-  ('vol-f-04', 'FND-004', '09.345.678-9', 'Carlos Contreras Inostroza', 'C. Contreras', 'Fundador / Insigne', 'Bombero Insigne', 'Insigne'),
-  ('vol-f-05', 'FND-005', '09.876.543-2', 'Luis Nanjarí Villarroel', 'L. Nanjarí', 'Fundador / Insigne', 'Bombero Insigne', 'Insigne'),
-  ('vol-f-06', 'FND-006', '10.234.567-8', 'Claudio Vargas López', 'C. Vargas L.', 'Fundador / Insigne', 'Bombero Insigne', 'Insigne'),
-  ('vol-f-07', 'FND-007', '10.987.654-1', 'Manuel Campos Velásquez', 'M. Campos', 'Fundador / Insigne', 'Bombero Insigne', 'Insigne'),
-  ('vol-f-08', 'FND-008', '11.345.678-0', 'Luis Haroldo Gutiérrez', 'L. H. Gutiérrez', 'Fundador / Insigne', 'Bombero Insigne', 'Insigne'),
-  ('vol-f-09', 'FND-009', '11.890.123-5', 'Héctor Casanova Sánchez', 'H. Casanova S.', 'Fundador / Insigne', 'Bombero Insigne', 'Insigne'),
-
-  -- 2. Honorarios
-  ('vol-h-01', 'HON-010', '12.456.789-2', 'Jorge Rodríguez Humeres', 'J. Rodríguez', 'Honorario', 'Bombero Honorario', 'Honorario'),
-  ('vol-h-02', 'HON-011', '12.987.654-K', 'Patricio Urbina Lazcano', 'P. Urbina L.', 'Honorario', 'Bombero Honorario', 'Honorario'),
-  ('vol-h-03', 'HON-012', '13.234.567-8', 'Julio Triviño Galdámez', 'J. Triviño', 'Honorario', 'Bombero Honorario', 'Honorario'),
-  ('vol-h-04', 'HON-013', '13.789.012-3', 'Julio Ayala Mura', 'J. Ayala M.', 'Honorario', 'Bombero Honorario', 'Honorario'),
-  ('vol-h-05', 'HON-014', '14.123.456-7', 'Nelly Vicencio Galdámez', 'N. Vicencio', 'Honorario', 'Bombero Honorario', 'Honorario'),
-  ('vol-h-06', 'HON-015', '14.678.901-4', 'Víctor Olguín Campos', 'V. Olguín', 'Honorario', 'Bombero Honorario', 'Honorario'),
-  ('vol-h-07', 'HON-016', '15.234.567-1', 'Alberto Reyes Barrera', 'A. Reyes B.', 'Honorario', 'Bombero Honorario', 'Honorario'),
-  ('vol-h-08', 'HON-017', '15.890.123-9', 'Héctor Bustos Ojeda', 'H. Bustos', 'Honorario', 'Bombero Honorario', 'Honorario'),
-  ('vol-h-09', 'HON-018', '16.345.678-6', 'Jaime Ayala Vicencio', 'J. Ayala V.', 'Honorario', 'Bombero Honorario', 'Honorario'),
-
-  -- 3. Activos
-  ('vol-a-01', 'ACT-019', '16.789.012-3', 'Nelson Venegas Salazar', 'N. Venegas', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-02', 'ACT-020', '17.123.456-8', 'Gabriel Bianchini Frost', 'G. Bianchini', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-03', 'ACT-021', '17.654.321-0', 'Samuel Aguirre Torres', 'S. Aguirre', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-04', 'ACT-022', '18.112.233-4', 'Héctor Covarrubias Caiceo', 'H. Covarrubias', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-05', 'ACT-023', '18.456.789-1', 'Jorge Navia Valencia', 'J. Navia', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-06', 'ACT-024', '18.990.112-5', 'José Vargas Ortega', 'J. Vargas', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-07', 'ACT-025', '19.234.567-2', 'Víctor Rojo Salinas', 'V. Rojo', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-08', 'ACT-026', '19.789.012-9', 'Enzo Núñez Campos', 'E. Núñez', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-09', 'ACT-027', '16.554.321-8', 'Gustavo Núñez', 'G. Núñez', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-10', 'ACT-028', '17.889.900-1', 'Cristian Gutiérrez', 'C. Gutiérrez', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-11', 'ACT-029', '18.334.455-6', 'Enrique Vargas', 'E. Vargas', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-12', 'ACT-030', '19.445.678-0', 'Fernando González', 'F. González', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-13', 'ACT-031', '19.890.123-7', 'Hugo Santibáñez Cutiño', 'H. Santibáñez', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-14', 'ACT-032', '20.123.456-4', 'Gustavo Casanova', 'G. Casanova', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-15', 'ACT-033', '20.567.890-1', 'Raúl Reyes Cortés', 'R. Reyes C.', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-16', 'ACT-034', '20.901.234-8', 'Susana Lira', 'S. Lira', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-17', 'ACT-035', '21.234.567-5', 'Germán Muñoz', 'G. Muñoz', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-18', 'ACT-036', '21.678.901-2', 'Nellzon Alcayaga', 'N. Alcayaga', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-19', 'ACT-037', '21.990.112-9', 'Jonathan Toro', 'J. Toro', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-20', 'ACT-038', '22.345.678-6', 'Evelyn Ponce', 'E. Ponce', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-21', 'ACT-039', '22.789.012-3', 'Mayra Rodríguez', 'M. Rodríguez', 'Activo', 'Bombero Activo', 'Activo'),
-
-  -- 4. Aspirantes
-  ('vol-asp-01', 'ASP-040', '23.456.789-0', 'Martina Lopez', 'M. Lopez', 'Aspirante', 'Aspirante', 'Activo')
-ON CONFLICT (id) DO UPDATE SET
-  full_name = EXCLUDED.full_name,
-  rank = EXCLUDED.rank,
-  registration_number = EXCLUDED.registration_number,
-  status = EXCLUDED.status;
-
--- 15. POBLACIÓN DEL SUPER ADMIN GENERAL
-INSERT INTO public.app_users (
-    id, 
-    email, 
-    full_name, 
-    rank, 
-    registration_number, 
-    role, 
-    status, 
-    permissions, 
-    password_hash
-) VALUES (
-    'usr-superadmin-01',
-    'gnunezgonzalez@icloud.com',
-    'Gustavo Núñez González',
-    'Super Administrador General',
-    'SUP-001',
-    'SUPER_ADMIN',
-    'ACTIVO',
-    '{"canCreateReports":true,"canEditReports":true,"canDeleteReports":true,"canApproveReports":true,"canManageVolunteers":true,"canManageUnits":true,"canManageUsers":true,"canExportReports":true}'::jsonb,
-    'c0023972fce4d51959f33673c0bb7b465886f889d6998414d88f56fdf57f9a1e'
-)
-ON CONFLICT (id) DO UPDATE SET
-  email = EXCLUDED.email,
-  full_name = EXCLUDED.full_name,
-  role = EXCLUDED.role,
-  status = EXCLUDED.status;
+-- 14-15. DATOS OPERACIONALES Y USUARIO INICIAL
+-- No se versionan datos personales, RUT ni credenciales. Cárgalos por un canal seguro.
+-- Vincula el primer administrador a una identidad existente de Supabase Auth.
 
 -- 16. POBLACIÓN DE BRANDING INSTITUCIONAL
 INSERT INTO public.company_branding (id, company_name, fire_department, motto, logo_url, primary_color, accent_color)

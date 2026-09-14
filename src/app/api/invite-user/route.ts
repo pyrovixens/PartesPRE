@@ -1,150 +1,130 @@
 import { NextResponse } from 'next/server';
-import { checkRateLimit, getClientIp } from '../../../lib/rateLimiter';
+import {
+  ApiSecurityError,
+  apiErrorResponse,
+  cleanText,
+  readJsonObject,
+  requireApiAuth,
+  writeAuditLog,
+} from '../../../lib/apiSecurity';
 
 export async function POST(request: Request) {
   try {
-    const clientIp = getClientIp(request);
-    const rateCheck = checkRateLimit(`invite_${clientIp}`, 6, 60);
+    const context = await requireApiAuth(request, 'canManageUsers');
+    const body = await readJsonObject(request, 100_000);
+    const email = cleanText(body.email, 'Correo', 254).toLowerCase();
+    const fullName = cleanText(body.fullName, 'Nombre', 200);
+    const appUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || '';
 
-    if (!rateCheck.allowed) {
-      return NextResponse.json(
-        { 
-          success: false, 
-          message: `Límite de envíos alcanzado por seguridad. Espera ${rateCheck.resetSeconds} segundos antes de enviar otra invitación.` 
-        },
-        { status: 429 }
+    if (!appUrl || (!appUrl.startsWith('https://') && process.env.NODE_ENV === 'production')) {
+      throw new ApiSecurityError(503, 'APP_URL debe estar configurada con HTTPS.');
+    }
+
+    const existing = await context.admin
+      .from('app_users')
+      .select('*')
+      .eq('email', email)
+      .maybeSingle();
+    if (existing.error) throw existing.error;
+
+    const linkType = existing.data?.auth_user_id ? 'recovery' : 'invite';
+    const generated = await context.admin.auth.admin.generateLink({
+      type: linkType,
+      email,
+      options: {
+        redirectTo: appUrl.replace(/\/$/, '') + '/crear-cuenta?email=' + encodeURIComponent(email),
+        data: { full_name: fullName },
+      },
+    } as any);
+
+    if (generated.error || !generated.data.user || !generated.data.properties?.action_link) {
+      throw new ApiSecurityError(
+        400,
+        generated.error?.message || 'No se pudo generar la invitación.'
       );
     }
 
-    const body = await request.json();
-    const { 
-      email, 
-      fullName, 
-      volunteerId, 
-      rank, 
-      registrationNumber, 
-      role, 
-      permissions, 
-      invitedBy,
-      token,
-      origin 
-    } = body;
-
-    if (!email || !fullName) {
-      return NextResponse.json(
-        { success: false, message: 'El correo y el nombre son obligatorios.' },
-        { status: 400 }
-      );
+    const authUserId = generated.data.user.id;
+    const role = ['SUPER_ADMIN', 'ADMIN', 'OFICIAL', 'VOLUNTARIO'].includes(body.role)
+      ? body.role
+      : 'VOLUNTARIO';
+    if (role === 'SUPER_ADMIN' && context.profile.role !== 'SUPER_ADMIN') {
+      throw new ApiSecurityError(403, 'No puedes invitar un superadministrador.');
     }
 
-    const hostUrl = origin || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3003';
-    const activationUrl = `${hostUrl}/crear-cuenta?email=${encodeURIComponent(email)}`;
+    const profileId = existing.data?.id || 'usr-' + crypto.randomUUID();
+    const profileResult = await context.admin.from('app_users').upsert({
+      id: profileId,
+      auth_user_id: authUserId,
+      email,
+      full_name: fullName,
+      volunteer_id: typeof body.volunteerId === 'string' ? body.volunteerId : null,
+      rank: typeof body.rank === 'string' ? body.rank.slice(0, 100) : 'Bombero Activo',
+      registration_number:
+        typeof body.registrationNumber === 'string'
+          ? body.registrationNumber.slice(0, 50)
+          : '',
+      role,
+      status: existing.data?.status === 'ACTIVO' ? 'ACTIVO' : 'INVITADO',
+      permissions: body.permissions && typeof body.permissions === 'object'
+        ? body.permissions
+        : {},
+      invited_by: context.profile.fullName,
+      invited_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'id' });
+    if (profileResult.error) throw profileResult.error;
 
-    // Email Subject
-    const subject = `🚒 Invitación Oficial: Sistema de Partes - 4ª Cía. Bomberos Calle Larga`;
+    const actionLink = generated.data.properties.action_link;
+    const subject = 'Invitación al Sistema de Partes de Emergencia';
+    const textBody =
+      'Hola ' + fullName + ',\n\n' +
+      'La Oficialidad te invitó al Sistema de Partes. Abre este enlace personal y de un solo uso:\n' +
+      actionLink + '\n\n' +
+      'Si no esperabas esta invitación, ignora este correo.';
 
-    // Email Plain Text Body (Discreet - does NOT expose internal system role)
-    const textBody = `Estimado/a ${fullName} (${rank || 'Bombero'}),\n\n` +
-      `Has recibido una invitación oficial de ${invitedBy || 'la Oficialidad'} para acceder al Sistema de Control de Asistencias y Partes de Emergencia de la 4ª Compañía "Calle Larga" (Cuerpo de Bomberos de Los Andes).\n\n` +
-      `Para crear tu cuenta oficial y registrar tu contraseña personal de acceso, haz clic en el siguiente enlace:\n` +
-      `${activationUrl}\n\n` +
-      `Este enlace de registro es de uso personal y válido por 7 días.\n\n` +
-      `4ª Compañía de Bomberos "Calle Larga"\n` +
-      `"Honor, Disciplina y Abnegación" • C.B. Los Andes`;
-
-    // Formatted mailto link
-    const mailtoUrl = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(textBody)}`;
-
-    // Web Gmail Direct compose link
-    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(textBody)}`;
-
-    // WhatsApp Direct share link
-    const whatsappText = `🚒 *Invitación Oficial - Bomberos Calle Larga*\nEstimado/a ${fullName}, has recibido una invitación para registrar tu acceso al Sistema de Partes.\n\nActiva tu cuenta aquí:\n${activationUrl}`;
-    const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(whatsappText)}`;
-
-    // Automated Resend dispatch if configured
     let directEmailSent = false;
-    let resendMessage = '';
-
+    let resendMessage = 'Entrega manual requerida.';
     if (process.env.RESEND_API_KEY) {
-      try {
-        const fromAddress = process.env.EMAIL_FROM || 'Bomberos Calle Larga <onboarding@resend.dev>';
-        const resendRes = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            from: fromAddress,
-            to: [email],
-            subject: subject,
-            text: textBody,
-            html: `
-              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
-                <div style="text-align: center; margin-bottom: 24px; border-bottom: 2px solid #8b0000; padding-bottom: 16px;">
-                  <h2 style="color: #8b0000; margin: 0; font-size: 20px;">4ª COMPAÑÍA "BOMBA CALLE LARGA"</h2>
-                  <p style="color: #64748b; margin: 4px 0 0 0; font-size: 13px; font-weight: bold;">Cuerpo de Bomberos de Los Andes</p>
-                </div>
-                <div style="background-color: #f8fafc; padding: 18px; border-radius: 8px; margin-bottom: 24px; border-left: 4px solid #dc2626;">
-                  <h3 style="color: #1e293b; margin-top: 0; font-size: 16px;">Invitación Oficial al Sistema de Partes</h3>
-                  <p style="color: #334155; font-size: 14px; line-height: 1.6; margin-bottom: 8px;">
-                    Estimado/a <strong>${fullName}</strong> (${rank || 'Bombero'}),
-                  </p>
-                  <p style="color: #334155; font-size: 14px; line-height: 1.6; margin-bottom: 0;">
-                    Has recibido una invitación oficial emitida por <strong>${invitedBy || 'la Oficialidad de Compañía'}</strong> para acceder al sistema institucional de control de asistencias y partes de emergencia.
-                  </p>
-                </div>
-                <div style="text-align: center; margin: 32px 0;">
-                  <a href="${activationUrl}" style="background-color: #dc2626; color: #ffffff; padding: 14px 32px; text-decoration: none; font-weight: bold; border-radius: 8px; font-size: 15px; display: inline-block; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);">
-                    🔑 Crear Mi Contraseña y Acceder
-                  </a>
-                </div>
-                <p style="color: #64748b; font-size: 12px; text-align: center; line-height: 1.5; margin-top: 24px; border-top: 1px solid #e2e8f0; padding-top: 16px;">
-                  Si el botón no funciona, copia y pega este enlace en tu navegador:<br/>
-                  <a href="${activationUrl}" style="color: #dc2626; word-break: break-all;">${activationUrl}</a>
-                </p>
-                <p style="color: #94a3b8; font-size: 11px; text-align: center; margin-top: 16px;">
-                  Este enlace es de uso personal e intransferible. Válido por 7 días.<br/>
-                  4ª Compañía "Bomba Calle Larga" • "Honor, Disciplina y Abnegación"
-                </p>
-              </div>
-            `,
-          }),
-        });
-
-        if (resendRes.ok) {
-          directEmailSent = true;
-          resendMessage = 'Correo enviado exitosamente vía Resend.';
-        } else {
-          const errData = await resendRes.json().catch(() => null);
-          resendMessage = errData?.message || `Error del servidor Resend (HTTP ${resendRes.status})`;
-          console.warn('Resend dispatch not accepted:', resendRes.status, errData);
-        }
-      } catch (err: any) {
-        resendMessage = err?.message || 'Error de conexión con Resend.';
-        console.warn('Direct Resend email dispatch failed:', err);
-      }
-    } else {
-      resendMessage = 'RESEND_API_KEY no configurada en este entorno.';
+      const emailResponse = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer ' + process.env.RESEND_API_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: process.env.EMAIL_FROM || 'Partes PRE <onboarding@resend.dev>',
+          to: [email],
+          subject,
+          text: textBody,
+        }),
+      });
+      directEmailSent = emailResponse.ok;
+      resendMessage = emailResponse.ok
+        ? 'Correo enviado.'
+        : 'El proveedor de correo rechazó el envío.';
     }
 
+    const mailtoUrl =
+      'mailto:' + encodeURIComponent(email) +
+      '?subject=' + encodeURIComponent(subject) +
+      '&body=' + encodeURIComponent(textBody);
+
+    await writeAuditLog(context, 'invitation.send', 'app_user', profileId, { email });
     return NextResponse.json({
       success: true,
+      data: null,
       directEmailSent,
       resendMessage,
-      activationUrl,
+      activationUrl: actionLink,
       mailtoUrl,
-      gmailUrl,
-      whatsappUrl,
-      subject,
-      textBody,
+      gmailUrl:
+        'https://mail.google.com/mail/?view=cm&fs=1&to=' + encodeURIComponent(email) +
+        '&su=' + encodeURIComponent(subject) +
+        '&body=' + encodeURIComponent(textBody),
       recipient: email,
     });
-  } catch (error: any) {
-    return NextResponse.json(
-      { success: false, message: error?.message || 'Error al procesar invitación.' },
-      { status: 500 }
-    );
+  } catch (error) {
+    return apiErrorResponse(error);
   }
 }
