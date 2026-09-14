@@ -74,12 +74,6 @@ export const EMERGENCY_KEYS: EmergencyKey[] = [
 
 export const INITIAL_VOLUNTEERS: Volunteer[] = [];
 
-export const INITIAL_UNITS: Unit[] = [
-  { code: 'B-4', name: 'Bomba Urbana Mayor B-4', plate: 'CB-401', brand: 'Renault / Camiva', model: 'Midlum 220 4x4', type: 'Bomba', currentKm: 0, currentPumpHours: 0, status: 'Operativo' },
-  { code: 'BX-4', name: 'Bomba Respaldo / Cisterna BX-4', plate: 'CB-402', brand: 'Mercedes-Benz / Magirus', model: 'Atego 1529', type: 'Bomba', currentKm: 0, currentPumpHours: 0, status: 'Operativo' },
-  { code: 'R-4', name: 'Unidad de Rescate Vehicular R-4', plate: 'CB-403', brand: 'Iveco / Magirus', model: 'Eurocargo', type: 'Rescate', currentKm: 0, currentPumpHours: 0, status: 'Operativo' },
-  { code: 'Z-4', name: 'Unidad de Abastecimiento Z-4', plate: 'CB-404', brand: 'MAN / Ziegler', model: 'TGM 18.290', type: 'Aljibe', currentKm: 0, currentPumpHours: 0, status: 'Operativo' },
-  { code: 'K-4', name: 'Unidad de Transporte y Mando K-4', plate: 'CB-405', brand: 'Toyota', model: 'Hilux 4x4', type: 'Transporte', currentKm: 0, currentPumpHours: 0, status: 'Operativo' },
-];
+export const INITIAL_UNITS: Unit[] = [];
 
 export const INITIAL_REPORTS: EmergencyReport[] = [];

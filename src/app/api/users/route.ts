@@ -67,7 +67,8 @@ export async function GET(req: NextRequest) {
     const wantsOwnProfile = new URL(req.url).searchParams.get('me') === '1';
     const context = await requireApiAuth(
       req,
-      wantsOwnProfile ? undefined : 'canManageUsers'
+      wantsOwnProfile ? undefined : 'canManageUsers',
+      wantsOwnProfile
     );
 
     if (wantsOwnProfile) {

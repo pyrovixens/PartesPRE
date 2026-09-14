@@ -179,17 +179,8 @@ REVOKE ALL ON public.emergency_reports FROM anon, authenticated;
 REVOKE ALL ON public.company_branding FROM anon, authenticated;
 REVOKE ALL ON public.security_audit_log FROM anon, authenticated;
 
--- 12. POBLACIÓN DE MATERIAL MAYOR (UNIDADES OFICIALES 4ª COMPAÑÍA)
-INSERT INTO public.units (code, name, plate, type, current_km, current_pump_hours, status) VALUES
-  ('B-4', 'Bomba Primera Intervención B-4', 'CB-401', 'Bomba', 45200, 320, 'Operativo'),
-  ('BX-4', 'Bomba Respaldo / Cisterna BX-4', 'CB-402', 'Bomba', 38100, 210, 'Operativo'),
-  ('R-4', 'Unidad de Rescate Vehicular R-4', 'CB-403', 'Rescate', 29400, 145, 'Operativo'),
-  ('Z-4', 'Unidad de Abastecimiento Z-4', 'CB-404', 'Aljibe', 18300, 90, 'Operativo'),
-  ('K-4', 'Unidad de Transporte y Mando K-4', 'CB-405', 'Transporte', 52000, 0, 'Operativo')
-ON CONFLICT (code) DO UPDATE SET
-  name = EXCLUDED.name,
-  plate = EXCLUDED.plate,
-  type = EXCLUDED.type;
+-- 12. DATOS DE MATERIAL MAYOR
+-- No se versiona inventario operacional. Cárgalo desde la interfaz protegida.
 
 -- 13. POBLACIÓN DE CLAVES RADIALES
 INSERT INTO public.emergency_keys (code, description, category, short_code) VALUES

@@ -8,7 +8,7 @@ import {
 
 export async function POST(request: Request) {
   try {
-    const context = await requireApiAuth(request);
+    const context = await requireApiAuth(request, undefined, true);
     if (context.profile.status === 'SUSPENDIDO') {
       throw new ApiSecurityError(403, 'La cuenta está suspendida.');
     }

@@ -77,7 +77,8 @@ export const hasPermission = (
 
 export const requireApiAuth = async (
   request: Request,
-  permission?: PermissionKey
+  permission?: PermissionKey,
+  allowInvited = false
 ): Promise<ApiAuthContext> => {
   const url = getSupabaseUrl();
   const anonKey = getAnonKey();
@@ -115,6 +116,9 @@ export const requireApiAuth = async (
   const profile = mapProfile(profileRow);
   if (profile.status === 'SUSPENDIDO') {
     throw new ApiSecurityError(403, 'La cuenta está suspendida.');
+  }
+  if (profile.status !== 'ACTIVO' && !allowInvited) {
+    throw new ApiSecurityError(403, 'La cuenta todavía no está activa.');
   }
 
   if (permission && !hasPermission(profile, permission)) {
