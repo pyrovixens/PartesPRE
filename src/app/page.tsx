@@ -46,13 +46,9 @@ import {
   approveReportInDatabase,
   subscribeToRealtimeChanges
 } from '../services/supabaseService';
-import { 
-  getStoredUnits, 
-  saveUnits, 
-  getStoredKeys, 
-  saveKeys,
-  getStoredReports,
-  getStoredVolunteers
+import {
+  clearSensitiveLegacyCaches,
+  getStoredKeys,
 } from '../utils/storage';
 import { exportMatrixToExcel } from '../utils/excelExport';
 import { restoreActiveSession, clearActiveSession } from '../services/authService';
@@ -159,6 +155,7 @@ export default function Home() {
 
   // Revalidate the Supabase session and server profile before loading protected data.
   useEffect(() => {
+    clearSensitiveLegacyCaches();
     const savedTheme = localStorage.getItem('bomberos_theme');
     if (savedTheme === 'light') {
       setIsDarkMode(false);
@@ -469,6 +466,7 @@ export default function Home() {
 
   const handleLogout = () => {
     clearActiveSession();
+    clearSensitiveLegacyCaches();
     setCurrentUser(null);
     setReports([]);
     setVolunteers([]);
