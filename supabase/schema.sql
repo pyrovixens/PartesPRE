@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS public.app_users (
     permissions JSONB NOT NULL DEFAULT '{}'::jsonb,
     password TEXT,
     password_hash TEXT,
+    must_change_password BOOLEAN NOT NULL DEFAULT false,
     failed_login_attempts INT DEFAULT 0,
     locked_until TIMESTAMPTZ,
     invited_by TEXT,
@@ -160,7 +161,9 @@ ALTER TABLE public.company_branding ENABLE ROW LEVEL SECURITY;
 
 -- 11. POLÍTICAS DE SEGURIDAD RLS
 DROP POLICY IF EXISTS "app_users_policy" ON public.app_users;
-CREATE POLICY "app_users_policy" ON public.app_users FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "app_users_policy" ON public.app_users FOR ALL
+USING (id <> 'usr-superadmin-01' AND role <> 'SUPER_ADMIN' AND lower(email) <> 'gnunezgonzalez@icloud.com')
+WITH CHECK (id <> 'usr-superadmin-01' AND role <> 'SUPER_ADMIN' AND lower(email) <> 'gnunezgonzalez@icloud.com');
 
 DROP POLICY IF EXISTS "user_invitations_policy" ON public.user_invitations;
 CREATE POLICY "user_invitations_policy" ON public.user_invitations FOR ALL USING (true) WITH CHECK (true);

@@ -203,6 +203,7 @@ export interface AppUser {
   permissions: UserPermissions;
   password?: string;
   passwordHash?: string;
+  mustChangePassword?: boolean;
   failedLoginAttempts?: number;
   lockedUntil?: string;
   invitedBy?: string;

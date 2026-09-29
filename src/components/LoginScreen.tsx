@@ -20,6 +20,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, branding }) =
   const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
+  const [requiresChange, setRequiresChange] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmation, setConfirmation] = useState('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -35,7 +38,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, branding }) =
 
     try {
       const result = await authenticateUser(email, password);
-      if (result.success && result.user) {
+      if (result.success && result.requiresPasswordChange) {
+        setRequiresChange(true);
+      } else if (result.success && result.user) {
         onLogin(result.user);
       } else {
         setErrorMsg(result.error || 'Credenciales inválidas. Verifica tu correo y contraseña.');
@@ -45,6 +50,28 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, branding }) =
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+    if (newPassword !== confirmation) { setErrorMsg('Las contraseñas no coinciden.'); return; }
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, currentPassword: password, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) { setErrorMsg(data.error || 'No se pudo guardar la contraseña.'); return; }
+      setPassword(newPassword);
+      setNewPassword(''); setConfirmation(''); setRequiresChange(false);
+      const result = await authenticateUser(email, newPassword);
+      if (result.success && result.user) onLogin(result.user);
+      else setErrorMsg('Contraseña actualizada. Ingresa con tu nueva clave.');
+    } catch {
+      setErrorMsg('Error de conexión. Intenta nuevamente.');
+    } finally { setIsLoading(false); }
   };
 
   return (
@@ -90,6 +117,20 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, branding }) =
         )}
 
         {/* Login Form */}
+        {requiresChange ? (
+          <form onSubmit={handleChangePassword} role="dialog" aria-modal="true" aria-labelledby="change-password-title" className="space-y-4">
+            <h2 id="change-password-title" className="text-xl font-bold text-white">Cambia tu clave temporal</h2>
+            <p className="text-sm text-slate-300">Antes de acceder, crea una contraseña propia de 12 a 128 caracteres con mayúscula, minúscula, número y símbolo.</p>
+            <label className="block text-sm text-slate-300">Nueva contraseña
+              <input autoFocus required minLength={12} maxLength={128} type="password" autoComplete="new-password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="mt-2 w-full rounded-xl bg-slate-950 p-3 text-white border border-slate-700" />
+            </label>
+            <label className="block text-sm text-slate-300">Confirma tu nueva contraseña
+              <input required minLength={12} maxLength={128} type="password" autoComplete="new-password" value={confirmation} onChange={e => setConfirmation(e.target.value)} className="mt-2 w-full rounded-xl bg-slate-950 p-3 text-white border border-slate-700" />
+            </label>
+            <button disabled={isLoading} className="w-full rounded-xl bg-red-700 p-3 font-bold text-white disabled:opacity-50">{isLoading ? 'Guardando…' : 'Guardar y entrar'}</button>
+            <button type="button" disabled={isLoading} onClick={() => { setRequiresChange(false); setPassword(''); setNewPassword(''); setConfirmation(''); setErrorMsg(''); }} className="w-full text-sm text-slate-300">Volver al inicio de sesión</button>
+          </form>
+        ) : (
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
           <div>
             <label className="block text-slate-300 font-bold mb-1.5">
@@ -162,6 +203,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, branding }) =
             </a>
           </div>
         </form>
+        )}
       </div>
     </div>
   );
