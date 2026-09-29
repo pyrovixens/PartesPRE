@@ -523,6 +523,7 @@ export const serverGetDeletedUserIds = (): string[] => {
 };
 
 export const serverGetUsers = async (): Promise<AppUser[]> => {
+  if (supabase && !process.env.SUPABASE_SERVICE_ROLE_KEY) throw new Error("Configura SUPABASE_SERVICE_ROLE_KEY en el servidor para leer las cuentas.");
   if (supabase) {
     try {
       const { data, error } = await supabase
@@ -530,7 +531,8 @@ export const serverGetUsers = async (): Promise<AppUser[]> => {
         .select('*')
         .order('created_at', { ascending: true });
 
-      if (!error && data && data.length > 0) {
+      if (error) throw error;
+      if (data) {
         const mapped: AppUser[] = data
           .filter((row: any) => !globalState.deletedUserIds.includes(row.id))
           .map((row: any) => ({
@@ -545,6 +547,7 @@ export const serverGetUsers = async (): Promise<AppUser[]> => {
             permissions: row.permissions || {},
             password: row.password,
             passwordHash: row.password_hash,
+            mustChangePassword: row.must_change_password === true,
             failedLoginAttempts: row.failed_login_attempts || 0,
             lockedUntil: row.locked_until,
             invitedBy: row.invited_by,
@@ -557,6 +560,7 @@ export const serverGetUsers = async (): Promise<AppUser[]> => {
       }
     } catch (e) {
       console.warn('Supabase query error in serverGetUsers:', e);
+      throw new Error('No se pudo consultar el registro de usuarios.');
     }
   }
   return globalState.users.filter(u => !globalState.deletedUserIds.includes(u.id));
@@ -572,19 +576,28 @@ export const serverGetPublicUsers = async (): Promise<AppUser[]> => {
   return users.map(serverSanitizeUser);
 };
 
-export const serverSaveUser = async (user: AppUser): Promise<AppUser> => {
-  globalState.deletedUserIds = globalState.deletedUserIds.filter(id => id !== user.id);
-  const index = globalState.users.findIndex(u => u.id === user.id || u.email.toLowerCase() === user.email.toLowerCase());
-  if (index >= 0) {
-    globalState.users[index] = { ...globalState.users[index], ...user };
-  } else {
-    globalState.users.push(user);
+// Authentication attempts only update metadata; never write back a stale credential snapshot.
+export const serverRecordAuthAttempt = async (user: AppUser): Promise<void> => {
+  if (supabase) {
+    const { error } = await supabase.from('app_users').update({
+      failed_login_attempts: user.failedLoginAttempts || 0,
+      locked_until: user.lockedUntil ?? null,
+      last_login: user.lastLogin ?? null,
+    }).eq('id', user.id);
+    if (error) throw error;
   }
-  bumpRevision();
+  const existing = globalState.users.find(u => u.id === user.id);
+  if (existing) Object.assign(existing, {
+    failedLoginAttempts: user.failedLoginAttempts, lockedUntil: user.lockedUntil, lastLogin: user.lastLogin,
+  });
+};
+
+export const serverSaveUser = async (user: AppUser, requirePersistence = false, previousPasswordHash?: string): Promise<AppUser> => {
+  if (requirePersistence && !supabase) throw new Error("Configura Supabase para guardar la contraseña de forma permanente.");
 
   if (supabase) {
     try {
-      await supabase.from('app_users').upsert({
+      const row = {
         id: user.id,
         email: user.email.toLowerCase(),
         full_name: user.fullName,
@@ -594,19 +607,36 @@ export const serverSaveUser = async (user: AppUser): Promise<AppUser> => {
         role: user.role,
         status: user.status,
         permissions: user.permissions,
-        password: user.password,
+        password: user.password ?? null,
         password_hash: user.passwordHash,
+        ...(user.mustChangePassword !== undefined ? { must_change_password: user.mustChangePassword } : {}),
         failed_login_attempts: user.failedLoginAttempts || 0,
-        locked_until: user.lockedUntil,
+        locked_until: user.lockedUntil ?? null,
         invited_by: user.invitedBy,
         invited_at: user.invitedAt,
         last_login: user.lastLogin,
         updated_at: new Date().toISOString(),
-      }, { onConflict: 'id' });
+      };
+      const query = requirePersistence
+        ? supabase.from('app_users').update(row).eq('id', user.id).eq('must_change_password', true)
+          .eq('password_hash', previousPasswordHash || '').select('id').single()
+        : supabase.from('app_users').upsert(row, { onConflict: 'id' });
+      const { error } = await query;
+      if (error) throw error;
     } catch (e) {
+      if (requirePersistence) throw e;
       console.warn('Supabase save error in serverSaveUser:', e);
     }
   }
+
+  globalState.deletedUserIds = globalState.deletedUserIds.filter(id => id !== user.id);
+  const index = globalState.users.findIndex(u => u.id === user.id || u.email.toLowerCase() === user.email.toLowerCase());
+  if (index >= 0) {
+    globalState.users[index] = { ...globalState.users[index], ...user };
+  } else {
+    globalState.users.push(user);
+  }
+  bumpRevision();
 
   // If user is active, auto-purge pending invitations for this email
   if (user.status === 'ACTIVO') {

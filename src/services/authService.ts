@@ -309,132 +309,30 @@ export const deleteAppUser = async (userId: string): Promise<void> => {
 // AUTHENTICATION & LOGIN PROTOCOL
 // ----------------------------------------------------------------------
 
-export const authenticateUser = async (
-  emailInput: string,
-  passwordInput: string
-): Promise<{
-  success: boolean;
-  user?: AppUser;
-  error?: string;
-  remainingAttempts?: number;
+export const authenticateUser = async (emailInput: string, passwordInput: string): Promise<{
+  success: boolean; user?: AppUser; error?: string; remainingAttempts?: number; requiresPasswordChange?: boolean;
 }> => {
-  const cleanEmail = emailInput.trim().toLowerCase();
-  const cleanPassword = passwordInput.trim();
-
-  if (!cleanEmail || !cleanPassword) {
-    return { success: false, error: 'Por favor ingresa tu correo electrónico y contraseña.' };
-  }
-
-  // 1. Primary: Authoritative Server-Side Authentication with Rate Limiting
   try {
     const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: cleanEmail, password: cleanPassword }),
-      cache: 'no-store',
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store',
+      body: JSON.stringify({ email: emailInput.trim().toLowerCase(), password: passwordInput }),
     });
-
-    const data = await res.json().catch(() => ({}));
-
-    if (res.ok && data.success && data.user) {
-      createActiveSession(data.user);
-      return {
-        success: true,
-        user: data.user,
-      };
-    } else if (res.status === 401 || res.status === 403 || res.status === 423 || res.status === 429) {
-      return {
-        success: false,
-        error: data.error || 'Credenciales inválidas.',
-        remainingAttempts: data.remainingAttempts,
-      };
+    const data = await res.json();
+    if (res.ok && data.success) {
+      if (data.requiresPasswordChange) {
+        clearActiveSession();
+        return { success: true, requiresPasswordChange: true };
+      }
+      if (data.user) {
+        createActiveSession(data.user);
+        return { success: true, user: data.user };
+      }
     }
-  } catch (apiErr) {
-    console.warn('Server login endpoint unavailable, attempting local verification:', apiErr);
+    return { success: false, error: data.error || 'No fue posible iniciar sesión.', remainingAttempts: data.remainingAttempts };
+  } catch {
+    return { success: false, error: 'No se pudo conectar al servidor. Intenta nuevamente.' };
   }
-
-  // 2. Offline / Local Fallback
-  const users = await fetchAppUsers();
-  const targetUser = users.find(u => u.email.toLowerCase() === cleanEmail);
-
-  if (!targetUser) {
-    return {
-      success: false,
-      error: 'Credenciales inválidas. Verifica tu correo y contraseña.',
-    };
-  }
-
-  if (targetUser.status === 'SUSPENDIDO') {
-    return {
-      success: false,
-      error: 'Cuenta suspendida o no habilitada. Contacta al Administrador.',
-    };
-  }
-
-  if (targetUser.lockedUntil) {
-    const lockTime = new Date(targetUser.lockedUntil).getTime();
-    const now = Date.now();
-    if (lockTime > now) {
-      const minutesLeft = Math.ceil((lockTime - now) / (60 * 1000));
-      return {
-        success: false,
-        error: `Acceso temporalmente restringido. Intenta nuevamente en ${minutesLeft} minuto(s).`,
-      };
-    }
-  }
-
-  const hashedAttempt = await hashPassword(cleanPassword);
-  const passwordMatches = 
-    targetUser.passwordHash === hashedAttempt ||
-    (Boolean(targetUser.password) && targetUser.password === cleanPassword) ||
-    targetUser.passwordHash === cleanPassword;
-
-  if (!passwordMatches) {
-    const failedAttempts = (targetUser.failedLoginAttempts || 0) + 1;
-    const maxAttempts = 5;
-
-    let updatedUser: AppUser = {
-      ...targetUser,
-      failedLoginAttempts: failedAttempts,
-    };
-
-    if (failedAttempts >= maxAttempts) {
-      const lockUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
-      updatedUser.lockedUntil = lockUntil;
-      await saveAppUser(updatedUser);
-      return {
-        success: false,
-        error: 'Demasiados intentos fallidos. Acceso restringido temporalmente por 15 minutos.',
-      };
-    }
-
-    await saveAppUser(updatedUser);
-    return {
-      success: false,
-      error: `Contraseña incorrecta. Te quedan ${maxAttempts - failedAttempts} intento(s).`,
-      remainingAttempts: maxAttempts - failedAttempts,
-    };
-  }
-
-  const updatedUser: AppUser = {
-    ...targetUser,
-    failedLoginAttempts: 0,
-    lockedUntil: undefined,
-    lastLogin: new Date().toISOString(),
-  };
-
-  await saveAppUser(updatedUser);
-  createActiveSession(updatedUser);
-
-  return {
-    success: true,
-    user: updatedUser,
-  };
 };
-
-// ----------------------------------------------------------------------
-// SESSION MANAGEMENT
-// ----------------------------------------------------------------------
 
 export const createActiveSession = (user: AppUser): void => {
   if (typeof window === 'undefined') return;
@@ -450,6 +348,7 @@ export const createActiveSession = (user: AppUser): void => {
       status: user.status,
       permissions: user.permissions,
       lastLogin: user.lastLogin,
+      mustChangePassword: user.mustChangePassword,
       createdAt: user.createdAt,
     };
     const session = {
@@ -469,7 +368,7 @@ export const getActiveSession = (): AppUser | null => {
     const raw = localStorage.getItem(SESSION_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    return parsed.user || null;
+    return parsed.user?.mustChangePassword ? null : parsed.user || null;
   } catch {
     return null;
   }
