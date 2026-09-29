@@ -8,3 +8,10 @@ DROP POLICY IF EXISTS "app_users_policy" ON public.app_users;
 CREATE POLICY "app_users_policy" ON public.app_users FOR ALL
 USING (id <> 'usr-superadmin-01' AND role <> 'SUPER_ADMIN' AND lower(email) <> 'gnunezgonzalez@icloud.com')
 WITH CHECK (id <> 'usr-superadmin-01' AND role <> 'SUPER_ADMIN' AND lower(email) <> 'gnunezgonzalez@icloud.com');
+
+-- Restrictive policy also covers older permissive policies already present in production.
+DROP POLICY IF EXISTS "protect_super_admin_from_public_clients" ON public.app_users;
+CREATE POLICY "protect_super_admin_from_public_clients" ON public.app_users
+AS RESTRICTIVE FOR ALL TO anon, authenticated
+USING (id <> 'usr-superadmin-01' AND role <> 'SUPER_ADMIN' AND lower(email) <> 'gnunezgonzalez@icloud.com')
+WITH CHECK (id <> 'usr-superadmin-01' AND role <> 'SUPER_ADMIN' AND lower(email) <> 'gnunezgonzalez@icloud.com');
