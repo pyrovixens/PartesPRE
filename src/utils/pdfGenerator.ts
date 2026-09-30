@@ -139,7 +139,12 @@ export const generateEmergencyReportPDF = async (report: EmergencyReport): Promi
 
   // Section 2: Material Mayor (Carros y Maquinistas)
   const unitsText = report.units && report.units.length > 0
-    ? report.units.map(u => `${u.unitCode} (Maquinista: ${u.driverName || 'No asignado'})`).join('  |  ')
+    ? report.units.map(u => {
+        if (u.isExternalDriver) {
+          return `${u.unitCode} (Cond. Externo: ${u.driverName || 'S/N'} [${u.externalDriverCia || 'Préstamo Cía'}])`;
+        }
+        return `${u.unitCode} (Maquinista: ${u.driverName || 'No asignado'})`;
+      }).join('  |  ')
     : 'No se despachó material mayor.';
 
   autoTable(doc, {
@@ -268,45 +273,67 @@ export const generateEmergencyReportPDF = async (report: EmergencyReport): Promi
     currentY = 25;
   }
 
-  // Section 7: Cuadro de Firmas
+  // Section 7: Cuadro de Doble Firma (OBAC a la izquierda, Capitán/Revisor a la derecha)
   const boxWidth = 75;
   const sigY = currentY;
 
-  // Signature 1: OBAC
+  // Signature 1: OBAC (Izquierda)
+  if (report.obacSignature) {
+    if (report.obacSignature.signatureDataUrl) {
+      try {
+        doc.addImage(report.obacSignature.signatureDataUrl, 'PNG', margin + 10 + (boxWidth / 2) - 20, sigY + 2, 40, 12);
+      } catch (e) {
+        console.warn('Could not embed OBAC signature image in PDF:', e);
+      }
+    } else {
+      doc.setFont('helvetica', 'bolditalic');
+      doc.setFontSize(6.5);
+      doc.setTextColor(30, 64, 175); // Blue
+      doc.text('FIRMADO DIGITALMENTE (OBAC)', margin + 10 + (boxWidth / 2), sigY + 10, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(5.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text(report.obacSignature.verificationCode || 'VALIDADO OBAC', margin + 10 + (boxWidth / 2), sigY + 13.5, { align: 'center' });
+    }
+  }
+
   doc.setDrawColor(148, 163, 184);
   doc.setLineWidth(0.5);
   doc.line(margin + 10, sigY + 15, margin + 10 + boxWidth, sigY + 15);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.setTextColor(...slateDark);
-  doc.text(`${report.officerInChargeRank} ${report.officerInChargeName}`, margin + 10 + (boxWidth / 2), sigY + 19, { align: 'center' });
+  const obacDisplayName = report.obacSignature?.signedBy || report.officerInChargeName;
+  const obacDisplayRank = report.obacSignature?.signedByRank || report.officerInChargeRank;
+  doc.text(obacDisplayName, margin + 10 + (boxWidth / 2), sigY + 19, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(100, 116, 139);
-  doc.text('Oficial / Voluntario a Cargo (OBAC)', margin + 10 + (boxWidth / 2), sigY + 23, { align: 'center' });
+  doc.text(`${obacDisplayRank} • Oficial a Cargo (OBAC)`, margin + 10 + (boxWidth / 2), sigY + 23, { align: 'center' });
 
-  // Signature 2: Ayudante / Capitán de Compañía
+  // Signature 2: Ayudante / Capitán de Compañía (Derecha)
   const rightBoxX = pageWidth - margin - 10 - boxWidth;
-  const captainDisplayName = report.digitalSignature?.signedBy || report.captainName || report.approvedBy || 'Capitán de Compañía';
-  const captainDisplayRank = report.digitalSignature?.signedByRank || report.captainRank || (report.approvedBy ? 'Oficial de Compañía' : 'Mando 4ª Cía. Calle Larga');
+  const revSig = report.reviewerSignature || report.digitalSignature;
+  const captainDisplayName = revSig?.signedBy || report.captainName || report.approvedBy || 'Capitán de Compañía';
+  const captainDisplayRank = revSig?.signedByRank || report.captainRank || (report.approvedBy ? 'Oficial de Compañía' : 'Mando 4ª Cía. Calle Larga');
 
   // Embed digital signature if present
-  if (report.digitalSignature) {
-    if (report.digitalSignature.signatureDataUrl) {
+  if (revSig) {
+    if (revSig.signatureDataUrl) {
       try {
-        doc.addImage(report.digitalSignature.signatureDataUrl, 'PNG', rightBoxX + (boxWidth / 2) - 20, sigY + 2, 40, 12);
+        doc.addImage(revSig.signatureDataUrl, 'PNG', rightBoxX + (boxWidth / 2) - 20, sigY + 2, 40, 12);
       } catch (e) {
-        console.warn('Could not embed signature image in PDF:', e);
+        console.warn('Could not embed reviewer signature image in PDF:', e);
       }
     } else {
       doc.setFont('helvetica', 'bolditalic');
       doc.setFontSize(6.5);
       doc.setTextColor(143, 13, 13);
-      doc.text('FIRMADO DIGITALMENTE', rightBoxX + (boxWidth / 2), sigY + 10, { align: 'center' });
+      doc.text('FIRMADO DIGITALMENTE (V°B°)', rightBoxX + (boxWidth / 2), sigY + 10, { align: 'center' });
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(5.5);
       doc.setTextColor(100, 116, 139);
-      doc.text(report.digitalSignature.verificationCode || 'VALIDADO OFICIALMENTE', rightBoxX + (boxWidth / 2), sigY + 13.5, { align: 'center' });
+      doc.text(revSig.verificationCode || 'VALIDADO OFICIALMENTE', rightBoxX + (boxWidth / 2), sigY + 13.5, { align: 'center' });
     }
   }
 

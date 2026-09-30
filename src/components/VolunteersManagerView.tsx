@@ -82,7 +82,10 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
 
   // Helper to check if a volunteer is an authorized driver / machinist
   const isVolunteerDriver = (v: Volunteer): boolean => {
-    return v.isDriver === true || (!!v.driverLicense && v.driverLicense !== 'NO') || v.rank === 'Maquinista General' || v.rank === 'Maquinista';
+    if (!v) return false;
+    if (v.status === 'Suspendido') return false;
+    if (v.rank === 'Maquinista General' || v.rank === 'Maquinista') return true;
+    return v.isDriver === true && !!v.driverLicense && v.driverLicense !== 'NO';
   };
 
   // Summary counts
@@ -136,10 +139,16 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
       newCategory = 'Activo';
     }
 
+    const isNowMachinist = newRank === 'Maquinista General' || newRank === 'Maquinista';
+    const isDriver = isNowMachinist || (volunteer.isDriver === true && !!volunteer.driverLicense && volunteer.driverLicense !== 'NO');
+    const driverLicense = isDriver ? (volunteer.driverLicense && volunteer.driverLicense !== 'NO' ? volunteer.driverLicense : 'Clase F') : undefined;
+
     const updated: Volunteer = {
       ...volunteer,
       rank: newRank,
       category: newCategory,
+      isDriver,
+      driverLicense,
     };
 
     onSaveVolunteer(updated);
@@ -181,8 +190,13 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
   // Fast Inline Driver / Machinist Class Change (Direct dropdown selection)
   const handleQuickDriverClassChange = (volunteer: Volunteer, newClass: string) => {
     const isNowDriver = newClass !== 'NO';
+    let newRank = volunteer.rank;
+    if (!isNowDriver && (volunteer.rank === 'Maquinista General' || volunteer.rank === 'Maquinista')) {
+      newRank = volunteer.category === 'Honorario' ? 'Bombero Honorario' : 'Bombero Activo';
+    }
     const updated: Volunteer = {
       ...volunteer,
+      rank: newRank,
       isDriver: isNowDriver,
       driverLicense: isNowDriver ? newClass : undefined,
     };
@@ -218,8 +232,9 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
     setCategory(v.category || 'Activo');
     setRank(v.rank);
     setStatus(v.status);
-    setIsDriver(v.isDriver === true || v.rank === 'Maquinista General' || v.rank === 'Maquinista');
-    setDriverLicense(v.driverLicense || 'Clase F');
+    const isD = isVolunteerDriver(v);
+    setIsDriver(isD);
+    setDriverLicense(isD && v.driverLicense && v.driverLicense !== 'NO' ? v.driverLicense : 'Clase F');
     setPhone(v.phone || '');
     setEmail(v.email || '');
     setIsModalOpen(true);
@@ -229,6 +244,8 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
     e.preventDefault();
     if (!fullName.trim()) return;
 
+    const isNowMachinist = rank === 'Maquinista General' || rank === 'Maquinista';
+    const isNowDriver = isNowMachinist || isDriver;
     const volunteerToSave: Volunteer = {
       id: editingVolunteer ? editingVolunteer.id : `vol-${Date.now()}`,
       rut: rut.trim() || '11.111.111-1',
@@ -238,8 +255,8 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
       category,
       rank,
       status,
-      isDriver,
-      driverLicense: isDriver ? (driverLicense || 'Clase F') : undefined,
+      isDriver: isNowDriver,
+      driverLicense: isNowDriver ? (driverLicense && driverLicense !== 'NO' ? driverLicense : 'Clase F') : undefined,
       phone: phone.trim(),
       email: email.trim(),
     };
@@ -521,14 +538,10 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
                   </label>
                   {canEdit ? (
                     <select
-                      value={
-                        (v.isDriver || (!!v.driverLicense && v.driverLicense !== 'NO') || v.rank === 'Maquinista General' || v.rank === 'Maquinista')
-                          ? (v.driverLicense || 'Clase F')
-                          : 'NO'
-                      }
+                      value={isVolunteerDriver(v) ? (v.driverLicense || 'Clase F') : 'NO'}
                       onChange={(e) => handleQuickDriverClassChange(v, e.target.value)}
                       className={`w-full text-xs font-black rounded-lg px-2.5 py-1.5 border transition-all cursor-pointer focus:ring-2 focus:ring-blue-600 focus:outline-none ${
-                        (v.isDriver || v.rank?.includes('Maquinista'))
+                        isVolunteerDriver(v)
                           ? 'bg-blue-50 dark:bg-blue-950/80 text-blue-900 dark:text-blue-200 border-blue-300 dark:border-blue-700 shadow-xs'
                           : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'
                       }`}
@@ -756,14 +769,10 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
                         {canEdit ? (
                           <div className="flex items-center gap-1.5">
                             <select
-                              value={
-                                (v.isDriver || (!!v.driverLicense && v.driverLicense !== 'NO') || v.rank === 'Maquinista General' || v.rank === 'Maquinista')
-                                  ? (v.driverLicense || 'Clase F')
-                                  : 'NO'
-                              }
+                              value={isVolunteerDriver(v) ? (v.driverLicense || 'Clase F') : 'NO'}
                               onChange={(e) => handleQuickDriverClassChange(v, e.target.value)}
                               className={`text-xs font-black rounded-lg px-2.5 py-1 border transition-all cursor-pointer focus:ring-2 focus:ring-blue-600 focus:outline-none ${
-                                (v.isDriver || (!!v.driverLicense && v.driverLicense !== 'NO') || v.rank?.includes('Maquinista'))
+                                isVolunteerDriver(v)
                                   ? 'bg-blue-50 dark:bg-blue-950/80 text-blue-900 dark:text-blue-200 border-blue-300 dark:border-blue-700 shadow-xs'
                                   : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'
                               }`}
@@ -946,7 +955,16 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
                   <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Cargo / Rol</label>
                   <select
                     value={rank}
-                    onChange={(e) => setRank(e.target.value as VolunteerRank)}
+                    onChange={(e) => {
+                      const newRank = e.target.value as VolunteerRank;
+                      setRank(newRank);
+                      if (newRank === 'Maquinista' || newRank === 'Maquinista General') {
+                        setIsDriver(true);
+                        if (!driverLicense || driverLicense === 'NO') {
+                          setDriverLicense('Clase F');
+                        }
+                      }
+                    }}
                     className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 font-bold"
                   >
                     {ALL_RANKS.map(r => (

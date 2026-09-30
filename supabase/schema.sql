@@ -124,6 +124,8 @@ CREATE TABLE IF NOT EXISTS public.emergency_reports (
     captain_name TEXT,
     captain_rank TEXT,
     digital_signature JSONB DEFAULT '{}'::jsonb,
+    obac_signature JSONB DEFAULT '{}'::jsonb,
+    reviewer_signature JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -264,60 +266,66 @@ INSERT INTO public.emergency_keys (code, description, category, short_code) VALU
   ('V', 'Citaciones Varias / Actos Oficiales / Desfiles', 'Citaciones Varias', 'V')
 ON CONFLICT (code) DO NOTHING;
 
--- 14. POBLACIÓN DEL PADRÓN OFICIAL DE VOLUNTARIOS
-INSERT INTO public.volunteers (id, registration_number, rut, full_name, short_name, category, rank, status) VALUES
+-- 14. POBLACIÓN DEL PADRÓN OFICIAL DE VOLUNTARIOS (8 Conductores / Maquinistas Habilitados)
+INSERT INTO public.volunteers (id, registration_number, rut, full_name, short_name, category, rank, status, is_driver, driver_license) VALUES
   -- 1. Fundadores / Insignes
-  ('vol-f-01', 'FND-001', '07.456.123-4', 'Iván Galdámez Calderón', 'I. Galdámez', 'Fundador / Insigne', 'Bombero Insigne', 'Insigne'),
-  ('vol-f-02', 'FND-002', '08.123.456-7', 'Patricio Urbina Zamora', 'P. Urbina Z.', 'Fundador / Insigne', 'Bombero Insigne', 'Insigne'),
-  ('vol-f-03', 'FND-003', '08.789.012-3', 'Eduardo Liberón Figueroa', 'E. Liberón', 'Fundador / Insigne', 'Bombero Insigne', 'Insigne'),
-  ('vol-f-04', 'FND-004', '09.345.678-9', 'Carlos Contreras Inostroza', 'C. Contreras', 'Fundador / Insigne', 'Bombero Insigne', 'Insigne'),
-  ('vol-f-05', 'FND-005', '09.876.543-2', 'Luis Nanjarí Villarroel', 'L. Nanjarí', 'Fundador / Insigne', 'Bombero Insigne', 'Insigne'),
-  ('vol-f-06', 'FND-006', '10.234.567-8', 'Claudio Vargas López', 'C. Vargas L.', 'Fundador / Insigne', 'Bombero Insigne', 'Insigne'),
-  ('vol-f-07', 'FND-007', '10.987.654-1', 'Manuel Campos Velásquez', 'M. Campos', 'Fundador / Insigne', 'Bombero Insigne', 'Insigne'),
-  ('vol-f-08', 'FND-008', '11.345.678-0', 'Luis Haroldo Gutiérrez', 'L. H. Gutiérrez', 'Fundador / Insigne', 'Bombero Insigne', 'Insigne'),
-  ('vol-f-09', 'FND-009', '11.890.123-5', 'Héctor Casanova Sánchez', 'H. Casanova S.', 'Fundador / Insigne', 'Bombero Insigne', 'Insigne'),
+  ('vol-f-01', 'FND-001', '07.456.123-4', 'Iván Galdámez Calderón', 'I. Galdámez', 'Fundador / Insigne', 'Bombero Insigne', 'Insigne', FALSE, NULL),
+  ('vol-f-02', 'FND-002', '08.123.456-7', 'Patricio Urbina Zamora', 'P. Urbina Z.', 'Fundador / Insigne', 'Bombero Insigne', 'Insigne', FALSE, NULL),
+  ('vol-f-03', 'FND-003', '08.789.012-3', 'Eduardo Liberón Figueroa', 'E. Liberón', 'Fundador / Insigne', 'Bombero Insigne', 'Insigne', FALSE, NULL),
+  ('vol-f-04', 'FND-004', '09.345.678-9', 'Carlos Contreras Inostroza', 'C. Contreras', 'Fundador / Insigne', 'Bombero Insigne', 'Insigne', FALSE, NULL),
+  ('vol-f-05', 'FND-005', '09.876.543-2', 'Luis Nanjarí Villarroel', 'L. Nanjarí', 'Fundador / Insigne', 'Bombero Insigne', 'Insigne', FALSE, NULL),
+  ('vol-f-06', 'FND-006', '10.234.567-8', 'Claudio Vargas López', 'C. Vargas L.', 'Fundador / Insigne', 'Bombero Insigne', 'Insigne', FALSE, NULL),
+  ('vol-f-07', 'FND-007', '10.987.654-1', 'Manuel Campos Velásquez', 'M. Campos', 'Fundador / Insigne', 'Bombero Insigne', 'Insigne', FALSE, NULL),
+  ('vol-f-08', 'FND-008', '11.345.678-0', 'Luis Haroldo Gutiérrez', 'L. H. Gutiérrez', 'Fundador / Insigne', 'Bombero Insigne', 'Insigne', FALSE, NULL),
+  ('vol-f-09', 'FND-009', '11.890.123-5', 'Héctor Casanova Sánchez', 'H. Casanova S.', 'Fundador / Insigne', 'Bombero Insigne', 'Insigne', FALSE, NULL),
 
   -- 2. Honorarios
-  ('vol-h-01', 'HON-010', '12.456.789-2', 'Jorge Rodríguez Humeres', 'J. Rodríguez', 'Honorario', 'Bombero Honorario', 'Honorario'),
-  ('vol-h-02', 'HON-011', '12.987.654-K', 'Patricio Urbina Lazcano', 'P. Urbina L.', 'Honorario', 'Bombero Honorario', 'Honorario'),
-  ('vol-h-03', 'HON-012', '13.234.567-8', 'Julio Triviño Galdámez', 'J. Triviño', 'Honorario', 'Bombero Honorario', 'Honorario'),
-  ('vol-h-04', 'HON-013', '13.789.012-3', 'Julio Ayala Mura', 'J. Ayala M.', 'Honorario', 'Bombero Honorario', 'Honorario'),
-  ('vol-h-05', 'HON-014', '14.123.456-7', 'Nelly Vicencio Galdámez', 'N. Vicencio', 'Honorario', 'Bombero Honorario', 'Honorario'),
-  ('vol-h-06', 'HON-015', '14.678.901-4', 'Víctor Olguín Campos', 'V. Olguín', 'Honorario', 'Bombero Honorario', 'Honorario'),
-  ('vol-h-07', 'HON-016', '15.234.567-1', 'Alberto Reyes Barrera', 'A. Reyes B.', 'Honorario', 'Bombero Honorario', 'Honorario'),
-  ('vol-h-08', 'HON-017', '15.890.123-9', 'Héctor Bustos Ojeda', 'H. Bustos', 'Honorario', 'Bombero Honorario', 'Honorario'),
-  ('vol-h-09', 'HON-018', '16.345.678-6', 'Jaime Ayala Vicencio', 'J. Ayala V.', 'Honorario', 'Bombero Honorario', 'Honorario'),
+  ('vol-h-01', 'HON-010', '12.456.789-2', 'Jorge Rodríguez Humeres', 'J. Rodríguez', 'Honorario', 'Bombero Honorario', 'Honorario', FALSE, NULL),
+  ('vol-h-02', 'HON-011', '12.987.654-K', 'Patricio Urbina Lazcano', 'P. Urbina L.', 'Honorario', 'Bombero Honorario', 'Honorario', FALSE, NULL),
+  ('vol-h-03', 'HON-012', '13.234.567-8', 'Julio Triviño Galdámez', 'J. Triviño', 'Honorario', 'Bombero Honorario', 'Honorario', FALSE, NULL),
+  ('vol-h-04', 'HON-013', '13.789.012-3', 'Julio Ayala Mura', 'J. Ayala M.', 'Honorario', 'Bombero Honorario', 'Honorario', FALSE, NULL),
+  ('vol-h-05', 'HON-014', '14.123.456-7', 'Nelly Vicencio Galdámez', 'N. Vicencio', 'Honorario', 'Bombero Honorario', 'Honorario', FALSE, NULL),
+  ('vol-h-06', 'HON-015', '14.678.901-4', 'Víctor Olguín Campos', 'V. Olguín', 'Honorario', 'Bombero Honorario', 'Honorario', FALSE, NULL),
+  ('vol-h-07', 'HON-016', '15.234.567-1', 'Alberto Reyes Barrera', 'A. Reyes B.', 'Honorario', 'Bombero Honorario', 'Honorario', FALSE, NULL),
+  ('vol-h-08', 'HON-017', '15.890.123-9', 'Héctor Bustos Ojeda', 'H. Bustos', 'Honorario', 'Bombero Honorario', 'Honorario', FALSE, NULL),
+  ('vol-h-09', 'HON-018', '16.345.678-6', 'Jaime Ayala Vicencio', 'J. Ayala V.', 'Honorario', 'Bombero Honorario', 'Honorario', FALSE, NULL),
 
-  -- 3. Activos
-  ('vol-a-01', 'ACT-019', '16.789.012-3', 'Nelson Venegas Salazar', 'N. Venegas', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-02', 'ACT-020', '17.123.456-8', 'Gabriel Bianchini Frost', 'G. Bianchini', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-03', 'ACT-021', '17.654.321-0', 'Samuel Aguirre Torres', 'S. Aguirre', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-04', 'ACT-022', '18.112.233-4', 'Héctor Covarrubias Caiceo', 'H. Covarrubias', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-05', 'ACT-023', '18.456.789-1', 'Jorge Navia Valencia', 'J. Navia', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-06', 'ACT-024', '18.990.112-5', 'José Vargas Ortega', 'J. Vargas', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-07', 'ACT-025', '19.234.567-2', 'Víctor Rojo Salinas', 'V. Rojo', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-08', 'ACT-026', '19.789.012-9', 'Enzo Núñez Campos', 'E. Núñez', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-09', 'ACT-027', '16.554.321-8', 'Gustavo Núñez', 'G. Núñez', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-10', 'ACT-028', '17.889.900-1', 'Cristian Gutiérrez', 'C. Gutiérrez', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-11', 'ACT-029', '18.334.455-6', 'Enrique Vargas', 'E. Vargas', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-12', 'ACT-030', '19.445.678-0', 'Fernando González', 'F. González', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-13', 'ACT-031', '19.890.123-7', 'Hugo Santibáñez Cutiño', 'H. Santibáñez', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-14', 'ACT-032', '20.123.456-4', 'Gustavo Casanova', 'G. Casanova', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-15', 'ACT-033', '20.567.890-1', 'Raúl Reyes Cortés', 'R. Reyes C.', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-16', 'ACT-034', '20.901.234-8', 'Susana Lira', 'S. Lira', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-17', 'ACT-035', '21.234.567-5', 'Germán Muñoz', 'G. Muñoz', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-18', 'ACT-036', '21.678.901-2', 'Nellzon Alcayaga', 'N. Alcayaga', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-19', 'ACT-037', '21.990.112-9', 'Jonathan Toro', 'J. Toro', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-20', 'ACT-038', '22.345.678-6', 'Evelyn Ponce', 'E. Ponce', 'Activo', 'Bombero Activo', 'Activo'),
-  ('vol-a-21', 'ACT-039', '22.789.012-3', 'Mayra Rodríguez', 'M. Rodríguez', 'Activo', 'Bombero Activo', 'Activo'),
+  -- 3. Activos (Exactamente 8 Conductores / Maquinistas Habilitados)
+  ('vol-a-01', 'ACT-019', '16.789.012-3', 'Nelson Venegas Salazar', 'N. Venegas', 'Activo', 'Bombero Activo', 'Activo', FALSE, NULL),
+  ('vol-a-02', 'ACT-020', '17.123.456-8', 'Gabriel Bianchini Frost', 'G. Bianchini', 'Activo', 'Bombero Activo', 'Activo', TRUE, 'Clase F'),
+  ('vol-a-03', 'ACT-021', '17.654.321-0', 'Samuel Aguirre Torres', 'S. Aguirre', 'Activo', 'Bombero Activo', 'Activo', TRUE, 'Clase F'),
+  ('vol-a-04', 'ACT-022', '18.112.233-4', 'Héctor Covarrubias Caiceo', 'H. Covarrubias', 'Activo', 'Bombero Activo', 'Activo', FALSE, NULL),
+  ('vol-a-05', 'ACT-023', '18.456.789-1', 'Jorge Navia Valencia', 'J. Navia', 'Activo', 'Bombero Activo', 'Activo', TRUE, 'Clase F'),
+  ('vol-a-06', 'ACT-024', '18.990.112-5', 'José Vargas Ortega', 'J. Vargas', 'Activo', 'Capitán', 'Activo', FALSE, NULL),
+  ('vol-a-07', 'ACT-025', '19.234.567-2', 'Víctor Rojo Salinas', 'V. Rojo', 'Activo', 'Bombero Activo', 'Activo', TRUE, 'Clase F'),
+  ('vol-a-08', 'ACT-026', '19.789.012-9', 'Enzo Núñez Campos', 'E. Núñez', 'Activo', 'Bombero Activo', 'Activo', FALSE, NULL),
+  ('vol-a-09', 'ACT-027', '16.554.321-8', 'Gustavo Núñez', 'G. Núñez', 'Activo', 'Bombero Activo', 'Activo', TRUE, 'Clase F'),
+  ('vol-a-10', 'ACT-028', '17.889.900-1', 'Cristian Gutiérrez', 'C. Gutiérrez', 'Activo', 'Bombero Activo', 'Activo', FALSE, NULL),
+  ('vol-a-11', 'ACT-029', '18.334.455-6', 'Enrique Vargas', 'E. Vargas', 'Activo', 'Bombero Activo', 'Activo', TRUE, 'Clase F'),
+  ('vol-a-12', 'ACT-030', '19.445.678-0', 'Fernando González', 'F. González', 'Activo', 'Bombero Activo', 'Activo', FALSE, NULL),
+  ('vol-a-13', 'ACT-031', '19.890.123-7', 'Hugo Santibáñez Cutiño', 'H. Santibáñez', 'Activo', 'Bombero Activo', 'Activo', FALSE, NULL),
+  ('vol-a-14', 'ACT-032', '20.123.456-4', 'Gustavo Casanova', 'G. Casanova', 'Activo', 'Bombero Activo', 'Activo', TRUE, 'Clase F'),
+  ('vol-a-15', 'ACT-033', '20.567.890-1', 'Raúl Reyes Cortés', 'R. Reyes C.', 'Activo', 'Bombero Activo', 'Activo', FALSE, NULL),
+  ('vol-a-16', 'ACT-034', '20.901.234-8', 'Susana Lira', 'S. Lira', 'Activo', 'Bombero Activo', 'Activo', FALSE, NULL),
+  ('vol-a-17', 'ACT-035', '21.234.567-5', 'Germán Muñoz', 'G. Muñoz', 'Activo', 'Bombero Activo', 'Activo', TRUE, 'Clase F + A4'),
+  ('vol-a-18', 'ACT-036', '21.678.901-2', 'Nellzon Alcayaga', 'N. Alcayaga', 'Activo', 'Bombero Activo', 'Activo', FALSE, NULL),
+  ('vol-a-19', 'ACT-037', '21.990.112-9', 'Jonathan Toro', 'J. Toro', 'Activo', 'Bombero Activo', 'Activo', FALSE, NULL),
+  ('vol-a-20', 'ACT-038', '22.345.678-6', 'Evelyn Ponce', 'E. Ponce', 'Activo', 'Bombero Activo', 'Activo', FALSE, NULL),
+  ('vol-a-21', 'ACT-039', '22.789.012-3', 'Mayra Rodríguez', 'M. Rodríguez', 'Activo', 'Bombero Activo', 'Activo', FALSE, NULL),
 
   -- 4. Aspirantes
-  ('vol-asp-01', 'ASP-040', '23.456.789-0', 'Martina Lopez', 'M. Lopez', 'Aspirante', 'Aspirante', 'Activo')
+  ('vol-asp-01', 'ASP-040', '23.456.789-0', 'Martina Lopez', 'M. Lopez', 'Aspirante', 'Aspirante', 'Activo', FALSE, NULL)
 ON CONFLICT (id) DO UPDATE SET
-  full_name = EXCLUDED.full_name,
-  rank = EXCLUDED.rank,
   registration_number = EXCLUDED.registration_number,
-  status = EXCLUDED.status;
+  rut = EXCLUDED.rut,
+  full_name = EXCLUDED.full_name,
+  short_name = EXCLUDED.short_name,
+  category = EXCLUDED.category,
+  rank = EXCLUDED.rank,
+  status = EXCLUDED.status,
+  is_driver = EXCLUDED.is_driver,
+  driver_license = EXCLUDED.driver_license,
+  updated_at = NOW();
 
 -- 15. POBLACIÓN DEL SUPER ADMIN GENERAL
 INSERT INTO public.app_users (
@@ -380,8 +388,77 @@ BEGIN
 END $$;
 
 -- ==============================================================================
--- 18. MIGRACIÓN / ACTUALIZACIÓN NO DESTRUCTIVA (EJECUTAR EN SUPABASE SQL EDITOR SI YA TIENES DATOS)
+-- 18. MIGRACIÓN Y LIMPIEZA DE DATOS (EJECUTAR EN SUPABASE SQL EDITOR)
 -- ==============================================================================
 ALTER TABLE public.volunteers ADD COLUMN IF NOT EXISTS is_driver BOOLEAN DEFAULT FALSE;
 ALTER TABLE public.volunteers ADD COLUMN IF NOT EXISTS driver_license TEXT;
+
+-- 18.1. Función y Trigger Automático: Sincronización Estricta de Conductores
+-- Este trigger asegura que CUALQUIER cambio que emitas en la interfaz (guardar o borrar conductor)
+-- se refleje de inmediato en la base de datos limpiando automáticamente la columna driver_license a NULL cuando is_driver es FALSE.
+CREATE OR REPLACE FUNCTION public.sync_volunteer_driver_status()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- 1. Si el rango es Maquinista o Maquinista General, siempre es conductor
+    IF NEW.rank IN ('Maquinista General', 'Maquinista') THEN
+        NEW.is_driver := TRUE;
+        IF NEW.driver_license IS NULL OR NEW.driver_license = 'NO' OR NEW.driver_license = '' OR NEW.driver_license = 'null' THEN
+            NEW.driver_license := 'Clase F';
+        END IF;
+    -- 2. Si is_driver es FALSE, o la licencia se estableció en 'NO' o NULL -> Limpieza estricta
+    ELSIF NEW.is_driver IS FALSE OR NEW.driver_license = 'NO' OR NEW.driver_license IS NULL OR NEW.driver_license = '' OR NEW.driver_license = 'null' THEN
+        NEW.is_driver := FALSE;
+        NEW.driver_license := NULL;
+    -- 3. Si is_driver es TRUE, asegurar que tenga licencia válida
+    ELSIF NEW.is_driver IS TRUE THEN
+        IF NEW.driver_license IS NULL OR NEW.driver_license = 'NO' OR NEW.driver_license = '' OR NEW.driver_license = 'null' THEN
+            NEW.driver_license := 'Clase F';
+        END IF;
+    END IF;
+
+    NEW.updated_at := NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_sync_volunteer_driver ON public.volunteers;
+CREATE TRIGGER trg_sync_volunteer_driver
+BEFORE INSERT OR UPDATE ON public.volunteers
+FOR EACH ROW
+EXECUTE FUNCTION public.sync_volunteer_driver_status();
+
+-- 18.2. Limpieza de licencias residuales en todos los voluntarios no habilitados
+UPDATE public.volunteers
+SET driver_license = NULL, is_driver = FALSE
+WHERE is_driver IS FALSE OR is_driver IS NULL OR driver_license = 'NO' OR driver_license = 'null';
+
+-- 18.3. Establecer Capitán Oficial José Vargas Ortega
+UPDATE public.volunteers
+SET rank = 'Capitán', is_driver = FALSE, driver_license = NULL
+WHERE id = 'vol-a-06' OR full_name ILIKE '%josé vargas%' OR full_name ILIKE '%jose vargas%';
+
+-- 18.4. Ajuste de Enrique Vargas (Bombero Activo con Habilitación Clase F)
+UPDATE public.volunteers
+SET rank = CASE WHEN rank = 'Capitán' THEN 'Bombero Activo' ELSE rank END,
+    is_driver = TRUE,
+    driver_license = 'Clase F'
+WHERE id = 'vol-a-11' OR full_name ILIKE '%enrique vargas%';
+
+-- 18.5. Ajuste de Héctor Covarrubias (Bombero Activo, No Conductor)
+UPDATE public.volunteers
+SET is_driver = FALSE, driver_license = NULL
+WHERE id = 'vol-a-04' OR full_name ILIKE '%covarrubias%';
+
+-- 18.6. Corrección en Partes Históricos (Capitán José Vargas Ortega)
+UPDATE public.emergency_reports
+SET captain_name = 'José Vargas Ortega',
+    captain_rank = 'Capitán'
+WHERE captain_name ILIKE '%enrique%' OR approved_by ILIKE '%enrique%';
+
+-- 18.7. Migración: Columnas para Doble Firma Digital Trazada (OBAC y Verificador)
+ALTER TABLE public.emergency_reports ADD COLUMN IF NOT EXISTS obac_signature JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE public.emergency_reports ADD COLUMN IF NOT EXISTS reviewer_signature JSONB DEFAULT '{}'::jsonb;
+
+
+
 

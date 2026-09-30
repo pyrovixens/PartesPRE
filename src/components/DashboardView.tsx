@@ -711,7 +711,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </span>
                   <div className="truncate min-w-0">
                     <p className="font-bold text-slate-900 dark:text-white truncate text-xs sm:text-sm">{v.name}</p>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{v.category} • {v.rank}</p>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate flex items-center gap-1.5 flex-wrap">
+                      <span>{v.category} • {volunteers.find(vol => vol.id === v.volunteerId)?.rank || v.rank}</span>
+                      {(() => {
+                        const matched = volunteers.find(vol => vol.id === v.volunteerId);
+                        const isDriver = matched 
+                          ? (matched.status !== 'Suspendido' && (matched.rank?.includes('Maquinista') || (matched.isDriver === true && !!matched.driverLicense && matched.driverLicense !== 'NO'))) 
+                          : v.rank?.includes('Maquinista');
+                        if (!isDriver) return null;
+                        return (
+                          <span className="bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-bold px-1.5 py-0.2 rounded text-[9px] border border-amber-300 dark:border-amber-800">
+                            🚒 {matched?.driverLicense || 'Clase F'}
+                          </span>
+                        );
+                      })()}
+                    </div>
                   </div>
                 </div>
 

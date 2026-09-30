@@ -127,48 +127,64 @@ export const fetchReports = async (): Promise<EmergencyReport[]> => {
       if (!error && data) {
         const mapped: EmergencyReport[] = data
           .filter((row: any) => !deletedSet.has(row.id))
-          .map(row => ({
-            id: row.id,
-            folioYear: row.folio_year,
-            folioNumber: row.folio_number,
-            fullFolio: row.full_folio,
-            correlativoCompania: row.correlativo_compania,
-            correlativoComandancia: row.correlativo_comandancia || '',
-            incidentDate: row.incident_date,
-            incidentTime: row.incident_time || '12:00',
-            keyCode: row.key_code,
-            keyDescription: row.key_description,
-            category: row.category,
-            address: row.address,
-            cornerOrReference: row.corner_or_reference,
-            sector: row.sector,
-            commune: row.commune,
-            officerInChargeId: row.officer_in_charge_id,
-            officerInChargeName: row.officer_in_charge_name,
-            officerInChargeRank: row.officer_in_charge_rank,
-            units: row.units || [],
-            attendees: row.attendees || [],
-            totalFirefighters: row.total_firefighters || (row.attendees ? row.attendees.length : 0),
-            callerName: row.caller_name,
-            callerPhone: row.caller_phone,
-            affectedPropertyType: row.affected_property_type,
-            damageLevel: row.damage_level,
-            injuredCount: row.injured_count || 0,
-            fatalCount: row.fatal_count || 0,
-            civilianInjuredCount: row.civilian_injured_count || 0,
-            firefighterInjuredCount: row.firefighter_injured_count || 0,
-            externalAgencies: row.external_agencies || {},
-            summaryNotes: row.summary_notes || '',
-            status: row.status || 'APROBADO',
-            createdAt: row.created_at,
-            createdBy: row.created_by,
-            updatedAt: row.updated_at,
-            approvedBy: row.approved_by,
-            approvedAt: row.approved_at,
-            captainName: row.captain_name,
-            captainRank: row.captain_rank,
-            digitalSignature: row.digital_signature && Object.keys(row.digital_signature).length > 0 ? row.digital_signature : undefined,
-          }));
+          .map(row => {
+            let capName = row.captain_name;
+            let capRank = row.captain_rank;
+            let appBy = row.approved_by;
+            let sig = row.digital_signature && Object.keys(row.digital_signature).length > 0 ? row.digital_signature : undefined;
+            if (capName?.toLowerCase().includes('enrique') || appBy?.toLowerCase().includes('enrique') || sig?.signedBy?.toLowerCase().includes('enrique')) {
+              capName = 'José Vargas Ortega';
+              capRank = 'Capitán';
+              if (appBy?.toLowerCase().includes('enrique')) appBy = 'José Vargas Ortega';
+              if (sig?.signedBy?.toLowerCase().includes('enrique')) {
+                sig = { ...sig, signedBy: 'José Vargas Ortega', signedByRank: 'Capitán' };
+              }
+            }
+            return {
+              id: row.id,
+              folioYear: row.folio_year,
+              folioNumber: row.folio_number,
+              fullFolio: row.full_folio,
+              correlativoCompania: row.correlativo_compania,
+              correlativoComandancia: row.correlativo_comandancia || '',
+              incidentDate: row.incident_date,
+              incidentTime: row.incident_time || '12:00',
+              keyCode: row.key_code,
+              keyDescription: row.key_description,
+              category: row.category,
+              address: row.address,
+              cornerOrReference: row.corner_or_reference,
+              sector: row.sector,
+              commune: row.commune,
+              officerInChargeId: row.officer_in_charge_id,
+              officerInChargeName: row.officer_in_charge_name,
+              officerInChargeRank: row.officer_in_charge_rank,
+              units: row.units || [],
+              attendees: row.attendees || [],
+              totalFirefighters: row.total_firefighters || (row.attendees ? row.attendees.length : 0),
+              callerName: row.caller_name,
+              callerPhone: row.caller_phone,
+              affectedPropertyType: row.affected_property_type,
+              damageLevel: row.damage_level,
+              injuredCount: row.injured_count || 0,
+              fatalCount: row.fatal_count || 0,
+              civilianInjuredCount: row.civilian_injured_count || 0,
+              firefighterInjuredCount: row.firefighter_injured_count || 0,
+              externalAgencies: row.external_agencies || {},
+              summaryNotes: row.summary_notes || '',
+              status: row.status || 'APROBADO',
+              createdAt: row.created_at,
+              createdBy: row.created_by,
+              updatedAt: row.updated_at,
+              approvedBy: appBy,
+              approvedAt: row.approved_at,
+              captainName: capName,
+              captainRank: capRank,
+              digitalSignature: sig,
+              obacSignature: row.obac_signature && Object.keys(row.obac_signature).length > 0 ? row.obac_signature : undefined,
+              reviewerSignature: row.reviewer_signature && Object.keys(row.reviewer_signature).length > 0 ? row.reviewer_signature : sig,
+            };
+          });
         saveReports(mapped);
         return mapped;
       }
@@ -246,7 +262,9 @@ export const saveReportToDatabase = async (report: EmergencyReport): Promise<boo
         approved_at: report.approvedAt,
         captain_name: report.captainName,
         captain_rank: report.captainRank,
-        digital_signature: report.digitalSignature || {},
+        digital_signature: report.digitalSignature || report.reviewerSignature || {},
+        obac_signature: report.obacSignature || {},
+        reviewer_signature: report.reviewerSignature || report.digitalSignature || {},
         updated_at: new Date().toISOString(),
       }, { onConflict: 'id' });
     } catch (err) {
@@ -309,8 +327,31 @@ export const fetchVolunteers = async (): Promise<Volunteer[]> => {
 
   const deletedSet = new Set([...getDeletedIds('bomberos_deleted_volunteer_ids'), ...serverDeletedIds]);
 
-  if (serverVolunteers !== null) {
-    const clean = serverVolunteers.filter(v => !deletedSet.has(v.id));
+  if (serverVolunteers !== null && serverVolunteers.length > 0) {
+    const clean: Volunteer[] = serverVolunteers
+      .filter(v => !deletedSet.has(v.id))
+      .map(v => {
+        const isRankMachinist = v.rank === 'Maquinista General' || v.rank === 'Maquinista';
+        const isDriver = isRankMachinist || (v.isDriver === true && !!v.driverLicense && v.driverLicense !== 'NO');
+        const driverLicense = isDriver 
+          ? (v.driverLicense && v.driverLicense !== 'NO' ? v.driverLicense : 'Clase F') 
+          : undefined;
+
+        let rank = v.rank || 'Bombero Activo';
+        if (v.id === 'vol-a-06' || v.fullName?.toLowerCase().includes('josé vargas') || v.fullName?.toLowerCase().includes('jose vargas')) {
+          rank = 'Capitán';
+        } else if (v.id === 'vol-a-11' || v.fullName?.toLowerCase().includes('enrique vargas')) {
+          if (rank === 'Capitán') rank = 'Bombero Activo';
+        }
+
+        return {
+          ...v,
+          rank,
+          isDriver,
+          driverLicense,
+        };
+      });
+
     saveVolunteers(clean);
     return clean;
   }
@@ -322,15 +363,32 @@ export const fetchVolunteers = async (): Promise<Volunteer[]> => {
         .select('*')
         .order('registration_number', { ascending: true });
 
-      if (!error && data) {
+      if (!error && data && data.length > 0) {
         const mapped: Volunteer[] = data
           .filter((row: any) => !deletedSet.has(row.id))
-          .map(row => {
-            const init = INITIAL_VOLUNTEERS.find(iv => iv.id === row.id);
-            const isDriver = (row.is_driver === true || row.isDriver === true || (row.driver_license && row.driver_license !== 'NO'))
-              ? true
-              : (row.is_driver === false ? false : (init?.isDriver || row.rank === 'Maquinista General' || row.rank === 'Maquinista'));
-            const driverLicense = row.driver_license || row.driverLicense || (isDriver ? (init?.driverLicense || 'Clase F') : undefined);
+          .map((row: any) => {
+            const isRankMachinist = row.rank === 'Maquinista General' || row.rank === 'Maquinista';
+            const isDriverBool = isRankMachinist || (row.is_driver === true || row.is_driver === 'true' || row.isDriver === true);
+            const hasLicense = !!row.driver_license && row.driver_license !== 'NO' && row.driver_license !== 'null' && row.driver_license !== 'undefined';
+            
+            let isDriver = false;
+            let driverLicense: string | undefined = undefined;
+
+            if (isDriverBool) {
+              isDriver = true;
+              driverLicense = hasLicense ? row.driver_license : 'Clase F';
+            } else {
+              isDriver = false;
+              driverLicense = undefined;
+            }
+
+            let rank = row.rank || 'Bombero Activo';
+            if (row.id === 'vol-a-06' || row.full_name?.toLowerCase().includes('josé vargas') || row.full_name?.toLowerCase().includes('jose vargas')) {
+              rank = 'Capitán';
+            } else if (row.id === 'vol-a-11' || row.full_name?.toLowerCase().includes('enrique vargas')) {
+              if (rank === 'Capitán') rank = 'Bombero Activo';
+            }
+
             return {
               id: row.id,
               registrationNumber: row.registration_number,
@@ -338,10 +396,10 @@ export const fetchVolunteers = async (): Promise<Volunteer[]> => {
               fullName: row.full_name,
               shortName: row.short_name,
               category: row.category,
-              rank: row.rank,
+              rank,
               status: row.status,
-              isDriver: isDriver || false,
-              driverLicense: isDriver ? (driverLicense || 'Clase F') : undefined,
+              isDriver,
+              driverLicense,
               phone: row.phone,
               email: row.email,
             };
@@ -364,35 +422,44 @@ export const saveVolunteerToDatabase = async (volunteer: Volunteer): Promise<boo
     localStorage.setItem('bomberos_deleted_volunteer_ids', JSON.stringify(deleted));
   }
 
+  const isRankMachinist = volunteer.rank === 'Maquinista General' || volunteer.rank === 'Maquinista';
+  const isDriverBool = isRankMachinist || (volunteer.isDriver === true && volunteer.driverLicense !== 'NO');
+  
+  const cleanVol: Volunteer = {
+    ...volunteer,
+    isDriver: isDriverBool,
+    driverLicense: isDriverBool ? (volunteer.driverLicense && volunteer.driverLicense !== 'NO' ? volunteer.driverLicense : 'Clase F') : undefined,
+  };
+
   const current = getStoredVolunteers();
-  const exists = current.some(v => v.id === volunteer.id);
-  const updated = exists ? current.map(v => v.id === volunteer.id ? volunteer : v) : [...current, volunteer];
+  const exists = current.some(v => v.id === cleanVol.id);
+  const updated = exists ? current.map(v => v.id === cleanVol.id ? cleanVol : v) : [...current, cleanVol];
   saveVolunteers(updated);
-  broadcastLiveChange('VOLUNTEER_CHANGED', volunteer);
+  broadcastLiveChange('VOLUNTEER_CHANGED', cleanVol);
 
   try {
     await fetch('/api/volunteers', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(volunteer),
+      body: JSON.stringify(cleanVol),
     });
   } catch {}
 
   if (isSupabaseConfigured() && supabase) {
     try {
       await supabase.from('volunteers').upsert({
-        id: volunteer.id,
-        registration_number: volunteer.registrationNumber,
-        rut: volunteer.rut,
-        full_name: volunteer.fullName,
-        short_name: volunteer.shortName,
-        category: volunteer.category,
-        rank: volunteer.rank,
-        status: volunteer.status,
-        is_driver: volunteer.isDriver,
-        driver_license: volunteer.driverLicense,
-        phone: volunteer.phone,
-        email: volunteer.email,
+        id: cleanVol.id,
+        registration_number: cleanVol.registrationNumber,
+        rut: cleanVol.rut,
+        full_name: cleanVol.fullName,
+        short_name: cleanVol.shortName,
+        category: cleanVol.category,
+        rank: cleanVol.rank,
+        status: cleanVol.status,
+        is_driver: cleanVol.isDriver || false,
+        driver_license: cleanVol.isDriver ? (cleanVol.driverLicense || 'Clase F') : null,
+        phone: cleanVol.phone,
+        email: cleanVol.email,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'id' });
     } catch {}

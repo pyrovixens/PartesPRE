@@ -101,6 +101,12 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
 
   // Material Mayor (Solo unidad + maquinista)
   const [selectedUnits, setSelectedUnits] = useState<DispatchedUnit[]>([]);
+  const [showAddCustomUnitModal, setShowAddCustomUnitModal] = useState<boolean>(false);
+  const [customUnitCodeInput, setCustomUnitCodeInput] = useState<string>('');
+  const [customUnitNameInput, setCustomUnitNameInput] = useState<string>('');
+  const [customUnitDriverInput, setCustomUnitDriverInput] = useState<string>('');
+  const [customUnitDriverRankInput, setCustomUnitDriverRankInput] = useState<string>('Maquinista');
+  const [customUnitCiaInput, setCustomUnitCiaInput] = useState<string>('1ª Cía CB Los Andes');
 
   // Asistencia (Material Humano con Tripuló / 6-3 Lugar / Cubre Cuartel)
   const [attendees, setAttendees] = useState<AttendanceRecord[]>([]);
@@ -133,9 +139,19 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
   // Strictly company officers for review and signature (Capitán, Ayudante, Tenientes, Director, Secretario, Tesorero)
   const officersList = useMemo(() => {
     const officerRanks = ['Director', 'Capitán', 'Teniente', 'Ayudante', 'Secretario', 'Tesorero', 'Comandante'];
-    return volunteers.filter(v => 
+    const list = volunteers.filter(v => 
       officerRanks.some(r => v.rank.toLowerCase().includes(r.toLowerCase()))
     );
+    // Guarantee José Vargas Ortega is always available as Capitán
+    const joseVargas = volunteers.find(v => v.fullName.toLowerCase().includes('josé vargas') || v.fullName.toLowerCase().includes('jose vargas'));
+    if (joseVargas && !list.some(o => o.id === joseVargas.id)) {
+      list.unshift({ ...joseVargas, rank: 'Capitán' });
+    }
+    return list.sort((a, b) => {
+      if (a.rank.toLowerCase().includes('capitán')) return -1;
+      if (b.rank.toLowerCase().includes('capitán')) return 1;
+      return a.fullName.localeCompare(b.fullName);
+    });
   }, [volunteers]);
 
   // Claves filtered list with normalized search & category filter
@@ -171,8 +187,11 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
 
   // Machinists & authorized drivers filtered list
   const availableMachinists = useMemo(() => {
-    const isDriverCheck = (v: Volunteer) => 
-      v.isDriver === true || (!!v.driverLicense && v.driverLicense !== 'NO') || v.rank === 'Maquinista General' || v.rank === 'Maquinista';
+    const isDriverCheck = (v: Volunteer) => {
+      if (!v || v.status === 'Suspendido') return false;
+      if (v.rank === 'Maquinista General' || v.rank === 'Maquinista') return true;
+      return v.isDriver === true && !!v.driverLicense && v.driverLicense !== 'NO';
+    };
 
     const officialMachinists = volunteers.filter(isDriverCheck);
     const otherVolunteers = volunteers.filter(v => !isDriverCheck(v));
@@ -235,6 +254,26 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
       localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draftPayload));
     } catch {}
   };
+
+  const formContainerRef = useRef<HTMLFormElement | null>(null);
+
+  // Lock background window scroll while modal is open to prevent page jumps
+  useEffect(() => {
+    if (isOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isOpen]);
+
+  // Scroll to top of modal form smoothly whenever step changes
+  useEffect(() => {
+    if (formContainerRef.current) {
+      formContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [activeStep]);
 
   // 1. Debounced auto-save draft while typing
   useEffect(() => {
@@ -332,8 +371,12 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
       setStatus(editingReport.status || 'APROBADO');
 
       // Initialize reviewer officer
-      const initialReviewerName = editingReport.digitalSignature?.signedBy || editingReport.captainName || editingReport.approvedBy || '';
-      const initialReviewerRank = editingReport.digitalSignature?.signedByRank || editingReport.captainRank || '';
+      let initialReviewerName = editingReport.digitalSignature?.signedBy || editingReport.captainName || editingReport.approvedBy || '';
+      let initialReviewerRank = editingReport.digitalSignature?.signedByRank || editingReport.captainRank || '';
+      if (initialReviewerName.toLowerCase().includes('enrique')) {
+        initialReviewerName = 'José Vargas Ortega';
+        initialReviewerRank = 'Capitán';
+      }
       const matchedOff = officersList.find(o => o.fullName.toLowerCase() === initialReviewerName.toLowerCase());
       if (matchedOff) {
         setReviewerOfficerId(matchedOff.id);
@@ -344,10 +387,10 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
         setReviewerOfficerName(initialReviewerName);
         setReviewerOfficerRank(initialReviewerRank || 'Oficial de Compañía');
       } else {
-        const defaultCap = officersList.find(o => o.rank.includes('Capitán')) || officersList[0] || volunteers[0];
+        const defaultCap = officersList.find(o => o.rank.includes('Capitán')) || volunteers.find(v => v.rank === 'Capitán') || officersList[0] || volunteers[0];
         setReviewerOfficerId(defaultCap?.id || '');
-        setReviewerOfficerName(defaultCap?.fullName || 'Capitán de Compañía');
-        setReviewerOfficerRank(defaultCap?.rank || 'Capitán de Compañía');
+        setReviewerOfficerName(defaultCap?.fullName || 'José Vargas Ortega');
+        setReviewerOfficerRank(defaultCap?.rank || 'Capitán');
       }
       setActiveStep(1);
     } else {
@@ -444,10 +487,10 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
         );
         setStatus(isOfficerUser ? 'APROBADO' : 'ENVIADO');
 
-        const defaultReviewer = officersList.find(o => o.rank.includes('Capitán')) || officersList[0] || volunteers[0];
+        const defaultReviewer = officersList.find(o => o.rank.includes('Capitán')) || volunteers.find(v => v.rank === 'Capitán') || officersList[0] || volunteers[0];
         setReviewerOfficerId(defaultReviewer?.id || '');
-        setReviewerOfficerName(defaultReviewer?.fullName || 'Capitán de Compañía');
-        setReviewerOfficerRank(defaultReviewer?.rank || 'Capitán de Compañía');
+        setReviewerOfficerName(defaultReviewer?.fullName || 'José Vargas Ortega');
+        setReviewerOfficerRank(defaultReviewer?.rank || 'Capitán');
         setActiveStep(1);
       }
     }
@@ -482,6 +525,20 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
   };
 
   const handleUpdateUnitDriver = (unitCode: string, driverId: string) => {
+    if (driverId === '__CUSTOM_EXTERNAL__') {
+      setSelectedUnits(selectedUnits.map(u => {
+        if (u.unitCode !== unitCode) return u;
+        return {
+          ...u,
+          driverId: '__CUSTOM_EXTERNAL__',
+          driverName: u.isExternalDriver ? u.driverName : '',
+          driverRank: u.driverRank || 'Maquinista',
+          isExternalDriver: true,
+          externalDriverCia: u.externalDriverCia || '1ª Cía CB Los Andes',
+        };
+      }));
+      return;
+    }
     const driver = volunteers.find(v => v.id === driverId);
     setSelectedUnits(selectedUnits.map(u => {
       if (u.unitCode !== unitCode) return u;
@@ -489,8 +546,52 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
         ...u,
         driverId,
         driverName: driver ? driver.fullName : '',
+        driverRank: driver?.rank || '',
+        isExternalDriver: false,
+        externalDriverCia: undefined,
       };
     }));
+  };
+
+  const handleUpdateUnitCustomDriver = (
+    unitCode: string, 
+    fields: { driverName?: string; driverRank?: string; externalDriverCia?: string }
+  ) => {
+    setSelectedUnits(selectedUnits.map(u => {
+      if (u.unitCode !== unitCode) return u;
+      return {
+        ...u,
+        driverId: '__CUSTOM_EXTERNAL__',
+        isExternalDriver: true,
+        ...fields,
+      };
+    }));
+  };
+
+  const handleAddCustomExternalUnit = () => {
+    if (!customUnitCodeInput.trim()) return;
+    const code = customUnitCodeInput.trim().toUpperCase();
+    if (selectedUnits.some(u => u.unitCode === code)) {
+      alert(`La unidad ${code} ya está agregada.`);
+      return;
+    }
+    setSelectedUnits([
+      ...selectedUnits,
+      {
+        unitCode: code,
+        driverId: '__CUSTOM_EXTERNAL__',
+        driverName: customUnitDriverInput.trim() || '',
+        driverRank: customUnitDriverRankInput.trim() || 'Maquinista',
+        isExternalDriver: true,
+        externalDriverCia: customUnitCiaInput.trim() || '1ª Cía CB Los Andes',
+      }
+    ]);
+    setCustomUnitCodeInput('');
+    setCustomUnitNameInput('');
+    setCustomUnitDriverInput('');
+    setCustomUnitDriverRankInput('Maquinista');
+    setCustomUnitCiaInput('1ª Cía CB Los Andes');
+    setShowAddCustomUnitModal(false);
   };
 
   // Volunteer Attendance Toggles (Default: TRIPULO_CARRO)
@@ -597,11 +698,25 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
       e.preventDefault();
     }
 
+    // Safety guard: if user presses Enter or triggers form submit before Step 5,
+    // do NOT submit/close the modal! Advance to next step instead.
+    if (!asDraft && activeStep < 5) {
+      setActiveStep(prev => Math.min(prev + 1, 5));
+      return;
+    }
+
     if (isSubmitting) return;
     setIsSubmitting(true);
 
     const finalStatus: ReportStatus = asDraft ? 'BORRADOR' : status;
     const fullFolio = `${folioYear}-${String(folioNumber).padStart(3, '0')}`;
+
+    let finalReviewerName = reviewerOfficerName || editingReport?.captainName || editingReport?.approvedBy || volunteers.find(v => v.rank === 'Capitán')?.fullName || 'José Vargas Ortega';
+    let finalReviewerRank = reviewerOfficerRank || editingReport?.captainRank || 'Capitán';
+    if (finalReviewerName.toLowerCase().includes('enrique')) {
+      finalReviewerName = 'José Vargas Ortega';
+      finalReviewerRank = 'Capitán';
+    }
 
     const reportToSave: EmergencyReport = {
       id: editingReport ? editingReport.id : `rep-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
@@ -648,20 +763,30 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
       createdAt: editingReport ? editingReport.createdAt : new Date().toISOString(),
       createdBy: editingReport ? editingReport.createdBy : (selectedOBAC?.fullName || 'Oficial de Guardia'),
       updatedAt: new Date().toISOString(),
-      approvedBy: finalStatus === 'APROBADO' 
-        ? (reviewerOfficerName || editingReport?.approvedBy || volunteers.find(v => v.rank === 'Capitán')?.fullName || 'Capitán de Compañía') 
-        : undefined,
+      approvedBy: finalStatus === 'APROBADO' ? finalReviewerName : undefined,
       approvedAt: finalStatus === 'APROBADO' ? (editingReport?.approvedAt || new Date().toISOString()) : undefined,
-      captainName: reviewerOfficerName || editingReport?.captainName || volunteers.find(v => v.rank === 'Capitán')?.fullName || 'Capitán de Compañía',
-      captainRank: reviewerOfficerRank || editingReport?.captainRank || 'Capitán de Compañía',
-      digitalSignature: finalStatus === 'APROBADO'
-        ? {
-            signedBy: reviewerOfficerName || editingReport?.digitalSignature?.signedBy || 'Oficial de Compañía',
-            signedByRank: reviewerOfficerRank || editingReport?.digitalSignature?.signedByRank || 'Oficial',
+      captainName: finalReviewerName,
+      captainRank: finalReviewerRank,
+      obacSignature: editingReport?.obacSignature,
+      reviewerSignature: finalStatus === 'APROBADO'
+        ? (editingReport?.reviewerSignature || editingReport?.digitalSignature || {
+            signedBy: finalReviewerName,
+            signedByRank: finalReviewerRank,
             signedAt: editingReport?.digitalSignature?.signedAt || new Date().toLocaleDateString('es-CL') + ' ' + new Date().toLocaleTimeString('es-CL'),
             signatureDataUrl: editingReport?.digitalSignature?.signatureDataUrl,
             verificationCode: editingReport?.digitalSignature?.verificationCode || `DIG-4CIA-${String(folioNumber).padStart(3, '0')}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
-          }
+            role: 'REVISOR',
+          })
+        : undefined,
+      digitalSignature: finalStatus === 'APROBADO'
+        ? (editingReport?.reviewerSignature || editingReport?.digitalSignature || {
+            signedBy: finalReviewerName,
+            signedByRank: finalReviewerRank,
+            signedAt: editingReport?.digitalSignature?.signedAt || new Date().toLocaleDateString('es-CL') + ' ' + new Date().toLocaleTimeString('es-CL'),
+            signatureDataUrl: editingReport?.digitalSignature?.signatureDataUrl,
+            verificationCode: editingReport?.digitalSignature?.verificationCode || `DIG-4CIA-${String(folioNumber).padStart(3, '0')}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
+            role: 'REVISOR',
+          })
         : undefined,
     };
 
@@ -806,7 +931,17 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
         </div>
 
         {/* Form Content */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-3.5 sm:p-5 space-y-4 sm:space-y-5 text-slate-800 dark:text-slate-200 text-xs sm:text-sm">
+        <form 
+          ref={formContainerRef}
+          onSubmit={(e) => handleSubmit(e, false)} 
+          onKeyDown={(e) => {
+            // Prevent Enter key in text/number inputs from submitting and unexpectedly closing the modal
+            if (e.key === 'Enter' && ((e.target as HTMLElement).tagName === 'INPUT' || e.target instanceof HTMLInputElement)) {
+              e.preventDefault();
+            }
+          }}
+          className="flex-1 overflow-y-auto p-3.5 sm:p-5 space-y-4 sm:space-y-5 text-slate-800 dark:text-slate-200 text-xs sm:text-sm"
+        >
           {/* STEP 1: FOLIOS Y FECHA */}
           {activeStep === 1 && (
             <div className="space-y-3 sm:space-y-4">
@@ -1139,15 +1274,26 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
           {/* STEP 3: MATERIAL MAYOR (CARROS - SOLO UNIDAD Y MAQUINISTA) */}
           {activeStep === 3 && (
             <div className="space-y-4">
-              <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
-                <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                  Selecciona las unidades que salieron al servicio y asigna su Maquinista:
-                </p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                  La lista de conductores prioriza automáticamente al personal de Maquinistas de la Compañía.
-                </p>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+                <div>
+                  <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                    Selecciona las unidades que salieron al servicio y asigna su Maquinista:
+                  </p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    Puedes elegir maquinistas del padrón o <strong className="text-blue-600 dark:text-blue-400">escribir directamente</strong> un conductor externo / de préstamo de otra compañía.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowAddCustomUnitModal(true)}
+                  className="bg-white dark:bg-slate-900 border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950 font-bold text-[11px] px-3 py-1.5 rounded-xl shadow-sm transition active:scale-95 flex items-center space-x-1.5 shrink-0"
+                >
+                  <span>➕ Agregar Carro de Otra Cía</span>
+                </button>
               </div>
 
+              {/* Units Grid */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {units.map(u => {
                   const isSelected = selectedUnits.some(su => su.unitCode === u.code);
@@ -1158,7 +1304,7 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
                       onClick={() => handleToggleUnit(u.code)}
                       className={`p-3 rounded-xl border text-left transition flex flex-col justify-between ${
                         isSelected 
-                          ? 'bg-red-50 dark:bg-red-950/40 border-red-500 shadow-sm' 
+                          ? 'bg-red-50 dark:bg-red-950/40 border-red-500 shadow-sm ring-1 ring-red-500' 
                           : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-slate-300'
                       }`}
                     >
@@ -1178,52 +1324,345 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
                 })}
               </div>
 
+              {/* Selected Units Cards */}
               {selectedUnits.length > 0 && (
                 <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-700">
-                  <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase">
-                    Maquinistas Asignados por Unidad Despachada
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {selectedUnits.map(su => (
-                      <div key={su.unitCode} className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-3 flex flex-col justify-between space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="font-extrabold text-red-700 dark:text-red-400 text-sm bg-red-100 dark:bg-red-950 px-2 py-0.5 rounded">
-                            Unidad {su.unitCode}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleToggleUnit(su.unitCode)}
-                            className="text-slate-400 hover:text-red-700 text-xs font-semibold"
-                          >
-                            Quitar
-                          </button>
-                        </div>
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                      Maquinistas Asignados por Unidad Despachada ({selectedUnits.length})
+                    </h4>
+                  </div>
 
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-                            Maquinista / Conductor:
-                          </label>
-                          <select
-                            value={su.driverId}
-                            onChange={(e) => handleUpdateUnitDriver(su.unitCode, e.target.value)}
-                            className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-red-600"
-                          >
-                            <optgroup label="🚒 ⭐ Conductores / Maquinistas Habilitados (Clase F)">
-                              {availableMachinists.officialMachinists.map(v => (
-                                <option key={v.id} value={v.id}>
-                                  {v.fullName} • {v.rank} {v.driverLicense ? `[${v.driverLicense}]` : '[Habilitado]'}
-                                </option>
-                              ))}
-                            </optgroup>
-                            <optgroup label="Otros Voluntarios del Padrón">
-                              {availableMachinists.otherVolunteers.map(v => (
-                                <option key={v.id} value={v.id}>{v.fullName} ({v.rank})</option>
-                              ))}
-                            </optgroup>
-                          </select>
+                  <div className="space-y-4">
+                    {selectedUnits.map(su => {
+                      const isCustom = su.isExternalDriver || su.driverId === '__CUSTOM_EXTERNAL__';
+
+                      return (
+                        <div 
+                          key={su.unitCode} 
+                          className={`border-2 rounded-2xl p-4 transition shadow-sm ${
+                            isCustom
+                              ? 'bg-blue-50/30 dark:bg-blue-950/20 border-blue-400 dark:border-blue-700/80'
+                              : 'bg-slate-50 dark:bg-slate-800/80 border-slate-300 dark:border-slate-700'
+                          }`}
+                        >
+                          {/* Card Header */}
+                          <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-700/60">
+                            <div className="flex items-center space-x-2.5">
+                              <span className="font-black text-white text-xs bg-red-700 dark:bg-red-600 px-3 py-1 rounded-lg shadow-sm">
+                                🚒 UNIDAD {su.unitCode}
+                              </span>
+                              {isCustom ? (
+                                <span className="bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 text-xs font-black px-2.5 py-0.5 rounded-lg border border-blue-300 dark:border-blue-800 flex items-center gap-1">
+                                  <span>🌐 Conductor Externo / Otra Cía</span>
+                                </span>
+                              ) : (
+                                <span className="bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-xs font-black px-2.5 py-0.5 rounded-lg border border-emerald-300 dark:border-emerald-800 flex items-center gap-1">
+                                  <span>🚒 Conductor del Padrón Cía</span>
+                                </span>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleUnit(su.unitCode)}
+                              className="text-slate-400 hover:text-red-700 dark:hover:text-red-400 text-xs font-bold px-2 py-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 transition"
+                            >
+                              ✕ Quitar Unidad
+                            </button>
+                          </div>
+
+                          {/* 2-Column Side-by-Side: Left (Padrón) vs Right (Otro Conductor / Externo) */}
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-3">
+                            {/* COLUMNA IZQUIERDA: Padrón de Compañía */}
+                            <div 
+                              onClick={() => {
+                                if (isCustom) {
+                                  const defaultMachinist = availableMachinists.officialMachinists[0] || volunteers[0];
+                                  handleUpdateUnitDriver(su.unitCode, defaultMachinist?.id || '');
+                                }
+                              }}
+                              className={`rounded-xl p-3.5 border-2 transition cursor-pointer flex flex-col justify-between ${
+                                !isCustom 
+                                  ? 'bg-white dark:bg-slate-900 border-emerald-500 dark:border-emerald-500 shadow-md ring-2 ring-emerald-500/20' 
+                                  : 'bg-slate-100/60 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 opacity-60 hover:opacity-90'
+                              }`}
+                            >
+                              <div>
+                                <div className="flex items-center justify-between mb-2">
+                                  <label className="text-xs font-black text-slate-900 dark:text-white flex items-center space-x-2 cursor-pointer">
+                                    <input 
+                                      type="radio" 
+                                      name={`driver-mode-${su.unitCode}`}
+                                      checked={!isCustom}
+                                      onChange={() => {
+                                        const defaultMachinist = availableMachinists.officialMachinists[0] || volunteers[0];
+                                        handleUpdateUnitDriver(su.unitCode, defaultMachinist?.id || '');
+                                      }}
+                                      className="text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
+                                    />
+                                    <span>1. Conductor del Padrón (4ª Cía)</span>
+                                  </label>
+                                  {!isCustom && (
+                                    <span className="text-[10px] font-extrabold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950 px-2 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-800">
+                                      ✓ Activo
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="space-y-1.5 mt-2">
+                                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                                    Selecciona Maquinista / Voluntario:
+                                  </label>
+                                  <select
+                                    value={!isCustom ? su.driverId : ''}
+                                    onChange={(e) => {
+                                      if (e.target.value === '__CUSTOM_EXTERNAL__') {
+                                        handleUpdateUnitDriver(su.unitCode, '__CUSTOM_EXTERNAL__');
+                                      } else {
+                                        handleUpdateUnitDriver(su.unitCode, e.target.value);
+                                      }
+                                    }}
+                                    disabled={isCustom}
+                                    className={`w-full border rounded-xl px-3 py-2 text-xs font-bold transition ${
+                                      !isCustom 
+                                        ? 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-600' 
+                                        : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 cursor-not-allowed'
+                                    }`}
+                                  >
+                                    <option value="" disabled>Seleccionar de la lista oficial...</option>
+                                    <optgroup label="🚒 ⭐ Maquinistas / Conductores Habilitados (Clase F)">
+                                      {availableMachinists.officialMachinists.map(v => (
+                                        <option key={v.id} value={v.id}>
+                                          {v.fullName} • {v.rank} {v.driverLicense ? `[${v.driverLicense}]` : '[Habilitado]'}
+                                        </option>
+                                      ))}
+                                    </optgroup>
+                                    <optgroup label="Otros Voluntarios del Padrón">
+                                      {availableMachinists.otherVolunteers.map(v => (
+                                        <option key={v.id} value={v.id}>{v.fullName} ({v.rank})</option>
+                                      ))}
+                                    </optgroup>
+                                  </select>
+                                </div>
+                              </div>
+
+                              <div className="mt-3 pt-2 border-t border-slate-200 dark:border-slate-800 text-[10px] text-slate-500 dark:text-slate-400">
+                                💡 Prioriza a maquinistas con licencia Clase F al día de la 4ª Compañía.
+                              </div>
+                            </div>
+
+                            {/* COLUMNA DERECHA: Otro Conductor (Externo / Préstamo de Otra Cía) */}
+                            <div 
+                              onClick={() => {
+                                if (!isCustom) {
+                                  handleUpdateUnitDriver(su.unitCode, '__CUSTOM_EXTERNAL__');
+                                }
+                              }}
+                              className={`rounded-xl p-3.5 border-2 transition cursor-pointer flex flex-col justify-between ${
+                                isCustom 
+                                  ? 'bg-white dark:bg-slate-900 border-blue-500 dark:border-blue-500 shadow-md ring-2 ring-blue-500/20' 
+                                  : 'bg-slate-100/60 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 opacity-60 hover:opacity-90'
+                              }`}
+                            >
+                              <div>
+                                <div className="flex items-center justify-between mb-2">
+                                  <label className="text-xs font-black text-blue-900 dark:text-blue-300 flex items-center space-x-2 cursor-pointer">
+                                    <input 
+                                      type="radio" 
+                                      name={`driver-mode-${su.unitCode}`}
+                                      checked={isCustom}
+                                      onChange={() => {
+                                        handleUpdateUnitDriver(su.unitCode, '__CUSTOM_EXTERNAL__');
+                                      }}
+                                      className="text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                                    />
+                                    <span>2. Otro Conductor (Externo / Otra Cía)</span>
+                                  </label>
+                                  {isCustom && (
+                                    <span className="text-[10px] font-extrabold text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-950 px-2 py-0.5 rounded-full border border-blue-300 dark:border-blue-800">
+                                      ✓ Activo
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="space-y-2.5 mt-2">
+                                  {/* Nombre Completo */}
+                                  <div>
+                                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                      Nombre Completo del Conductor:
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={su.driverName || ''}
+                                      onFocus={() => {
+                                        if (!isCustom) handleUpdateUnitDriver(su.unitCode, '__CUSTOM_EXTERNAL__');
+                                      }}
+                                      onChange={(e) => handleUpdateUnitCustomDriver(su.unitCode, { driverName: e.target.value })}
+                                      placeholder="Escribe el nombre y apellido del maquinista..."
+                                      className={`w-full border rounded-xl px-3 py-1.5 text-xs font-bold text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition ${
+                                        isCustom 
+                                          ? 'bg-blue-50/40 dark:bg-slate-950 border-blue-400 dark:border-blue-600' 
+                                          : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700'
+                                      }`}
+                                    />
+                                  </div>
+
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    {/* Compañía a la que pertenece */}
+                                    <div>
+                                      <label className="block text-[10px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
+                                        Compañía / C.B. a que pertenece:
+                                      </label>
+                                      <input
+                                        type="text"
+                                        value={su.externalDriverCia || ''}
+                                        onFocus={() => {
+                                          if (!isCustom) handleUpdateUnitDriver(su.unitCode, '__CUSTOM_EXTERNAL__');
+                                        }}
+                                        onChange={(e) => handleUpdateUnitCustomDriver(su.unitCode, { externalDriverCia: e.target.value })}
+                                        placeholder="Ej: 1ª Cía CB Los Andes"
+                                        className={`w-full border rounded-lg px-2.5 py-1 text-xs font-bold text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                                          isCustom 
+                                            ? 'bg-blue-50/40 dark:bg-slate-950 border-blue-400 dark:border-blue-600' 
+                                            : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700'
+                                        }`}
+                                      />
+                                      <div className="flex flex-wrap gap-1 mt-1">
+                                        {['1ª Cía Los Andes', '2ª Cía Rinconada', '3ª Cía San Esteban', 'CB Los Andes'].map(cia => (
+                                          <button
+                                            key={cia}
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleUpdateUnitCustomDriver(su.unitCode, { externalDriverCia: cia });
+                                            }}
+                                            className={`text-[9px] px-1.5 py-0.5 rounded font-bold transition ${
+                                              su.externalDriverCia === cia 
+                                                ? 'bg-blue-600 text-white' 
+                                                : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300'
+                                            }`}
+                                          >
+                                            {cia}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+
+                                    {/* Cargo / Grado */}
+                                    <div>
+                                      <label className="block text-[10px] font-bold text-slate-700 dark:text-slate-300 mb-0.5">
+                                        Cargo de Maquinista / Grado:
+                                      </label>
+                                      <input
+                                        type="text"
+                                        value={su.driverRank || ''}
+                                        onFocus={() => {
+                                          if (!isCustom) handleUpdateUnitDriver(su.unitCode, '__CUSTOM_EXTERNAL__');
+                                        }}
+                                        onChange={(e) => handleUpdateUnitCustomDriver(su.unitCode, { driverRank: e.target.value })}
+                                        placeholder="Ej: Maquinista"
+                                        className={`w-full border rounded-lg px-2.5 py-1 text-xs font-bold text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                                          isCustom 
+                                            ? 'bg-blue-50/40 dark:bg-slate-950 border-blue-400 dark:border-blue-600' 
+                                            : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700'
+                                        }`}
+                                      />
+                                      <div className="flex flex-wrap gap-1 mt-1">
+                                        {['Maquinista', 'Voluntario', 'Teniente', 'Oficial', 'Rentado'].map(rank => (
+                                          <button
+                                            key={rank}
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleUpdateUnitCustomDriver(su.unitCode, { driverRank: rank });
+                                            }}
+                                            className={`text-[9px] px-1.5 py-0.5 rounded font-bold transition ${
+                                              su.driverRank === rank 
+                                                ? 'bg-blue-600 text-white' 
+                                                : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300'
+                                            }`}
+                                          >
+                                            {rank}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="mt-3 pt-2 border-t border-slate-200 dark:border-slate-800 text-[10px] text-blue-600 dark:text-blue-400">
+                                ✍️ Permite ingresar maquinistas en apoyo o de otras compañías sin pertenecer a la lista.
+                              </div>
+                            </div>
+                          </div>
                         </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Add Custom External Unit Modal */}
+              {showAddCustomUnitModal && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+                  <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-md overflow-hidden flex flex-col">
+                    <div className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between">
+                      <h4 className="text-xs font-black">Agregar Unidad / Carro de Otra Compañía</h4>
+                      <button type="button" onClick={() => setShowAddCustomUnitModal(false)} className="text-slate-400 hover:text-white">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="p-4 space-y-3 text-xs text-slate-800 dark:text-slate-200">
+                      <div>
+                        <label className="block text-[11px] font-bold mb-1">Código de la Unidad (Ej: B-1, Z-2, R-1):</label>
+                        <input
+                          type="text"
+                          value={customUnitCodeInput}
+                          onChange={(e) => setCustomUnitCodeInput(e.target.value)}
+                          placeholder="Ej: B-1"
+                          className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold uppercase text-slate-900 dark:text-white"
+                          autoFocus
+                        />
                       </div>
-                    ))}
+                      <div>
+                        <label className="block text-[11px] font-bold mb-1">Nombre del Maquinista / Conductor:</label>
+                        <input
+                          type="text"
+                          value={customUnitDriverInput}
+                          onChange={(e) => setCustomUnitDriverInput(e.target.value)}
+                          placeholder="Ej: Carlos Gómez"
+                          className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 dark:text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold mb-1">Cía. / Cuerpo de Origen:</label>
+                        <input
+                          type="text"
+                          value={customUnitCiaInput}
+                          onChange={(e) => setCustomUnitCiaInput(e.target.value)}
+                          placeholder="Ej: 1ª Cía CB Los Andes"
+                          className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 dark:text-white"
+                        />
+                      </div>
+                    </div>
+                    <div className="p-3 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowAddCustomUnitModal(false)}
+                        className="px-3 py-1.5 rounded-xl border border-slate-300 font-bold text-xs"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleAddCustomExternalUnit}
+                        disabled={!customUnitCodeInput.trim()}
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-1.5 rounded-xl disabled:opacity-50"
+                      >
+                        Agregar Unidad al Parte
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1349,8 +1788,13 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
                           <p className={`font-bold truncate ${isPresent ? 'text-slate-900 dark:text-white' : 'text-slate-700 dark:text-slate-300'}`}>
                             {v.fullName}
                           </p>
-                          <p className="text-[10px] text-slate-400">
-                            {v.registrationNumber} • {v.category} • {v.rank}
+                          <p className="text-[10px] text-slate-400 flex items-center gap-1.5 flex-wrap">
+                            <span>{v.registrationNumber} • {v.category} • {v.rank}</span>
+                            {v.status !== 'Suspendido' && (v.rank === 'Maquinista General' || v.rank === 'Maquinista' || (v.isDriver === true && !!v.driverLicense && v.driverLicense !== 'NO')) && (
+                              <span className="bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-bold px-1.5 py-0.2 rounded text-[9px] border border-amber-300 dark:border-amber-800">
+                                🚒 {v.driverLicense || 'Clase F'}
+                              </span>
+                            )}
                           </p>
                         </div>
                       </div>

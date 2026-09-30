@@ -123,10 +123,22 @@ export default function Home() {
   });
 
   // Core Data States (Pre-loaded with official data)
-  const [reports, setReports] = useState<EmergencyReport[]>(INITIAL_REPORTS);
-  const [volunteers, setVolunteers] = useState<Volunteer[]>(INITIAL_VOLUNTEERS);
-  const [units, setUnits] = useState<Unit[]>(INITIAL_UNITS);
-  const [keys, setKeys] = useState<EmergencyKey[]>(EMERGENCY_KEYS);
+  const [reports, setReports] = useState<EmergencyReport[]>(() => {
+    if (typeof window !== 'undefined') return getStoredReports();
+    return INITIAL_REPORTS;
+  });
+  const [volunteers, setVolunteers] = useState<Volunteer[]>(() => {
+    if (typeof window !== 'undefined') return getStoredVolunteers();
+    return INITIAL_VOLUNTEERS;
+  });
+  const [units, setUnits] = useState<Unit[]>(() => {
+    if (typeof window !== 'undefined') return getStoredUnits();
+    return INITIAL_UNITS;
+  });
+  const [keys, setKeys] = useState<EmergencyKey[]>(() => {
+    if (typeof window !== 'undefined') return getStoredKeys();
+    return EMERGENCY_KEYS;
+  });
 
   // Modals
   const [isFormOpen, setIsFormOpen] = useState<boolean>(false);
@@ -302,11 +314,19 @@ export default function Home() {
       duration: 2500,
     });
 
+    if (viewingReport && viewingReport.id === reportToSave.id) {
+      setViewingReport(reportToSave);
+    }
+
     // Persist to central database & server
     await saveReportToDatabase(reportToSave);
     const updated = await fetchReports();
     if (Array.isArray(updated)) {
       setReports(updated);
+      const fresh = updated.find(r => r.id === reportToSave.id);
+      if (fresh && viewingReport?.id === reportToSave.id) {
+        setViewingReport(fresh);
+      }
     }
   };
 
@@ -338,6 +358,7 @@ export default function Home() {
   };
 
   const handleSignReport = async (reportId: string, signatureData: {
+    role?: 'OBAC' | 'REVISOR';
     signedBy: string;
     signedByRank: string;
     signedAt: string;
@@ -347,14 +368,42 @@ export default function Home() {
     const target = reports.find(r => r.id === reportId);
     if (!target) return;
 
+    const isObac = signatureData.role === 'OBAC';
+
     const signedReport: EmergencyReport = {
       ...target,
-      status: 'APROBADO',
-      approvedBy: signatureData.signedBy,
-      approvedAt: signatureData.signedAt,
-      captainName: signatureData.signedBy,
-      captainRank: signatureData.signedByRank,
-      digitalSignature: signatureData,
+      ...(isObac ? {
+        obacSignature: {
+          signedBy: signatureData.signedBy,
+          signedByRank: signatureData.signedByRank,
+          signedAt: signatureData.signedAt,
+          signatureDataUrl: signatureData.signatureDataUrl,
+          verificationCode: signatureData.verificationCode,
+          role: 'OBAC',
+        },
+      } : {
+        status: 'APROBADO',
+        approvedBy: signatureData.signedBy,
+        approvedAt: signatureData.signedAt,
+        captainName: signatureData.signedBy,
+        captainRank: signatureData.signedByRank,
+        reviewerSignature: {
+          signedBy: signatureData.signedBy,
+          signedByRank: signatureData.signedByRank,
+          signedAt: signatureData.signedAt,
+          signatureDataUrl: signatureData.signatureDataUrl,
+          verificationCode: signatureData.verificationCode,
+          role: 'REVISOR',
+        },
+        digitalSignature: {
+          signedBy: signatureData.signedBy,
+          signedByRank: signatureData.signedByRank,
+          signedAt: signatureData.signedAt,
+          signatureDataUrl: signatureData.signatureDataUrl,
+          verificationCode: signatureData.verificationCode,
+          role: 'REVISOR',
+        },
+      }),
       updatedAt: new Date().toISOString(),
     };
 
@@ -369,9 +418,11 @@ export default function Home() {
 
     addToast({
       type: 'success',
-      title: 'Parte Firmado Digitalmente',
-      message: `V°B° oficial estampado por ${signatureData.signedBy} (${signatureData.signedByRank}).`,
-      duration: 3000,
+      title: isObac ? 'Firma de OBAC Registrada' : 'Parte Aprobado con V°B° Oficial',
+      message: isObac 
+        ? `Firma operativa estampada por ${signatureData.signedBy} (${signatureData.signedByRank}).`
+        : `V°B° oficial y cierre institucional estampado por ${signatureData.signedBy} (${signatureData.signedByRank}).`,
+      duration: 3500,
     });
   };
 
@@ -386,6 +437,17 @@ export default function Home() {
       });
       return;
     }
+    // Optimistic state update across all views (Dashboard, Attendance Matrix, Form, Detail, Volunteers)
+    setVolunteers(prev => {
+      const idx = prev.findIndex(v => v.id === vol.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = vol;
+        return next;
+      }
+      return [...prev, vol];
+    });
+
     await saveVolunteerToDatabase(vol);
     const updated = await fetchVolunteers();
     if (Array.isArray(updated)) {
@@ -732,6 +794,7 @@ export default function Home() {
         volunteers={volunteers}
         currentUser={currentUser}
         onSign={handleSignReport}
+        onSave={handleSaveReport}
       />
 
       <LogoManagerModal

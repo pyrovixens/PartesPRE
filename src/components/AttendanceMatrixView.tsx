@@ -294,7 +294,14 @@ export const AttendanceMatrixView: React.FC<AttendanceMatrixViewProps> = ({
                           {/* Volunteer Name */}
                           <td className="py-2 px-3 sticky left-0 z-10 bg-white dark:bg-slate-900 font-bold text-slate-900 dark:text-slate-100 min-w-[150px] sm:min-w-[210px] border-r border-slate-200 dark:border-slate-800 shadow-sm">
                             <div className="truncate">{v.fullName}</div>
-                            <div className="text-[10px] text-slate-400 font-normal">{v.rank}</div>
+                            <div className="text-[10px] text-slate-400 font-normal flex items-center gap-1.5 flex-wrap">
+                              <span>{v.rank}</span>
+                              {v.status !== 'Suspendido' && (v.rank?.includes('Maquinista') || (v.isDriver === true && !!v.driverLicense && v.driverLicense !== 'NO')) && (
+                                <span className="bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-bold px-1 py-0.2 rounded text-[9px] border border-amber-300 dark:border-amber-800">
+                                  🚒 {v.driverLicense || 'Clase F'}
+                                </span>
+                              )}
+                            </div>
                           </td>
 
                           {/* Registration */}

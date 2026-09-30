@@ -90,18 +90,18 @@ export const INITIAL_VOLUNTEERS: Volunteer[] = [
   { id: 'vol-h-03', rut: '13.234.567-8', registrationNumber: 'HON-012', fullName: 'Julio Triviño Galdámez', shortName: 'J. Triviño', category: 'Honorario', rank: 'Bombero Honorario', status: 'Honorario' },
   { id: 'vol-h-04', rut: '13.789.012-3', registrationNumber: 'HON-013', fullName: 'Julio Ayala Mura', shortName: 'J. Ayala M.', category: 'Honorario', rank: 'Bombero Honorario', status: 'Honorario' },
   { id: 'vol-h-05', rut: '14.123.456-7', registrationNumber: 'HON-014', fullName: 'Nelly Vicencio Galdámez', shortName: 'N. Vicencio', category: 'Honorario', rank: 'Bombero Honorario', status: 'Honorario' },
-  { id: 'vol-h-06', rut: '14.678.901-4', registrationNumber: 'HON-015', fullName: 'Víctor Olguín Campos', shortName: 'V. Olguín', category: 'Honorario', rank: 'Bombero Honorario', status: 'Honorario', isDriver: true, driverLicense: 'Clase F + A4' },
-  { id: 'vol-h-07', rut: '15.234.567-1', registrationNumber: 'HON-016', fullName: 'Alberto Reyes Barrera', shortName: 'A. Reyes B.', category: 'Honorario', rank: 'Bombero Honorario', status: 'Honorario', isDriver: true, driverLicense: 'Clase F + A4' },
-  { id: 'vol-h-08', rut: '15.890.123-9', registrationNumber: 'HON-017', fullName: 'Héctor Bustos Ojeda', shortName: 'H. Bustos', category: 'Honorario', rank: 'Bombero Honorario', status: 'Honorario', isDriver: true, driverLicense: 'Clase F + A4' },
+  { id: 'vol-h-06', rut: '14.678.901-4', registrationNumber: 'HON-015', fullName: 'Víctor Olguín Campos', shortName: 'V. Olguín', category: 'Honorario', rank: 'Bombero Honorario', status: 'Honorario' },
+  { id: 'vol-h-07', rut: '15.234.567-1', registrationNumber: 'HON-016', fullName: 'Alberto Reyes Barrera', shortName: 'A. Reyes B.', category: 'Honorario', rank: 'Bombero Honorario', status: 'Honorario' },
+  { id: 'vol-h-08', rut: '15.890.123-9', registrationNumber: 'HON-017', fullName: 'Héctor Bustos Ojeda', shortName: 'H. Bustos', category: 'Honorario', rank: 'Bombero Honorario', status: 'Honorario' },
   { id: 'vol-h-09', rut: '16.345.678-6', registrationNumber: 'HON-018', fullName: 'Jaime Ayala Vicencio', shortName: 'J. Ayala V.', category: 'Honorario', rank: 'Bombero Honorario', status: 'Honorario' },
 
-  // 3. BOMBEROS ACTIVOS (con conductores / maquinistas habilitados Clase F)
+  // 3. BOMBEROS ACTIVOS (8 Conductores / Maquinistas Habilitados)
   { id: 'vol-a-01', rut: '16.789.012-3', registrationNumber: 'ACT-019', fullName: 'Nelson Venegas Salazar', shortName: 'N. Venegas', category: 'Activo', rank: 'Bombero Activo', status: 'Activo' },
   { id: 'vol-a-02', rut: '17.123.456-8', registrationNumber: 'ACT-020', fullName: 'Gabriel Bianchini Frost', shortName: 'G. Bianchini', category: 'Activo', rank: 'Bombero Activo', status: 'Activo', isDriver: true, driverLicense: 'Clase F' },
   { id: 'vol-a-03', rut: '17.654.321-0', registrationNumber: 'ACT-021', fullName: 'Samuel Aguirre Torres', shortName: 'S. Aguirre', category: 'Activo', rank: 'Bombero Activo', status: 'Activo', isDriver: true, driverLicense: 'Clase F' },
-  { id: 'vol-a-04', rut: '18.112.233-4', registrationNumber: 'ACT-022', fullName: 'Héctor Covarrubias Caiceo', shortName: 'H. Covarrubias', category: 'Activo', rank: 'Bombero Activo', status: 'Activo', isDriver: true, driverLicense: 'Clase F' },
+  { id: 'vol-a-04', rut: '18.112.233-4', registrationNumber: 'ACT-022', fullName: 'Héctor Covarrubias Caiceo', shortName: 'H. Covarrubias', category: 'Activo', rank: 'Bombero Activo', status: 'Activo' },
   { id: 'vol-a-05', rut: '18.456.789-1', registrationNumber: 'ACT-023', fullName: 'Jorge Navia Valencia', shortName: 'J. Navia', category: 'Activo', rank: 'Bombero Activo', status: 'Activo', isDriver: true, driverLicense: 'Clase F' },
-  { id: 'vol-a-06', rut: '18.990.112-5', registrationNumber: 'ACT-024', fullName: 'José Vargas Ortega', shortName: 'J. Vargas', category: 'Activo', rank: 'Bombero Activo', status: 'Activo', isDriver: true, driverLicense: 'Clase F' },
+  { id: 'vol-a-06', rut: '18.990.112-5', registrationNumber: 'ACT-024', fullName: 'José Vargas Ortega', shortName: 'J. Vargas', category: 'Activo', rank: 'Capitán', status: 'Activo' },
   { id: 'vol-a-07', rut: '19.234.567-2', registrationNumber: 'ACT-025', fullName: 'Víctor Rojo Salinas', shortName: 'V. Rojo', category: 'Activo', rank: 'Bombero Activo', status: 'Activo', isDriver: true, driverLicense: 'Clase F' },
   { id: 'vol-a-08', rut: '19.789.012-9', registrationNumber: 'ACT-026', fullName: 'Enzo Núñez Campos', shortName: 'E. Núñez', category: 'Activo', rank: 'Bombero Activo', status: 'Activo' },
   { id: 'vol-a-09', rut: '16.554.321-8', registrationNumber: 'ACT-027', fullName: 'Gustavo Núñez', shortName: 'G. Núñez', category: 'Activo', rank: 'Bombero Activo', status: 'Activo', isDriver: true, driverLicense: 'Clase F' },
@@ -114,7 +114,7 @@ export const INITIAL_VOLUNTEERS: Volunteer[] = [
   { id: 'vol-a-16', rut: '20.901.234-8', registrationNumber: 'ACT-034', fullName: 'Susana Lira', shortName: 'S. Lira', category: 'Activo', rank: 'Bombero Activo', status: 'Activo' },
   { id: 'vol-a-17', rut: '21.234.567-5', registrationNumber: 'ACT-035', fullName: 'Germán Muñoz', shortName: 'G. Muñoz', category: 'Activo', rank: 'Bombero Activo', status: 'Activo', isDriver: true, driverLicense: 'Clase F + A4' },
   { id: 'vol-a-18', rut: '21.678.901-2', registrationNumber: 'ACT-036', fullName: 'Nellzon Alcayaga', shortName: 'N. Alcayaga', category: 'Activo', rank: 'Bombero Activo', status: 'Activo' },
-  { id: 'vol-a-19', rut: '21.990.112-9', registrationNumber: 'ACT-037', fullName: 'Jonathan Toro', shortName: 'J. Toro', category: 'Activo', rank: 'Bombero Activo', status: 'Activo', isDriver: true, driverLicense: 'Clase F' },
+  { id: 'vol-a-19', rut: '21.990.112-9', registrationNumber: 'ACT-037', fullName: 'Jonathan Toro', shortName: 'J. Toro', category: 'Activo', rank: 'Bombero Activo', status: 'Activo' },
   { id: 'vol-a-20', rut: '22.345.678-6', registrationNumber: 'ACT-038', fullName: 'Evelyn Ponce', shortName: 'E. Ponce', category: 'Activo', rank: 'Bombero Activo', status: 'Activo' },
   { id: 'vol-a-21', rut: '22.789.012-3', registrationNumber: 'ACT-039', fullName: 'Mayra Rodríguez', shortName: 'M. Rodríguez', category: 'Activo', rank: 'Bombero Activo', status: 'Activo' },
 

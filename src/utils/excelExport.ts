@@ -51,7 +51,9 @@ export const exportReportsToExcel = (
 
     groupVolunteers.forEach(v => {
       let attendedCount = 0;
-      const vRow: (string | number)[] = [v.fullName, v.registrationNumber, v.rut, v.rank];
+      const isDriver = v.status !== 'Suspendido' && (v.rank?.includes('Maquinista') || (v.isDriver === true && !!v.driverLicense && v.driverLicense !== 'NO'));
+      const rankLabel = isDriver && v.driverLicense ? `${v.rank} [${v.driverLicense}]` : v.rank;
+      const vRow: (string | number)[] = [v.fullName, v.registrationNumber, v.rut, rankLabel];
       sortedReports.forEach(r => {
         const isPresent = r.attendees.some(a => a.volunteerId === v.id);
         vRow.push(isPresent ? 1 : 0);
@@ -106,7 +108,16 @@ export const exportReportsToExcel = (
     'Sector': r.sector,
     'Comuna': r.commune,
     'Oficial a Cargo (OBAC)': `${r.officerInChargeRank} ${r.officerInChargeName}`,
-    'Carros y Maquinistas': r.units.map(u => `${u.unitCode} (${u.driverName || 'S/C'})`).join(', ') || 'Ninguno',
+    'Firma OBAC': r.obacSignature ? `Firmado: ${r.obacSignature.signedBy} (${r.obacSignature.verificationCode})` : 'Pendiente',
+    'V°B° Revisor': (r.reviewerSignature || r.digitalSignature) ? `Aprobado: ${(r.reviewerSignature || r.digitalSignature)?.signedBy} (${(r.reviewerSignature || r.digitalSignature)?.verificationCode})` : 'Pendiente',
+    'Carros y Maquinistas': r.units.map(u => {
+      if (u.isExternalDriver) {
+        return `${u.unitCode} (${u.driverName || 'S/N'} [${u.externalDriverCia || 'Préstamo Cía'}])`;
+      }
+      const vol = volunteers.find(v => v.id === u.driverId || v.fullName.toLowerCase() === u.driverName?.toLowerCase());
+      const lic = vol?.driverLicense;
+      return `${u.unitCode} (${u.driverName || 'S/C'}${lic ? ` [${lic}]` : ''})`;
+    }).join(', ') || 'Ninguno',
     'Total Bomberos Asistentes': r.totalFirefighters,
     'Inmueble / Bien': r.affectedPropertyType || '',
     'Nivel Daño': r.damageLevel || '',

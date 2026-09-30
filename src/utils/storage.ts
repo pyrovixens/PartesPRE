@@ -17,7 +17,33 @@ export const getStoredReports = (): EmergencyReport[] => {
       return INITIAL_REPORTS;
     }
     const parsed = JSON.parse(data);
-    return Array.isArray(parsed) ? parsed : INITIAL_REPORTS;
+    if (Array.isArray(parsed)) {
+      // Heal any report where captain or reviewer was erroneously set to Enrique instead of José Vargas
+      return parsed.map((rep: EmergencyReport) => {
+        let updated = { ...rep };
+        const hasEnriqueAsCaptain = 
+          (rep.captainName && rep.captainName.toLowerCase().includes('enrique')) ||
+          (rep.approvedBy && rep.approvedBy.toLowerCase().includes('enrique')) ||
+          (rep.digitalSignature?.signedBy && rep.digitalSignature.signedBy.toLowerCase().includes('enrique'));
+
+        if (hasEnriqueAsCaptain) {
+          updated.captainName = 'José Vargas Ortega';
+          updated.captainRank = 'Capitán';
+          if (updated.approvedBy && updated.approvedBy.toLowerCase().includes('enrique')) {
+            updated.approvedBy = 'José Vargas Ortega';
+          }
+          if (updated.digitalSignature && updated.digitalSignature.signedBy?.toLowerCase().includes('enrique')) {
+            updated.digitalSignature = {
+              ...updated.digitalSignature,
+              signedBy: 'José Vargas Ortega',
+              signedByRank: 'Capitán',
+            };
+          }
+        }
+        return updated;
+      });
+    }
+    return INITIAL_REPORTS;
   } catch (e) {
     console.error('Error loading reports from localStorage:', e);
     return INITIAL_REPORTS;
@@ -33,29 +59,55 @@ export const saveReports = (reports: EmergencyReport[]): void => {
   }
 };
 
+const getDeletedVolunteerIds = (): string[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem('bomberos_deleted_volunteer_ids');
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
 export const getStoredVolunteers = (): Volunteer[] => {
   if (typeof window === 'undefined') return INITIAL_VOLUNTEERS;
   try {
+    const deletedIds = getDeletedVolunteerIds();
     const data = localStorage.getItem(STORAGE_KEYS.VOLUNTEERS);
     if (!data) {
-      localStorage.setItem(STORAGE_KEYS.VOLUNTEERS, JSON.stringify(INITIAL_VOLUNTEERS));
-      return INITIAL_VOLUNTEERS;
+      const initialClean = INITIAL_VOLUNTEERS.filter(v => !deletedIds.includes(v.id));
+      localStorage.setItem(STORAGE_KEYS.VOLUNTEERS, JSON.stringify(initialClean));
+      return initialClean;
     }
     const parsed = JSON.parse(data);
-    if (Array.isArray(parsed) && parsed.length >= 25) {
-      // Heal any missing driver/license information from INITIAL_VOLUNTEERS for existing device caches
-      return parsed.map((pv: Volunteer) => {
-        const init = INITIAL_VOLUNTEERS.find(iv => iv.id === pv.id);
-        const isDriver = pv.isDriver !== undefined ? pv.isDriver : (init?.isDriver || pv.rank === 'Maquinista General' || pv.rank === 'Maquinista');
-        const driverLicense = pv.driverLicense || (isDriver ? (init?.driverLicense || 'Clase F') : undefined);
-        return {
-          ...pv,
-          isDriver: isDriver || false,
-          driverLicense: isDriver ? (driverLicense || 'Clase F') : undefined,
-        };
-      });
+    if (Array.isArray(parsed)) {
+      const cleaned = parsed
+        .filter((pv: Volunteer) => !deletedIds.includes(pv.id))
+        .map((pv: Volunteer) => {
+          const isRankMachinist = pv.rank === 'Maquinista General' || pv.rank === 'Maquinista';
+          const isDriver = isRankMachinist || (pv.isDriver === true && !!pv.driverLicense && pv.driverLicense !== 'NO');
+          const driverLicense = isDriver 
+            ? (pv.driverLicense && pv.driverLicense !== 'NO' ? pv.driverLicense : 'Clase F') 
+            : undefined;
+          
+          let rank = pv.rank || 'Bombero Activo';
+          if (pv.id === 'vol-a-06' || pv.fullName?.toLowerCase().includes('josé vargas') || pv.fullName?.toLowerCase().includes('jose vargas')) {
+            rank = 'Capitán';
+          } else if (pv.id === 'vol-a-11' || pv.fullName?.toLowerCase().includes('enrique vargas')) {
+            if (rank === 'Capitán') rank = 'Bombero Activo';
+          }
+
+          return {
+            ...pv,
+            rank,
+            isDriver,
+            driverLicense,
+          };
+        });
+      localStorage.setItem(STORAGE_KEYS.VOLUNTEERS, JSON.stringify(cleaned));
+      return cleaned;
     }
-    return INITIAL_VOLUNTEERS;
+    return INITIAL_VOLUNTEERS.filter(v => !deletedIds.includes(v.id));
   } catch (e) {
     console.error('Error loading volunteers:', e);
     return INITIAL_VOLUNTEERS;

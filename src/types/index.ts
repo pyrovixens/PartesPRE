@@ -58,6 +58,9 @@ export interface DispatchedUnit {
   unitCode: string;
   driverId?: string;
   driverName?: string;
+  driverRank?: string;
+  isExternalDriver?: boolean;
+  externalDriverCia?: string; // e.g. "1ª Cía CB Los Andes"
   pumpHours?: number;
   startKm?: number;
   endKm?: number;
@@ -78,6 +81,15 @@ export interface AttendanceRecord {
 }
 
 export type ReportStatus = 'BORRADOR' | 'ENVIADO' | 'APROBADO' | 'CERRADO';
+
+export interface DigitalSignatureInfo {
+  signedBy: string;
+  signedByRank: string;
+  signedAt: string;
+  signatureDataUrl?: string; // Canvas base64 data URL
+  verificationCode: string;
+  role?: 'OBAC' | 'REVISOR';
+}
 
 export interface EmergencyReport {
   id: string;
@@ -152,13 +164,9 @@ export interface EmergencyReport {
   approvedAt?: string;
   captainName?: string;
   captainRank?: string;
-  digitalSignature?: {
-    signedBy: string;
-    signedByRank: string;
-    signedAt: string;
-    signatureDataUrl?: string;
-    verificationCode?: string;
-  };
+  digitalSignature?: DigitalSignatureInfo;
+  obacSignature?: DigitalSignatureInfo;
+  reviewerSignature?: DigitalSignatureInfo;
 }
 
 export interface StatsSummary {
