@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { serverGetPublicUsers, serverSaveUser, serverDeleteUser, serverGetDeletedUserIds, serverSanitizeUser } from '../../../lib/serverStore';
+import { serverGetUsers, serverGetPublicUsers, serverSaveUser, serverDeleteUser, serverGetDeletedUserIds, serverSanitizeUser } from '../../../lib/serverStore';
 import { checkRateLimit, getClientIp } from '../../../lib/rateLimiter';
 
 export const dynamic = 'force-dynamic';
@@ -26,6 +26,10 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
+    const existing = (await serverGetUsers()).find(u => u.id === body.id || u.email.toLowerCase() === String(body.email).toLowerCase());
+    if (existing?.id === 'usr-superadmin-01' || existing?.role === 'SUPER_ADMIN' || body.role === 'SUPER_ADMIN') {
+      return NextResponse.json({ success: false, error: 'La cuenta principal debe modificarse mediante el flujo seguro de contraseña.' }, { status: 403 });
+    }
     const saved = await serverSaveUser(body);
     return NextResponse.json({ success: true, data: serverSanitizeUser(saved) });
   } catch (error: any) {

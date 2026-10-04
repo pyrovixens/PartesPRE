@@ -1,19 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { serverGetUsers, serverSaveUser, serverSanitizeUser } from '../../../../lib/serverStore';
+import { serverGetUsers, serverRecordAuthAttempt, serverSanitizeUser } from '../../../../lib/serverStore';
 import { checkRateLimit, getClientIp } from '../../../../lib/rateLimiter';
 
+import { verifyServerPassword } from '../../../../lib/passwords';
+
 export const dynamic = 'force-dynamic';
-
-const PASSWORD_SALT = 'bomberos_calle_larga_4ta_sec_2026';
-
-// Server-side SHA-256 with Salt
-async function serverHashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(`${password}${PASSWORD_SALT}`);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -35,7 +26,7 @@ export async function POST(req: NextRequest) {
     const { email, password } = body;
 
     const cleanEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
-    const cleanPassword = typeof password === 'string' ? password.trim() : '';
+    const cleanPassword = typeof password === 'string' ? password : '';
 
     if (!cleanEmail || !cleanPassword) {
       return NextResponse.json(
@@ -80,11 +71,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 5. Password Hash Comparison
-    const hashedAttempt = await serverHashPassword(cleanPassword);
-    const passwordMatches = 
-      targetUser.passwordHash === hashedAttempt ||
-      (Boolean(targetUser.password) && targetUser.password === cleanPassword) ||
-      targetUser.passwordHash === cleanPassword;
+    const passwordMatches = verifyServerPassword(cleanPassword, targetUser.passwordHash, targetUser.password);
 
     if (!passwordMatches) {
       const failedAttempts = (targetUser.failedLoginAttempts || 0) + 1;
@@ -98,7 +85,7 @@ export async function POST(req: NextRequest) {
           : undefined,
       };
 
-      await serverSaveUser(updatedUser);
+      await serverRecordAuthAttempt(updatedUser);
 
       if (failedAttempts >= maxAttempts) {
         return NextResponse.json(
@@ -129,7 +116,11 @@ export async function POST(req: NextRequest) {
       lastLogin: new Date().toISOString(),
     };
 
-    await serverSaveUser(updatedUser);
+    await serverRecordAuthAttempt(updatedUser);
+
+    if (updatedUser.mustChangePassword) {
+      return NextResponse.json({ success: true, requiresPasswordChange: true });
+    }
 
     const safeUser = serverSanitizeUser(updatedUser);
     const token = `session_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
