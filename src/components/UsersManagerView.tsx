@@ -38,12 +38,14 @@ interface UsersManagerViewProps {
   volunteers: Volunteer[];
   currentUser: AppUser;
   onNotify: (type: 'success' | 'info' | 'warning' | 'error', title: string, message: string) => void;
+  onUpdateCurrentUser?: (user: AppUser) => void;
 }
 
 export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
   volunteers,
   currentUser,
   onNotify,
+  onUpdateCurrentUser,
 }) => {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [invitations, setInvitations] = useState<UserInvitation[]>([]);
@@ -183,6 +185,9 @@ export const UsersManagerView: React.FC<UsersManagerViewProps> = ({
           lockedUntil: undefined,
         };
         await saveAppUser(userToSave);
+        if (onUpdateCurrentUser && (userToSave.id === currentUser.id || userToSave.email.toLowerCase() === currentUser.email.toLowerCase())) {
+          onUpdateCurrentUser(userToSave);
+        }
         await loadData();
         setIsModalOpen(false);
         onNotify('success', 'Usuario Actualizado', `Permisos y credenciales de ${userToSave.fullName} actualizados.`);

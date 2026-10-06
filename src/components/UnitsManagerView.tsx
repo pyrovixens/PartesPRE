@@ -36,7 +36,7 @@ export const UnitsManagerView: React.FC<UnitsManagerViewProps> = ({
   onDeleteUnit,
   currentUser,
 }) => {
-  const canManage = currentUser?.role === 'SUPER_ADMIN' || (currentUser?.permissions ? currentUser.permissions.canManageUnits : true);
+  const canManage = Boolean(currentUser?.role === 'SUPER_ADMIN' || currentUser?.permissions?.canManageUnits);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUnit, setEditingUnit] = useState<Unit | null>(null);
 

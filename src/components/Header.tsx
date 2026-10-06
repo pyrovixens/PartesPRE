@@ -212,8 +212,8 @@ export const Header: React.FC<HeaderProps> = ({
             <span>Material Mayor</span>
           </button>
 
-          {/* Super Admin Users Management & Branding Tab */}
-          {isSuperAdmin && (
+          {/* Users Management & Branding Tab */}
+          {(isSuperAdmin || currentUser.permissions?.canManageUsers) && (
             <>
               <button
                 onClick={() => setActiveTab('users')}

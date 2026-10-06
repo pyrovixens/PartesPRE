@@ -697,7 +697,8 @@ export const subscribeToRealtimeChanges = (
   onReportsChange: () => void,
   onVolunteersChange: () => void,
   onUnitsChange?: () => void,
-  onBrandingChange?: () => void
+  onBrandingChange?: () => void,
+  onUsersChange?: () => void
 ) => {
   // 1. Local Broadcast Channel for instant device/tab syncing
   const localChannel = getBroadcastChannel();
@@ -712,6 +713,8 @@ export const subscribeToRealtimeChanges = (
         onUnitsChange();
       } else if (type === 'BRANDING_CHANGED' && onBrandingChange) {
         onBrandingChange();
+      } else if (type === 'USER_CHANGED' && onUsersChange) {
+        onUsersChange();
       }
     };
   }
@@ -726,6 +729,8 @@ export const subscribeToRealtimeChanges = (
       onUnitsChange();
     } else if (e.key === 'bomberos_branding' && onBrandingChange) {
       onBrandingChange();
+    } else if ((e.key === 'bomberos_registered_users_v5' || e.key === 'bomberos_active_session_v5') && onUsersChange) {
+      onUsersChange();
     }
   };
 
@@ -734,6 +739,7 @@ export const subscribeToRealtimeChanges = (
     onVolunteersChange();
     if (onUnitsChange) onUnitsChange();
     if (onBrandingChange) onBrandingChange();
+    if (onUsersChange) onUsersChange();
   };
 
   const handleVisibilityOrFocus = () => {

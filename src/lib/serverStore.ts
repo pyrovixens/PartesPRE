@@ -593,7 +593,7 @@ export const serverGetUsers = async (): Promise<AppUser[]> => {
             registrationNumber: row.registration_number,
             role: row.role,
             status: row.status,
-            permissions: row.permissions || {},
+            permissions: typeof row.permissions === 'string' ? JSON.parse(row.permissions) : (row.permissions || {}),
             password: row.password,
             passwordHash: row.password_hash,
             failedLoginAttempts: row.failed_login_attempts || 0,

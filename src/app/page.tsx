@@ -54,7 +54,7 @@ import {
   getStoredVolunteers
 } from '../utils/storage';
 import { exportMatrixToExcel } from '../utils/excelExport';
-import { getActiveSession, clearActiveSession, saveAppUser } from '../services/authService';
+import { getActiveSession, clearActiveSession, saveAppUser, fetchAppUsers, createActiveSession } from '../services/authService';
 
 const DEFAULT_BRANDING: CompanyBranding = {
   companyName: '4ª COMPAÑÍA "CALLE LARGA"',
@@ -168,16 +168,36 @@ export default function Home() {
   // Load Data function
   const loadAllData = useCallback(async () => {
     try {
-      const [fetchedReports, fetchedVolunteers, fetchedUnits] = await Promise.all([
+      const [fetchedReports, fetchedVolunteers, fetchedUnits, fetchedUsers] = await Promise.all([
         fetchReports(),
         fetchVolunteers(),
         fetchUnits(),
+        fetchAppUsers(),
       ]);
 
       setReports(fetchedReports !== null ? fetchedReports : getStoredReports());
       setVolunteers(fetchedVolunteers && fetchedVolunteers.length > 0 ? fetchedVolunteers : getStoredVolunteers());
       setUnits(fetchedUnits !== null ? fetchedUnits : getStoredUnits());
       setKeys(getStoredKeys());
+
+      // Live Permission & Role Refresh: sync currentUser with updated server permissions
+      const session = getActiveSession();
+      if (session && Array.isArray(fetchedUsers)) {
+        const freshUser = fetchedUsers.find(
+          u => u.id === session.id || u.email.toLowerCase() === session.email.toLowerCase()
+        );
+        if (freshUser) {
+          const isDifferent = 
+            JSON.stringify(freshUser.permissions) !== JSON.stringify(session.permissions) ||
+            freshUser.role !== session.role ||
+            freshUser.status !== session.status ||
+            freshUser.rank !== session.rank;
+          if (isDifferent) {
+            createActiveSession(freshUser);
+            setCurrentUser(freshUser);
+          }
+        }
+      }
     } catch (e) {
       console.warn('Fallback to initial static data:', e);
       setReports(getStoredReports());
@@ -238,6 +258,20 @@ export default function Home() {
           fetchBranding().then(b => {
             if (b) setBranding(b);
           });
+        },
+        () => {
+          fetchAppUsers().then(users => {
+            const current = getActiveSession();
+            if (current && Array.isArray(users)) {
+              const fresh = users.find(
+                u => u.id === current.id || u.email.toLowerCase() === current.email.toLowerCase()
+              );
+              if (fresh) {
+                createActiveSession(fresh);
+                setCurrentUser(fresh);
+              }
+            }
+          });
         }
       );
 
@@ -245,7 +279,7 @@ export default function Home() {
         unsubscribe();
       };
     }
-  }, [currentUser]);
+  }, [currentUser?.id]);
 
   const toggleDarkMode = () => {
     setIsDarkMode(prev => {
@@ -658,10 +692,14 @@ export default function Home() {
           />
         )}
 
-        {activeTab === 'users' && currentUser.role === 'SUPER_ADMIN' && (
+        {activeTab === 'users' && (currentUser.role === 'SUPER_ADMIN' || currentUser.permissions?.canManageUsers) && (
           <UsersManagerView
             currentUser={currentUser}
             volunteers={volunteers}
+            onUpdateCurrentUser={(updated) => {
+              setCurrentUser(updated);
+              createActiveSession(updated);
+            }}
             onNotify={(type, title, message) => addToast({ type, title, message })}
           />
         )}

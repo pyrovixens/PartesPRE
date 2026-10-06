@@ -226,6 +226,16 @@ export const fetchAppUsers = async (): Promise<AppUser[]> => {
   return finalUsers;
 };
 
+const broadcastUserChange = (payload: AppUser) => {
+  if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+    try {
+      const channel = new BroadcastChannel('bomberos_live_sync_channel');
+      channel.postMessage({ type: 'USER_CHANGED', payload, timestamp: Date.now() });
+      channel.close();
+    } catch {}
+  }
+};
+
 export const saveAppUser = async (user: AppUser): Promise<AppUser> => {
   const cleanUser: AppUser = {
     ...user,
@@ -245,6 +255,14 @@ export const saveAppUser = async (user: AppUser): Promise<AppUser> => {
   }
 
   saveStoredUsers(updatedUsers);
+
+  // If the user being saved is the currently active user in this browser tab, update session
+  const activeSession = getActiveSession();
+  if (activeSession && (activeSession.id === cleanUser.id || activeSession.email.toLowerCase() === cleanUser.email.toLowerCase())) {
+    createActiveSession(cleanUser);
+  }
+
+  broadcastUserChange(cleanUser);
 
   // 1. Online API endpoint
   try {

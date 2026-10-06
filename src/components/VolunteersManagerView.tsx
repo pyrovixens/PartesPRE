@@ -58,8 +58,8 @@ export const VolunteersManagerView: React.FC<VolunteersManagerViewProps> = ({
   onDeleteVolunteer,
   currentUser,
 }) => {
-  // Only SUPER_ADMIN and ADMIN can edit volunteers and machinists
-  const canManage = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'ADMIN';
+  // Granular RBAC: Check SUPER_ADMIN or specific canManageVolunteers permission
+  const canManage = Boolean(currentUser?.role === 'SUPER_ADMIN' || currentUser?.permissions?.canManageVolunteers);
   const canEdit = canManage;
   const [search, setSearch] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');

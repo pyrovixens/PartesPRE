@@ -120,18 +120,26 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
     displayCaptainRank = 'Capitán';
   }
 
-  // Authorization check: Only company officers (Capitán, Ayudante, Tenientes, Director, Secretario, Tesorero) or Admin can sign/edit reviewer
-  const officerRanks = ['Director', 'Capitán', 'Teniente', 'Ayudante', 'Secretario', 'Tesorero', 'Comandante'];
+  // Granular RBAC Permissions Check:
   const isAuthorizedToSign = Boolean(
     currentUser && (
       currentUser.role === 'SUPER_ADMIN' ||
-      currentUser.role === 'ADMIN' ||
-      currentUser.role === 'OFICIAL' ||
-      officerRanks.some(r => currentUser.rank?.toLowerCase().includes(r.toLowerCase())) ||
-      volunteers.some(v => 
-        (v.fullName.toLowerCase() === currentUser.fullName.toLowerCase() || (currentUser.email && v.email && v.email.toLowerCase() === currentUser.email.toLowerCase()) || (currentUser.registrationNumber && v.registrationNumber === currentUser.registrationNumber)) &&
-        officerRanks.some(r => v.rank.toLowerCase().includes(r.toLowerCase()))
-      )
+      currentUser.permissions?.canApproveReports ||
+      (currentUser.role === 'ADMIN' && currentUser.permissions?.canApproveReports)
+    )
+  );
+
+  const canEdit = Boolean(
+    currentUser && (
+      currentUser.role === 'SUPER_ADMIN' ||
+      currentUser.permissions?.canEditReports
+    )
+  );
+
+  const canExport = Boolean(
+    currentUser && (
+      currentUser.role === 'SUPER_ADMIN' ||
+      currentUser.permissions?.canExportReports
     )
   );
 
@@ -197,23 +205,27 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
             </div>
 
             <div className="flex items-center space-x-1 sm:space-x-2 shrink-0 ml-2">
-              <button
-                onClick={handleDownloadPDF}
-                className="bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs p-2 sm:px-3 sm:py-2 rounded-xl flex items-center space-x-1.5 transition active:scale-95 border border-slate-700 shadow-sm"
-                title="Descargar PDF Oficial"
-              >
-                <Printer className="w-4 h-4 text-amber-400" />
-                <span className="hidden sm:inline">PDF</span>
-              </button>
+              {canExport && (
+                <button
+                  onClick={handleDownloadPDF}
+                  className="bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs p-2 sm:px-3 sm:py-2 rounded-xl flex items-center space-x-1.5 transition active:scale-95 border border-slate-700 shadow-sm"
+                  title="Descargar PDF Oficial"
+                >
+                  <Printer className="w-4 h-4 text-amber-400" />
+                  <span className="hidden sm:inline">PDF</span>
+                </button>
+              )}
 
-              <button
-                onClick={() => onEdit(report)}
-                className="bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs p-2 sm:px-3 sm:py-2 rounded-xl flex items-center space-x-1.5 transition active:scale-95 border border-slate-700 shadow-sm"
-                title="Editar Parte"
-              >
-                <Edit className="w-4 h-4" />
-                <span className="hidden sm:inline">Editar</span>
-              </button>
+              {canEdit && (
+                <button
+                  onClick={() => onEdit(report)}
+                  className="bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs p-2 sm:px-3 sm:py-2 rounded-xl flex items-center space-x-1.5 transition active:scale-95 border border-slate-700 shadow-sm"
+                  title="Editar Parte"
+                >
+                  <Edit className="w-4 h-4" />
+                  <span className="hidden sm:inline">Editar</span>
+                </button>
+              )}
 
               <button
                 onClick={onClose}
@@ -653,14 +665,16 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
             </button>
 
             <div className="flex items-center space-x-2 flex-wrap">
-              <button
-                type="button"
-                onClick={handleDownloadPDF}
-                className="bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl flex items-center space-x-1.5 transition active:scale-95 border border-slate-700 shadow-sm"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                <span>Descargar PDF</span>
-              </button>
+              {canExport && (
+                <button
+                  type="button"
+                  onClick={handleDownloadPDF}
+                  className="bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl flex items-center space-x-1.5 transition active:scale-95 border border-slate-700 shadow-sm"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Descargar PDF</span>
+                </button>
+              )}
 
               {isAuthorizedToSign && (
                 <button
@@ -674,14 +688,16 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                 </button>
               )}
 
-              <button
-                type="button"
-                onClick={() => onEdit(report)}
-                className="bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl flex items-center space-x-1.5 transition active:scale-95 border border-slate-700 shadow-sm"
-              >
-                <Edit className="w-3.5 h-3.5" />
-                <span>Editar</span>
-              </button>
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={() => onEdit(report)}
+                  className="bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl flex items-center space-x-1.5 transition active:scale-95 border border-slate-700 shadow-sm"
+                >
+                  <Edit className="w-3.5 h-3.5" />
+                  <span>Editar</span>
+                </button>
+              )}
 
               {!report.obacSignature && (
                 <button
