@@ -13,7 +13,7 @@ import {
   Flame,
   CheckCircle2
 } from 'lucide-react';
-import { EmergencyReport, Volunteer, AppUser, DigitalSignatureInfo } from '../types';
+import { EmergencyReport, Volunteer, AppUser, DigitalSignatureInfo, ReportStatus } from '../types';
 
 interface DigitalSignatureModalProps {
   isOpen: boolean;
@@ -29,6 +29,7 @@ interface DigitalSignatureModalProps {
     signedAt: string;
     signatureDataUrl?: string;
     verificationCode: string;
+    targetStatus: ReportStatus;
   }) => void;
 }
 
@@ -43,6 +44,9 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
 }) => {
   const [activeRole, setActiveRole] = useState<'OBAC' | 'REVISOR'>(targetRole);
   const [signatureMode, setSignatureMode] = useState<'DRAW' | 'SEAL'>('DRAW');
+  const [selectedStatus, setSelectedStatus] = useState<ReportStatus>(
+    targetRole === 'REVISOR' ? 'APROBADO' : (report.status === 'BORRADOR' ? 'ENVIADO' : report.status || 'ENVIADO')
+  );
 
   // Helper to extract clean institutional rank
   const getInstitutionalRank = (name?: string, userRank?: string): string => {
@@ -79,8 +83,13 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setActiveRole(targetRole);
+      setSelectedStatus(
+        targetRole === 'REVISOR' 
+          ? 'APROBADO' 
+          : (report.status === 'BORRADOR' ? 'ENVIADO' : report.status || 'ENVIADO')
+      );
     }
-  }, [isOpen, targetRole]);
+  }, [isOpen, targetRole, report.status]);
 
   useEffect(() => {
     if (isOpen) {
@@ -209,6 +218,7 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
       signedAt: formattedDate,
       signatureDataUrl,
       verificationCode,
+      targetStatus: selectedStatus,
     });
 
     onClose();
@@ -268,7 +278,10 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
         <div className="bg-slate-100 dark:bg-slate-950/80 p-2 border-b border-slate-200 dark:border-slate-800 flex gap-2">
           <button
             type="button"
-            onClick={() => setActiveRole('OBAC')}
+            onClick={() => {
+              setActiveRole('OBAC');
+              setSelectedStatus(report.status === 'BORRADOR' ? 'ENVIADO' : report.status || 'ENVIADO');
+            }}
             className={`flex-1 py-2 px-3 rounded-xl font-black text-xs flex items-center justify-center space-x-2 transition ${
               activeRole === 'OBAC'
                 ? 'bg-blue-600 text-white shadow-md'
@@ -281,7 +294,10 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
 
           <button
             type="button"
-            onClick={() => setActiveRole('REVISOR')}
+            onClick={() => {
+              setActiveRole('REVISOR');
+              setSelectedStatus('APROBADO');
+            }}
             className={`flex-1 py-2 px-3 rounded-xl font-black text-xs flex items-center justify-center space-x-2 transition ${
               activeRole === 'REVISOR'
                 ? 'bg-red-700 text-white shadow-md'
@@ -450,6 +466,105 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
             </div>
           </div>
 
+          {/* Status Selection Cards */}
+          <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl p-3 sm:p-3.5 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                <span>Estado Administrativo Resultante al Firmar:</span>
+              </label>
+              <span className="text-[10px] font-bold text-slate-500">
+                Selecciona cómo debe quedar guardado
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {/* APROBADO */}
+              <button
+                type="button"
+                onClick={() => setSelectedStatus('APROBADO')}
+                className={`p-2 rounded-xl text-left border transition flex flex-col justify-between ${
+                  selectedStatus === 'APROBADO'
+                    ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-500 ring-2 ring-emerald-500/40'
+                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:border-emerald-300'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black text-emerald-700 dark:text-emerald-400">
+                    ✓ APROBADO
+                  </span>
+                  {selectedStatus === 'APROBADO' && <Check className="w-3 h-3 text-emerald-600" />}
+                </div>
+                <p className="text-[9px] text-slate-500 dark:text-slate-400 font-medium mt-0.5 leading-tight">
+                  Completado con V°B° Oficial
+                </p>
+              </button>
+
+              {/* ENVIADO */}
+              <button
+                type="button"
+                onClick={() => setSelectedStatus('ENVIADO')}
+                className={`p-2 rounded-xl text-left border transition flex flex-col justify-between ${
+                  selectedStatus === 'ENVIADO'
+                    ? 'bg-amber-50 dark:bg-amber-950/60 border-amber-500 ring-2 ring-amber-500/40'
+                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:border-amber-300'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black text-amber-700 dark:text-amber-400">
+                    ⏳ EN REVISIÓN
+                  </span>
+                  {selectedStatus === 'ENVIADO' && <Check className="w-3 h-3 text-amber-600" />}
+                </div>
+                <p className="text-[9px] text-slate-500 dark:text-slate-400 font-medium mt-0.5 leading-tight">
+                  Enviado a Mando / Observado
+                </p>
+              </button>
+
+              {/* BORRADOR */}
+              <button
+                type="button"
+                onClick={() => setSelectedStatus('BORRADOR')}
+                className={`p-2 rounded-xl text-left border transition flex flex-col justify-between ${
+                  selectedStatus === 'BORRADOR'
+                    ? 'bg-slate-200 dark:bg-slate-800 border-slate-500 ring-2 ring-slate-500/40'
+                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:border-slate-400'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black text-slate-700 dark:text-slate-300">
+                    📝 BORRADOR
+                  </span>
+                  {selectedStatus === 'BORRADOR' && <Check className="w-3 h-3 text-slate-600 dark:text-slate-300" />}
+                </div>
+                <p className="text-[9px] text-slate-500 dark:text-slate-400 font-medium mt-0.5 leading-tight">
+                  En edición o preliminar
+                </p>
+              </button>
+
+              {/* CERRADO */}
+              <button
+                type="button"
+                onClick={() => setSelectedStatus('CERRADO')}
+                className={`p-2 rounded-xl text-left border transition flex flex-col justify-between ${
+                  selectedStatus === 'CERRADO'
+                    ? 'bg-purple-50 dark:bg-purple-950/60 border-purple-500 ring-2 ring-purple-500/40'
+                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:border-purple-300'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black text-purple-700 dark:text-purple-400">
+                    🔒 CERRADO
+                  </span>
+                  {selectedStatus === 'CERRADO' && <Check className="w-3 h-3 text-purple-600" />}
+                </div>
+                <p className="text-[9px] text-slate-500 dark:text-slate-400 font-medium mt-0.5 leading-tight">
+                  Archivado definitivo
+                </p>
+              </button>
+            </div>
+          </div>
+
           {/* Mode Selector Tabs (DRAW vs SEAL) */}
           <div className="flex border-b border-slate-200 dark:border-slate-700">
             <button
@@ -556,14 +671,26 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
             type="button"
             onClick={handleConfirmSignature}
             className={`flex-1 text-white font-black text-xs py-2.5 px-4 rounded-xl shadow-lg transition transform active:scale-98 flex items-center justify-center space-x-2 ${
-              activeRole === 'OBAC'
+              selectedStatus === 'APROBADO'
+                ? 'bg-gradient-to-r from-emerald-700 to-green-800 hover:from-emerald-800 hover:to-green-900 border border-emerald-600/50'
+                : selectedStatus === 'ENVIADO'
+                ? 'bg-gradient-to-r from-amber-700 to-yellow-800 hover:from-amber-800 hover:to-yellow-900 border border-amber-600/50'
+                : selectedStatus === 'CERRADO'
+                ? 'bg-gradient-to-r from-purple-700 to-indigo-800 hover:from-purple-800 hover:to-indigo-900 border border-purple-600/50'
+                : activeRole === 'OBAC'
                 ? 'bg-gradient-to-r from-blue-700 to-indigo-800 hover:from-blue-800 hover:to-indigo-900 border border-blue-600/50'
                 : 'bg-gradient-to-r from-red-700 to-red-800 hover:from-red-800 hover:to-red-900 border border-red-600/50'
             }`}
           >
             <ShieldCheck className="w-4 h-4 text-amber-300" />
             <span>
-              {activeRole === 'OBAC' ? 'Estampar Firma de OBAC' : 'Estampar V°B° y Aprobar'}
+              {selectedStatus === 'APROBADO' 
+                ? 'Estampar Firma y Aprobar Parte' 
+                : selectedStatus === 'ENVIADO'
+                ? 'Estampar Firma y Guardar En Revisión'
+                : selectedStatus === 'BORRADOR'
+                ? 'Estampar Firma y Mantener Borrador'
+                : 'Estampar Firma y Cerrar/Archivar'}
             </span>
           </button>
         </div>

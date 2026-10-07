@@ -23,7 +23,8 @@ import {
   EmergencyKey, 
   AppUser, 
   CompanyBranding, 
-  ToastNotification 
+  ToastNotification,
+  ReportStatus
 } from '../types';
 import { 
   INITIAL_VOLUNTEERS, 
@@ -398,14 +399,17 @@ export default function Home() {
     signedAt: string;
     signatureDataUrl?: string;
     verificationCode: string;
+    targetStatus?: ReportStatus;
   }) => {
     const target = reports.find(r => r.id === reportId);
     if (!target) return;
 
     const isObac = signatureData.role === 'OBAC';
+    const targetStatus = signatureData.targetStatus || (isObac ? (target.status === 'BORRADOR' ? 'ENVIADO' : target.status) : 'APROBADO');
 
     const signedReport: EmergencyReport = {
       ...target,
+      status: targetStatus,
       ...(isObac ? {
         obacSignature: {
           signedBy: signatureData.signedBy,
@@ -416,9 +420,8 @@ export default function Home() {
           role: 'OBAC',
         },
       } : {
-        status: 'APROBADO',
-        approvedBy: signatureData.signedBy,
-        approvedAt: signatureData.signedAt,
+        approvedBy: targetStatus === 'APROBADO' ? signatureData.signedBy : (target.approvedBy || signatureData.signedBy),
+        approvedAt: targetStatus === 'APROBADO' ? signatureData.signedAt : (target.approvedAt || signatureData.signedAt),
         captainName: signatureData.signedBy,
         captainRank: signatureData.signedByRank,
         reviewerSignature: {
@@ -441,21 +444,33 @@ export default function Home() {
       updatedAt: new Date().toISOString(),
     };
 
+    // Optimistic state updates across all views
+    setReports(prev => prev.map(r => r.id === reportId ? signedReport : r));
+    setViewingReport(signedReport);
+
     await saveReportToDatabase(signedReport);
     const updated = await fetchReports();
     if (Array.isArray(updated)) {
       setReports(updated);
+      const freshSigned = updated.find(r => r.id === reportId);
+      if (freshSigned) {
+        setViewingReport(freshSigned);
+      }
     }
 
-    const freshSigned = (Array.isArray(updated) && updated.find(r => r.id === reportId)) || signedReport;
-    setViewingReport(freshSigned);
+    const statusLabels: Record<ReportStatus, string> = {
+      'APROBADO': 'Aprobado (V°B°)',
+      'ENVIADO': 'En Revisión',
+      'BORRADOR': 'Borrador',
+      'CERRADO': 'Cerrado/Archivado'
+    };
 
     addToast({
       type: 'success',
-      title: isObac ? 'Firma de OBAC Registrada' : 'Parte Aprobado con V°B° Oficial',
+      title: isObac ? 'Firma de OBAC Registrada' : `Estado: ${statusLabels[targetStatus] || targetStatus}`,
       message: isObac 
-        ? `Firma operativa estampada por ${signatureData.signedBy} (${signatureData.signedByRank}).`
-        : `V°B° oficial y cierre institucional estampado por ${signatureData.signedBy} (${signatureData.signedByRank}).`,
+        ? `Firma operativa estampada por ${signatureData.signedBy} (${signatureData.signedByRank}). Estado: ${statusLabels[targetStatus] || targetStatus}.`
+        : `Firma digital y estado "${statusLabels[targetStatus] || targetStatus}" registrados por ${signatureData.signedBy} (${signatureData.signedByRank}).`,
       duration: 3500,
     });
   };

@@ -19,7 +19,7 @@ import {
   CheckCircle2,
   UserCheck
 } from 'lucide-react';
-import { EmergencyReport, Volunteer, AppUser } from '../types';
+import { EmergencyReport, Volunteer, AppUser, ReportStatus } from '../types';
 import { generateEmergencyReportPDF } from '../utils/pdfGenerator';
 import { DigitalSignatureModal } from './DigitalSignatureModal';
 
@@ -36,6 +36,7 @@ interface ReportDetailModalProps {
     signedAt: string;
     signatureDataUrl?: string;
     verificationCode: string;
+    targetStatus?: ReportStatus;
   }) => void;
   onSave?: (report: EmergencyReport) => void;
 }
@@ -174,6 +175,21 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
     setIsChangeOfficerModalOpen(false);
   };
 
+  const handleQuickStatusChange = (newStatus: ReportStatus) => {
+    if (!report || !onSave) return;
+    const isApproved = newStatus === 'APROBADO';
+    const updatedReport: EmergencyReport = {
+      ...report,
+      status: newStatus,
+      updatedAt: new Date().toISOString(),
+      ...(isApproved && !report.approvedBy ? {
+        approvedBy: currentUser?.fullName || displayCaptainName,
+        approvedAt: new Date().toISOString(),
+      } : {}),
+    };
+    onSave(updatedReport);
+  };
+
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-1 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
@@ -186,17 +202,54 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                 4ª
               </div>
               <div className="truncate min-w-0">
-                <div className="flex items-center space-x-1.5 sm:space-x-2 truncate">
+                <div className="flex items-center space-x-1.5 sm:space-x-2 truncate flex-wrap gap-y-1">
                   <span className="bg-red-700/80 text-amber-300 text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-full border border-red-600/50 uppercase shrink-0">
                     #{report.correlativoCompania || report.fullFolio}
                   </span>
-                  <span className={`text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-full border truncate ${
-                    report.status === 'APROBADO'
-                      ? 'bg-emerald-950 text-emerald-300 border-emerald-700'
-                      : 'bg-amber-950 text-amber-300 border-amber-700'
-                  }`}>
-                    {report.status === 'APROBADO' ? `✓ APROBADO (${displayCaptainRank})` : `⏳ EN REVISIÓN (${displayCaptainRank})`}
-                  </span>
+
+                  {/* Status Badges with all 4 states */}
+                  {report.status === 'APROBADO' && (
+                    <span className="bg-emerald-950 text-emerald-300 border border-emerald-700 text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-full uppercase shrink-0 flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" />
+                      ✓ APROBADO ({displayCaptainRank})
+                    </span>
+                  )}
+                  {report.status === 'ENVIADO' && (
+                    <span className="bg-amber-950 text-amber-300 border border-amber-700 text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-full uppercase shrink-0 flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      ⏳ EN REVISIÓN ({displayCaptainRank})
+                    </span>
+                  )}
+                  {report.status === 'BORRADOR' && (
+                    <span className="bg-slate-800 text-slate-300 border border-slate-700 text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-full uppercase shrink-0 flex items-center gap-1">
+                      <FileText className="w-3 h-3" />
+                      📝 BORRADOR
+                    </span>
+                  )}
+                  {report.status === 'CERRADO' && (
+                    <span className="bg-purple-950 text-purple-300 border border-purple-700 text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-full uppercase shrink-0 flex items-center gap-1">
+                      <Shield className="w-3 h-3" />
+                      🔒 CERRADO / ARCHIVADO
+                    </span>
+                  )}
+
+                  {/* Quick Status Selector for Authorized Officers */}
+                  {(isAuthorizedToSign || canEdit) && onSave && (
+                    <div className="inline-flex items-center space-x-1 shrink-0 bg-slate-800/90 p-0.5 rounded-lg border border-slate-700 shadow-sm ml-1">
+                      <span className="text-[9px] font-bold text-slate-400 pl-1">Estado:</span>
+                      <select
+                        value={report.status || 'ENVIADO'}
+                        onChange={(e) => handleQuickStatusChange(e.target.value as ReportStatus)}
+                        className="bg-slate-900 text-amber-300 border-none rounded px-1.5 py-0.5 text-[9px] font-black cursor-pointer hover:bg-slate-950 focus:ring-1 focus:ring-amber-400 outline-none"
+                        title="Cambiar estado del parte directamente"
+                      >
+                        <option value="APROBADO">✓ Aprobado</option>
+                        <option value="ENVIADO">⏳ En Revisión</option>
+                        <option value="BORRADOR">📝 Borrador</option>
+                        <option value="CERRADO">🔒 Cerrado</option>
+                      </select>
+                    </div>
+                  )}
                 </div>
                 <h2 className="text-xs sm:text-base font-black text-white truncate mt-0.5">
                   {report.keyCode} - {report.keyDescription}
