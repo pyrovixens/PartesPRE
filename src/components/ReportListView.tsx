@@ -12,7 +12,7 @@ import {
   Layers,
   ShieldCheck
 } from 'lucide-react';
-import { EmergencyReport, EmergencyKey, AppUser } from '../types';
+import { EmergencyReport, EmergencyKey, AppUser, ReportStatus } from '../types';
 import { generateEmergencyReportPDF } from '../utils/pdfGenerator';
 import { searchInFields } from '../utils/searchUtils';
 
@@ -23,6 +23,7 @@ interface ReportListViewProps {
   onEditReport: (report: EmergencyReport) => void;
   onViewReport: (report: EmergencyReport) => void;
   onDeleteReport: (reportId: string) => void;
+  onSaveReport?: (report: EmergencyReport) => void;
   currentUser?: AppUser | null;
 }
 
@@ -33,6 +34,7 @@ export const ReportListView: React.FC<ReportListViewProps> = ({
   onEditReport,
   onViewReport,
   onDeleteReport,
+  onSaveReport,
   currentUser,
 }) => {
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -72,6 +74,31 @@ export const ReportListView: React.FC<ReportListViewProps> = ({
   const canCreate = currentUser ? currentUser.permissions?.canCreateReports : true;
   const canEdit = currentUser ? currentUser.permissions?.canEditReports : true;
   const canDelete = currentUser ? currentUser.permissions?.canDeleteReports : true;
+  const canChangeStatus = Boolean(
+    currentUser && (
+      currentUser.role === 'SUPER_ADMIN' ||
+      currentUser.role === 'ADMIN' ||
+      currentUser.permissions?.canApproveReports ||
+      currentUser.permissions?.canEditReports
+    )
+  );
+
+  const handleQuickStatusChange = (e: React.ChangeEvent<HTMLSelectElement>, report: EmergencyReport) => {
+    e.stopPropagation();
+    const newStatus = e.target.value as ReportStatus;
+    if (!onSaveReport) return;
+    const isApproved = newStatus === 'APROBADO';
+    const updated: EmergencyReport = {
+      ...report,
+      status: newStatus,
+      updatedAt: new Date().toISOString(),
+      ...(isApproved && !report.approvedBy ? {
+        approvedBy: currentUser?.fullName || report.captainName || 'Oficial de Compañía',
+        approvedAt: new Date().toISOString(),
+      } : {})
+    };
+    onSaveReport(updated);
+  };
 
   return (
     <div className="space-y-4">
@@ -185,14 +212,34 @@ export const ReportListView: React.FC<ReportListViewProps> = ({
                     {report.incidentDate} {report.incidentTime ? `• ${report.incidentTime} hrs` : ''}
                   </span>
                 </div>
-                <div className="flex flex-col items-end gap-0.5 shrink-0">
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                    report.status === 'APROBADO' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800' :
-                    report.status === 'ENVIADO' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-800' :
-                    'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-300 dark:border-slate-700'
-                  }`}>
-                    {report.status === 'APROBADO' ? '✓ APROBADO' : report.status === 'ENVIADO' ? '⏳ EN REVISIÓN' : report.status}
-                  </span>
+                <div className="flex flex-col items-end gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                  {canChangeStatus && onSaveReport ? (
+                    <select
+                      value={report.status || 'ENVIADO'}
+                      onChange={(e) => handleQuickStatusChange(e, report)}
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider cursor-pointer border shadow-sm outline-none ${
+                        report.status === 'APROBADO' ? 'bg-emerald-100 text-emerald-900 border-emerald-400 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-700' :
+                        report.status === 'ENVIADO' ? 'bg-amber-100 text-amber-900 border-amber-400 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-700' :
+                        report.status === 'CERRADO' ? 'bg-purple-100 text-purple-900 border-purple-400 dark:bg-purple-950 dark:text-purple-300 dark:border-purple-700' :
+                        'bg-slate-200 text-slate-800 border-slate-400 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+                      }`}
+                      title="Cambiar estado del parte"
+                    >
+                      <option value="APROBADO">✓ APROBADO</option>
+                      <option value="ENVIADO">⏳ EN REVISIÓN</option>
+                      <option value="BORRADOR">📝 BORRADOR</option>
+                      <option value="CERRADO">🔒 CERRADO</option>
+                    </select>
+                  ) : (
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                      report.status === 'APROBADO' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800' :
+                      report.status === 'ENVIADO' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-800' :
+                      report.status === 'CERRADO' ? 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-300 dark:border-purple-800' :
+                      'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-300 dark:border-slate-700'
+                    }`}>
+                      {report.status === 'APROBADO' ? '✓ APROBADO' : report.status === 'ENVIADO' ? '⏳ EN REVISIÓN' : report.status === 'CERRADO' ? '🔒 CERRADO' : '📝 BORRADOR'}
+                    </span>
+                  )}
                   <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 truncate max-w-[130px]">
                     {report.status === 'APROBADO' 
                       ? `V°B° ${report.digitalSignature?.signedByRank || report.captainRank || 'Mando Cía.'}` 
@@ -407,15 +454,35 @@ export const ReportListView: React.FC<ReportListViewProps> = ({
                     </td>
 
                     {/* Estado */}
-                    <td className="py-3 px-3 text-center whitespace-nowrap">
+                    <td className="py-3 px-3 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                       <div className="flex flex-col items-center gap-0.5">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                          report.status === 'APROBADO' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800' :
-                          report.status === 'ENVIADO' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-800' :
-                          'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-300 dark:border-slate-700'
-                        }`}>
-                          {report.status === 'APROBADO' ? '✓ APROBADO' : report.status === 'ENVIADO' ? '⏳ EN REVISIÓN' : report.status}
-                        </span>
+                        {canChangeStatus && onSaveReport ? (
+                          <select
+                            value={report.status || 'ENVIADO'}
+                            onChange={(e) => handleQuickStatusChange(e, report)}
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider cursor-pointer border shadow-sm outline-none ${
+                              report.status === 'APROBADO' ? 'bg-emerald-100 text-emerald-900 border-emerald-400 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-700' :
+                              report.status === 'ENVIADO' ? 'bg-amber-100 text-amber-900 border-amber-400 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-700' :
+                              report.status === 'CERRADO' ? 'bg-purple-100 text-purple-900 border-purple-400 dark:bg-purple-950 dark:text-purple-300 dark:border-purple-700' :
+                              'bg-slate-200 text-slate-800 border-slate-400 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+                            }`}
+                            title="Cambiar estado del parte directamente"
+                          >
+                            <option value="APROBADO">✓ APROBADO</option>
+                            <option value="ENVIADO">⏳ EN REVISIÓN</option>
+                            <option value="BORRADOR">📝 BORRADOR</option>
+                            <option value="CERRADO">🔒 CERRADO</option>
+                          </select>
+                        ) : (
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                            report.status === 'APROBADO' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800' :
+                            report.status === 'ENVIADO' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-800' :
+                            report.status === 'CERRADO' ? 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-300 dark:border-purple-800' :
+                            'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-300 dark:border-slate-700'
+                          }`}>
+                            {report.status === 'APROBADO' ? '✓ APROBADO' : report.status === 'ENVIADO' ? '⏳ EN REVISIÓN' : report.status === 'CERRADO' ? '🔒 CERRADO' : '📝 BORRADOR'}
+                          </span>
+                        )}
                         {report.status === 'APROBADO' ? (
                           <span className="text-[9px] font-semibold text-emerald-700 dark:text-emerald-400 truncate max-w-[125px]">
                             V°B° {report.digitalSignature?.signedByRank || report.captainRank || 'Oficial'}

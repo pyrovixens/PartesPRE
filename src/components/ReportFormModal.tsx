@@ -708,7 +708,12 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
     if (isSubmitting) return;
     setIsSubmitting(true);
 
-    const finalStatus: ReportStatus = asDraft ? 'BORRADOR' : status;
+    let finalStatus: ReportStatus;
+    if (asDraft) {
+      finalStatus = 'BORRADOR';
+    } else {
+      finalStatus = status === 'BORRADOR' ? 'ENVIADO' : status;
+    }
     const fullFolio = `${folioYear}-${String(folioNumber).padStart(3, '0')}`;
 
     let finalReviewerName = reviewerOfficerName || editingReport?.captainName || editingReport?.approvedBy || volunteers.find(v => v.rank === 'Capitán')?.fullName || 'José Vargas Ortega';
@@ -1947,18 +1952,102 @@ export const ReportFormModal: React.FC<ReportFormModalProps> = ({
               </div>
 
               {/* Estado del Parte */}
-              <div className="border-t border-slate-200 dark:border-slate-700 pt-3">
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Estado Administrativo del Parte</label>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as any)}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 font-bold text-xs"
-                >
-                  <option value="APROBADO">Aprobado / Validado Oficialmente</option>
-                  <option value="ENVIADO">Enviado para Revisión</option>
-                  <option value="BORRADOR">Borrador</option>
-                  <option value="CERRADO">Cerrado / Archivado</option>
-                </select>
+              <div className="border-t border-slate-200 dark:border-slate-700 pt-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-red-600 dark:text-red-400" />
+                    <span>Estado Administrativo Resultante del Parte</span>
+                  </label>
+                  <span className="text-[10px] font-bold text-slate-500">
+                    Define el estado con que quedará guardado
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {/* APROBADO */}
+                  <button
+                    type="button"
+                    onClick={() => setStatus('APROBADO')}
+                    className={`p-2.5 rounded-xl text-left border transition flex flex-col justify-between ${
+                      status === 'APROBADO'
+                        ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-500 ring-2 ring-emerald-500/40 shadow-sm'
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:border-emerald-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-emerald-700 dark:text-emerald-400">
+                        ✓ APROBADO
+                      </span>
+                      {status === 'APROBADO' && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-1 leading-tight">
+                      Validado con V°B° Oficial
+                    </p>
+                  </button>
+
+                  {/* ENVIADO */}
+                  <button
+                    type="button"
+                    onClick={() => setStatus('ENVIADO')}
+                    className={`p-2.5 rounded-xl text-left border transition flex flex-col justify-between ${
+                      status === 'ENVIADO'
+                        ? 'bg-amber-50 dark:bg-amber-950/60 border-amber-500 ring-2 ring-amber-500/40 shadow-sm'
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:border-amber-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-amber-700 dark:text-amber-400">
+                        ⏳ EN REVISIÓN
+                      </span>
+                      {status === 'ENVIADO' && <Check className="w-3.5 h-3.5 text-amber-600" />}
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-1 leading-tight">
+                      Enviado para revisión de Mando
+                    </p>
+                  </button>
+
+                  {/* BORRADOR */}
+                  <button
+                    type="button"
+                    onClick={() => setStatus('BORRADOR')}
+                    className={`p-2.5 rounded-xl text-left border transition flex flex-col justify-between ${
+                      status === 'BORRADOR'
+                        ? 'bg-slate-200 dark:bg-slate-800 border-slate-500 ring-2 ring-slate-500/40 shadow-sm'
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:border-slate-400'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-slate-700 dark:text-slate-300">
+                        📝 BORRADOR
+                      </span>
+                      {status === 'BORRADOR' && <Check className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />}
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-1 leading-tight">
+                      En edición / preliminar
+                    </p>
+                  </button>
+
+                  {/* CERRADO */}
+                  <button
+                    type="button"
+                    onClick={() => setStatus('CERRADO')}
+                    className={`p-2.5 rounded-xl text-left border transition flex flex-col justify-between ${
+                      status === 'CERRADO'
+                        ? 'bg-purple-50 dark:bg-purple-950/60 border-purple-500 ring-2 ring-purple-500/40 shadow-sm'
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:border-purple-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-purple-700 dark:text-purple-400">
+                        🔒 CERRADO
+                      </span>
+                      {status === 'CERRADO' && <Check className="w-3.5 h-3.5 text-purple-600" />}
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-1 leading-tight">
+                      Cerrado y archivado
+                    </p>
+                  </button>
+                </div>
               </div>
 
               {/* Oficial de Revisión y Firma en Paso 5 */}

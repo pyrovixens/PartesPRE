@@ -685,6 +685,7 @@ export default function Home() {
             onEditReport={handleOpenEditReport}
             onViewReport={(rep) => setViewingReport(rep)}
             onDeleteReport={handleDeleteReport}
+            onSaveReport={handleSaveReport}
             currentUser={currentUser}
           />
         )}
