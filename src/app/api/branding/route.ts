@@ -3,9 +3,11 @@ import { serverGetBranding, serverSaveBranding } from '../../../lib/serverStore'
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const branding = await serverGetBranding();
+    const { searchParams } = new URL(req.url);
+    const companyId = searchParams.get('companyId') || undefined;
+    const branding = await serverGetBranding(companyId);
     return NextResponse.json({ success: true, data: branding });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

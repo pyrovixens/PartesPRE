@@ -3,9 +3,11 @@ import { serverGetVolunteers, serverSaveVolunteer, serverDeleteVolunteer, server
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const volunteers = await serverGetVolunteers();
+    const { searchParams } = new URL(req.url);
+    const companyId = searchParams.get('companyId') || undefined;
+    const volunteers = await serverGetVolunteers(companyId);
     const deletedIds = serverGetDeletedVolunteerIds();
     return NextResponse.json({ success: true, data: volunteers, deletedIds });
   } catch (error: any) {

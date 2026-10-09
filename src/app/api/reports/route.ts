@@ -4,9 +4,11 @@ import { checkRateLimit, getClientIp } from '../../../lib/rateLimiter';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const reports = await serverGetReports();
+    const { searchParams } = new URL(req.url);
+    const companyId = searchParams.get('companyId') || undefined;
+    const reports = await serverGetReports(companyId);
     const deletedIds = serverGetDeletedReportIds();
     return NextResponse.json({ success: true, data: reports, deletedIds });
   } catch (error: any) {

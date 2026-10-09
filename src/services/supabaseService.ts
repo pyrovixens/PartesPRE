@@ -1,5 +1,5 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { EmergencyReport, Volunteer, Unit, CompanyBranding } from '../types';
+import { EmergencyReport, Volunteer, Unit, CompanyBranding, Company, DEFAULT_COMPANY_ID } from '../types';
 import { 
   getStoredReports, 
   saveReports, 
@@ -70,16 +70,197 @@ const purgeFromAllReportStorages = (reportId: string) => {
 };
 
 // -------------------------------------------------------------------
+// COMPANIES SERVICE (MULTI-TENANT ROOTS)
+// -------------------------------------------------------------------
+
+const DEFAULT_COMPANY_ITEM: Company = {
+  id: '4cia-calle-larga',
+  code: '4CIA',
+  name: '4ª Compañía "Bomba Calle Larga"',
+  fireDepartment: 'Cuerpo de Bomberos de Los Andes - Calle Larga',
+  motto: 'Honor, Disciplina y Abnegación',
+  logoUrl: '/logo_4ta_calle_larga.png',
+  primaryColor: '#8B0000',
+  accentColor: '#DC2626',
+  isActive: true,
+  adminEmail: 'gnunezgonzalez@icloud.com',
+  createdAt: '2026-01-01T00:00:00Z',
+};
+
+export const fetchCompanies = async (): Promise<Company[]> => {
+  let serverCompanies: Company[] | null = null;
+  let serverDeletedIds: string[] = [];
+
+  try {
+    const res = await fetch('/api/companies', { cache: 'no-store' });
+    if (res.ok) {
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        serverCompanies = json.data;
+      }
+      if (Array.isArray(json.deletedIds)) {
+        serverDeletedIds = json.deletedIds;
+        mergeDeletedIds('bomberos_deleted_company_ids', serverDeletedIds);
+      }
+    }
+  } catch (apiErr) {
+    console.warn('API /api/companies fetch error:', apiErr);
+  }
+
+  const deletedSet = new Set([...getDeletedIds('bomberos_deleted_company_ids'), ...serverDeletedIds]);
+
+  if (serverCompanies !== null) {
+    const clean = serverCompanies.filter(c => !deletedSet.has(c.id));
+    if (!clean.some(c => c.id === DEFAULT_COMPANY_ID)) {
+      clean.unshift({ ...DEFAULT_COMPANY_ITEM });
+    }
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('bomberos_companies_list', JSON.stringify(clean));
+    }
+    return clean;
+  }
+
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('companies')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (!error && data && data.length > 0) {
+        const mapped: Company[] = data
+          .filter((row: any) => !deletedSet.has(row.id))
+          .map((row: any) => ({
+            id: row.id,
+            code: row.code,
+            name: row.name,
+            fireDepartment: row.fire_department,
+            motto: row.motto || '',
+            logoUrl: row.logo_url || '/logo_4ta_calle_larga.png',
+            primaryColor: row.primary_color || '#8B0000',
+            accentColor: row.accent_color || '#DC2626',
+            isActive: row.is_active !== false,
+            adminEmail: row.admin_email,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+          }));
+
+        if (!mapped.some(c => c.id === DEFAULT_COMPANY_ID)) {
+          mapped.unshift({ ...DEFAULT_COMPANY_ITEM });
+        }
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('bomberos_companies_list', JSON.stringify(mapped));
+        }
+        return mapped;
+      }
+    } catch (e) {
+      console.warn('Supabase fetchCompanies error:', e);
+    }
+  }
+
+  const stored = typeof window !== 'undefined' ? localStorage.getItem('bomberos_companies_list') : null;
+  const localList: Company[] = stored ? JSON.parse(stored) : [{ ...DEFAULT_COMPANY_ITEM }];
+  return localList.filter(c => !deletedSet.has(c.id));
+};
+
+export const saveCompanyToDatabase = async (company: Company): Promise<boolean> => {
+  if (typeof window !== 'undefined') {
+    const deleted = getDeletedIds('bomberos_deleted_company_ids').filter(id => id !== company.id);
+    localStorage.setItem('bomberos_deleted_company_ids', JSON.stringify(deleted));
+
+    const current = await fetchCompanies();
+    const index = current.findIndex(c => c.id === company.id);
+    let updated: Company[];
+    if (index >= 0) {
+      updated = [...current];
+      updated[index] = company;
+    } else {
+      updated = [...current, company];
+    }
+    localStorage.setItem('bomberos_companies_list', JSON.stringify(updated));
+  }
+  broadcastLiveChange('COMPANY_CHANGED', company);
+
+  try {
+    await fetch('/api/companies', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(company),
+    });
+  } catch (e) {
+    console.warn('API saveCompany error:', e);
+  }
+
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      await supabase.from('companies').upsert({
+        id: company.id,
+        code: company.code,
+        name: company.name,
+        fire_department: company.fireDepartment,
+        motto: company.motto,
+        logo_url: company.logoUrl,
+        primary_color: company.primaryColor,
+        accent_color: company.accentColor,
+        is_active: company.isActive,
+        admin_email: company.adminEmail,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' });
+    } catch (err) {
+      console.warn('Supabase upsert error in saveCompanyToDatabase:', err);
+    }
+  }
+
+  return true;
+};
+
+export const deleteCompanyFromDatabase = async (companyId: string): Promise<boolean> => {
+  if (companyId === DEFAULT_COMPANY_ID) return false;
+
+  addDeletedId('bomberos_deleted_company_ids', companyId);
+
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem('bomberos_companies_list');
+    if (stored) {
+      const parsed: Company[] = JSON.parse(stored);
+      const filtered = parsed.filter(c => c.id !== companyId);
+      localStorage.setItem('bomberos_companies_list', JSON.stringify(filtered));
+    }
+  }
+  broadcastLiveChange('COMPANY_CHANGED', { id: companyId, deleted: true });
+
+  try {
+    await fetch(`/api/companies?id=${encodeURIComponent(companyId)}`, {
+      method: 'DELETE',
+      cache: 'no-store',
+    });
+  } catch (e) {
+    console.warn('API deleteCompany error:', e);
+  }
+
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      await supabase.from('companies').delete().eq('id', companyId);
+    } catch {}
+  }
+
+  return true;
+};
+
+// -------------------------------------------------------------------
 // EMERGENCY REPORTS SERVICE (ONLINE API + SUPABASE + LOCAL CACHE)
 // -------------------------------------------------------------------
 
-export const fetchReports = async (): Promise<EmergencyReport[]> => {
+export const fetchReports = async (companyId?: string): Promise<EmergencyReport[]> => {
   let serverReports: EmergencyReport[] | null = null;
   let serverDeletedIds: string[] = [];
 
   // 1. Fetch from authoritative online server API
   try {
-    const res = await fetch('/api/reports', { cache: 'no-store' });
+    const url = companyId && companyId !== 'ALL' 
+      ? `/api/reports?companyId=${encodeURIComponent(companyId)}`
+      : '/api/reports';
+    const res = await fetch(url, { cache: 'no-store' });
     if (res.ok) {
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
@@ -106,7 +287,7 @@ export const fetchReports = async (): Promise<EmergencyReport[]> => {
     const seenFolios = new Set<string>();
     const clean = serverReports.filter(r => {
       if (deletedSet.has(r.id)) return false;
-      const key = `${r.folioYear}-${r.correlativoCompania || r.fullFolio || r.folioNumber}`;
+      const key = `${r.companyId || DEFAULT_COMPANY_ID}-${r.folioYear}-${r.correlativoCompania || r.fullFolio || r.folioNumber}`;
       if (seenIds.has(r.id) || seenFolios.has(key)) return false;
       seenIds.add(r.id);
       seenFolios.add(key);
@@ -119,10 +300,16 @@ export const fetchReports = async (): Promise<EmergencyReport[]> => {
   // 2. Direct Supabase query if server API was unreachable
   if (isSupabaseConfigured() && supabase) {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('emergency_reports')
         .select('*')
         .order('incident_date', { ascending: false });
+
+      if (companyId && companyId !== 'ALL') {
+        query = query.eq('company_id', companyId);
+      }
+
+      const { data, error } = await query;
 
       if (!error && data) {
         const mapped: EmergencyReport[] = data
@@ -142,6 +329,7 @@ export const fetchReports = async (): Promise<EmergencyReport[]> => {
             }
             return {
               id: row.id,
+              companyId: row.company_id || DEFAULT_COMPANY_ID,
               folioYear: row.folio_year,
               folioNumber: row.folio_number,
               fullFolio: row.full_folio,
@@ -198,25 +386,31 @@ export const fetchReports = async (): Promise<EmergencyReport[]> => {
 };
 
 export const saveReportToDatabase = async (report: EmergencyReport): Promise<boolean> => {
+  const targetCompanyId = report.companyId || DEFAULT_COMPANY_ID;
+  const enrichedReport: EmergencyReport = {
+    ...report,
+    companyId: targetCompanyId,
+  };
+
   if (typeof window !== 'undefined') {
-    const deleted = getDeletedIds('bomberos_deleted_report_ids').filter(id => id !== report.id);
+    const deleted = getDeletedIds('bomberos_deleted_report_ids').filter(id => id !== enrichedReport.id);
     localStorage.setItem('bomberos_deleted_report_ids', JSON.stringify(deleted));
   }
 
-  const reportKey = `${report.folioYear}-${report.correlativoCompania || report.fullFolio}`;
+  const reportKey = `${targetCompanyId}-${enrichedReport.folioYear}-${enrichedReport.correlativoCompania || enrichedReport.fullFolio}`;
   const currentLocal = getStoredReports().filter(r => 
-    r.id !== report.id && 
-    `${r.folioYear}-${r.correlativoCompania || r.fullFolio}` !== reportKey
+    r.id !== enrichedReport.id && 
+    `${r.companyId || DEFAULT_COMPANY_ID}-${r.folioYear}-${r.correlativoCompania || r.fullFolio}` !== reportKey
   );
-  const updatedLocal = [report, ...currentLocal];
+  const updatedLocal = [enrichedReport, ...currentLocal];
   saveReports(updatedLocal);
-  broadcastLiveChange('REPORT_CHANGED', report);
+  broadcastLiveChange('REPORT_CHANGED', enrichedReport);
 
   try {
     await fetch('/api/reports', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(report),
+      body: JSON.stringify(enrichedReport),
     });
   } catch (e) {
     console.warn('API saveReport error:', e);
@@ -225,46 +419,47 @@ export const saveReportToDatabase = async (report: EmergencyReport): Promise<boo
   if (isSupabaseConfigured() && supabase) {
     try {
       await supabase.from('emergency_reports').upsert({
-        id: report.id,
-        folio_year: report.folioYear,
-        folio_number: report.folioNumber,
-        full_folio: report.fullFolio,
-        correlativo_compania: report.correlativoCompania,
-        correlativo_comandancia: report.correlativoComandancia,
-        incident_date: report.incidentDate,
-        incident_time: report.incidentTime || '12:00',
-        key_code: report.keyCode,
-        key_description: report.keyDescription,
-        category: report.category,
-        address: report.address,
-        corner_or_reference: report.cornerOrReference,
-        sector: report.sector,
-        commune: report.commune,
-        officer_in_charge_id: report.officerInChargeId,
-        officer_in_charge_name: report.officerInChargeName,
-        officer_in_charge_rank: report.officerInChargeRank,
-        units: report.units,
-        attendees: report.attendees,
-        total_firefighters: report.totalFirefighters,
-        caller_name: report.callerName,
-        caller_phone: report.callerPhone,
-        affected_property_type: report.affectedPropertyType,
-        damage_level: report.damageLevel,
-        injured_count: report.injuredCount,
-        fatal_count: report.fatalCount,
-        civilian_injured_count: report.civilianInjuredCount,
-        firefighter_injured_count: report.firefighterInjuredCount,
-        external_agencies: report.externalAgencies,
-        summary_notes: report.summaryNotes,
-        status: report.status,
-        created_by: report.createdBy,
-        approved_by: report.approvedBy,
-        approved_at: report.approvedAt,
-        captain_name: report.captainName,
-        captain_rank: report.captainRank,
-        digital_signature: report.digitalSignature || report.reviewerSignature || {},
-        obac_signature: report.obacSignature || {},
-        reviewer_signature: report.reviewerSignature || report.digitalSignature || {},
+        id: enrichedReport.id,
+        company_id: targetCompanyId,
+        folio_year: enrichedReport.folioYear,
+        folio_number: enrichedReport.folioNumber,
+        full_folio: enrichedReport.fullFolio,
+        correlativo_compania: enrichedReport.correlativoCompania,
+        correlativo_comandancia: enrichedReport.correlativoComandancia,
+        incident_date: enrichedReport.incidentDate,
+        incident_time: enrichedReport.incidentTime || '12:00',
+        key_code: enrichedReport.keyCode,
+        key_description: enrichedReport.keyDescription,
+        category: enrichedReport.category,
+        address: enrichedReport.address,
+        corner_or_reference: enrichedReport.cornerOrReference,
+        sector: enrichedReport.sector,
+        commune: enrichedReport.commune,
+        officer_in_charge_id: enrichedReport.officerInChargeId,
+        officer_in_charge_name: enrichedReport.officerInChargeName,
+        officer_in_charge_rank: enrichedReport.officerInChargeRank,
+        units: enrichedReport.units,
+        attendees: enrichedReport.attendees,
+        total_firefighters: enrichedReport.totalFirefighters,
+        caller_name: enrichedReport.callerName,
+        caller_phone: enrichedReport.callerPhone,
+        affected_property_type: enrichedReport.affectedPropertyType,
+        damage_level: enrichedReport.damageLevel,
+        injured_count: enrichedReport.injuredCount,
+        fatal_count: enrichedReport.fatalCount,
+        civilian_injured_count: enrichedReport.civilianInjuredCount,
+        firefighter_injured_count: enrichedReport.firefighterInjuredCount,
+        external_agencies: enrichedReport.externalAgencies,
+        summary_notes: enrichedReport.summaryNotes,
+        status: enrichedReport.status,
+        created_by: enrichedReport.createdBy,
+        approved_by: enrichedReport.approvedBy,
+        approved_at: enrichedReport.approvedAt,
+        captain_name: enrichedReport.captainName,
+        captain_rank: enrichedReport.captainRank,
+        digital_signature: enrichedReport.digitalSignature || enrichedReport.reviewerSignature || {},
+        obac_signature: enrichedReport.obacSignature || {},
+        reviewer_signature: enrichedReport.reviewerSignature || enrichedReport.digitalSignature || {},
         updated_at: new Date().toISOString(),
       }, { onConflict: 'id' });
     } catch (err) {
@@ -305,12 +500,15 @@ export const deleteReportFromDatabase = async (reportId: string): Promise<boolea
 // VOLUNTEERS SERVICE (ONLINE API + SUPABASE + LOCAL CACHE)
 // -------------------------------------------------------------------
 
-export const fetchVolunteers = async (): Promise<Volunteer[]> => {
+export const fetchVolunteers = async (companyId?: string): Promise<Volunteer[]> => {
   let serverVolunteers: Volunteer[] | null = null;
   let serverDeletedIds: string[] = [];
 
   try {
-    const res = await fetch('/api/volunteers', { cache: 'no-store' });
+    const url = companyId && companyId !== 'ALL'
+      ? `/api/volunteers?companyId=${encodeURIComponent(companyId)}`
+      : '/api/volunteers';
+    const res = await fetch(url, { cache: 'no-store' });
     if (res.ok) {
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
@@ -346,6 +544,7 @@ export const fetchVolunteers = async (): Promise<Volunteer[]> => {
 
         return {
           ...v,
+          companyId: v.companyId || DEFAULT_COMPANY_ID,
           rank,
           isDriver,
           driverLicense,
@@ -358,10 +557,16 @@ export const fetchVolunteers = async (): Promise<Volunteer[]> => {
 
   if (isSupabaseConfigured() && supabase) {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('volunteers')
         .select('*')
         .order('registration_number', { ascending: true });
+
+      if (companyId && companyId !== 'ALL') {
+        query = query.eq('company_id', companyId);
+      }
+
+      const { data, error } = await query;
 
       if (!error && data && data.length > 0) {
         const mapped: Volunteer[] = data
@@ -391,6 +596,7 @@ export const fetchVolunteers = async (): Promise<Volunteer[]> => {
 
             return {
               id: row.id,
+              companyId: row.company_id || DEFAULT_COMPANY_ID,
               registrationNumber: row.registration_number,
               rut: row.rut,
               fullName: row.full_name,
@@ -413,10 +619,14 @@ export const fetchVolunteers = async (): Promise<Volunteer[]> => {
   }
 
   const local = getStoredVolunteers().filter(v => !deletedSet.has(v.id));
+  if (companyId && companyId !== 'ALL') {
+    return local.filter(v => (v.companyId || DEFAULT_COMPANY_ID) === companyId);
+  }
   return local;
 };
 
 export const saveVolunteerToDatabase = async (volunteer: Volunteer): Promise<boolean> => {
+  const targetCompanyId = volunteer.companyId || DEFAULT_COMPANY_ID;
   if (typeof window !== 'undefined') {
     const deleted = getDeletedIds('bomberos_deleted_volunteer_ids').filter(id => id !== volunteer.id);
     localStorage.setItem('bomberos_deleted_volunteer_ids', JSON.stringify(deleted));
@@ -427,6 +637,7 @@ export const saveVolunteerToDatabase = async (volunteer: Volunteer): Promise<boo
   
   const cleanVol: Volunteer = {
     ...volunteer,
+    companyId: targetCompanyId,
     isDriver: isDriverBool,
     driverLicense: isDriverBool ? (volunteer.driverLicense && volunteer.driverLicense !== 'NO' ? volunteer.driverLicense : 'Clase F') : undefined,
   };
@@ -449,6 +660,7 @@ export const saveVolunteerToDatabase = async (volunteer: Volunteer): Promise<boo
     try {
       await supabase.from('volunteers').upsert({
         id: cleanVol.id,
+        company_id: targetCompanyId,
         registration_number: cleanVol.registrationNumber,
         rut: cleanVol.rut,
         full_name: cleanVol.fullName,
@@ -494,12 +706,15 @@ export const deleteVolunteerFromDatabase = async (volunteerId: string): Promise<
 // UNITS SERVICE (ONLINE API + SUPABASE + LOCAL CACHE)
 // -------------------------------------------------------------------
 
-export const fetchUnits = async (): Promise<Unit[]> => {
+export const fetchUnits = async (companyId?: string): Promise<Unit[]> => {
   let serverUnits: Unit[] | null = null;
   let serverDeletedCodes: string[] = [];
 
   try {
-    const res = await fetch('/api/units', { cache: 'no-store' });
+    const url = companyId && companyId !== 'ALL'
+      ? `/api/units?companyId=${encodeURIComponent(companyId)}`
+      : '/api/units';
+    const res = await fetch(url, { cache: 'no-store' });
     if (res.ok) {
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
@@ -522,16 +737,23 @@ export const fetchUnits = async (): Promise<Unit[]> => {
 
   if (isSupabaseConfigured() && supabase) {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('units')
         .select('*')
         .order('code', { ascending: true });
+
+      if (companyId && companyId !== 'ALL') {
+        query = query.eq('company_id', companyId);
+      }
+
+      const { data, error } = await query;
 
       if (!error && data) {
         const mapped: Unit[] = data
           .filter((row: any) => !deletedSet.has(row.code))
           .map(row => ({
             code: row.code,
+            companyId: row.company_id || DEFAULT_COMPANY_ID,
             name: row.name,
             plate: row.plate || row.plate_number || '',
             type: row.type || 'Bomba',
@@ -546,39 +768,46 @@ export const fetchUnits = async (): Promise<Unit[]> => {
   }
 
   const local = getStoredUnits().filter(u => !deletedSet.has(u.code));
+  if (companyId && companyId !== 'ALL') {
+    return local.filter(u => (u.companyId || DEFAULT_COMPANY_ID) === companyId);
+  }
   return local;
 };
 
 export const saveUnitToDatabase = async (unit: Unit): Promise<boolean> => {
+  const targetCompanyId = unit.companyId || DEFAULT_COMPANY_ID;
+  const enrichedUnit: Unit = { ...unit, companyId: targetCompanyId };
+
   if (typeof window !== 'undefined') {
-    const deleted = getDeletedIds('bomberos_deleted_unit_codes').filter(c => c !== unit.code);
+    const deleted = getDeletedIds('bomberos_deleted_unit_codes').filter(c => c !== enrichedUnit.code);
     localStorage.setItem('bomberos_deleted_unit_codes', JSON.stringify(deleted));
   }
 
   const current = getStoredUnits();
-  const exists = current.some(u => u.code === unit.code);
-  const updated = exists ? current.map(u => u.code === unit.code ? unit : u) : [...current, unit];
+  const exists = current.some(u => u.code === enrichedUnit.code);
+  const updated = exists ? current.map(u => u.code === enrichedUnit.code ? enrichedUnit : u) : [...current, enrichedUnit];
   saveUnits(updated);
-  broadcastLiveChange('UNIT_CHANGED', unit);
+  broadcastLiveChange('UNIT_CHANGED', enrichedUnit);
 
   try {
     await fetch('/api/units', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(unit),
+      body: JSON.stringify(enrichedUnit),
     });
   } catch {}
 
   if (isSupabaseConfigured() && supabase) {
     try {
       await supabase.from('units').upsert({
-        code: unit.code,
-        name: unit.name,
-        plate: unit.plate,
-        type: unit.type,
-        current_km: unit.currentKm,
-        current_pump_hours: unit.currentPumpHours,
-        status: unit.status,
+        code: enrichedUnit.code,
+        company_id: targetCompanyId,
+        name: enrichedUnit.name,
+        plate: enrichedUnit.plate,
+        type: enrichedUnit.type,
+        current_km: enrichedUnit.currentKm,
+        current_pump_hours: enrichedUnit.currentPumpHours,
+        status: enrichedUnit.status,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'code' });
     } catch {}
@@ -613,48 +842,57 @@ export const deleteUnitFromDatabase = async (unitCode: string): Promise<boolean>
 // BRANDING SERVICE (ONLINE API + SUPABASE + LOCAL CACHE)
 // -------------------------------------------------------------------
 
-export const fetchBranding = async (): Promise<CompanyBranding | null> => {
+export const fetchBranding = async (companyId?: string): Promise<CompanyBranding | null> => {
   try {
-    const res = await fetch('/api/branding', { cache: 'no-store' });
+    const url = companyId && companyId !== 'ALL'
+      ? `/api/branding?companyId=${encodeURIComponent(companyId)}`
+      : '/api/branding';
+    const res = await fetch(url, { cache: 'no-store' });
     if (res.ok) {
       const json = await res.json();
       if (json.success && json.data) {
         if (typeof window !== 'undefined') {
-          localStorage.setItem('bomberos_branding', JSON.stringify(json.data));
+          localStorage.setItem(`bomberos_branding_${companyId || DEFAULT_COMPANY_ID}`, JSON.stringify(json.data));
         }
         return json.data;
       }
     }
   } catch {}
 
-  const local = typeof window !== 'undefined' ? localStorage.getItem('bomberos_branding') : null;
+  const localKey = `bomberos_branding_${companyId || DEFAULT_COMPANY_ID}`;
+  const local = typeof window !== 'undefined' ? localStorage.getItem(localKey) || localStorage.getItem('bomberos_branding') : null;
   return local ? JSON.parse(local) : null;
 };
 
 export const saveBrandingToDatabase = async (branding: CompanyBranding): Promise<boolean> => {
+  const targetCompanyId = branding.companyId || DEFAULT_COMPANY_ID;
+  const enriched: CompanyBranding = { ...branding, companyId: targetCompanyId };
+
   if (typeof window !== 'undefined') {
-    localStorage.setItem('bomberos_branding', JSON.stringify(branding));
+    localStorage.setItem(`bomberos_branding_${targetCompanyId}`, JSON.stringify(enriched));
+    localStorage.setItem('bomberos_branding', JSON.stringify(enriched));
   }
-  broadcastLiveChange('BRANDING_CHANGED', branding);
+  broadcastLiveChange('BRANDING_CHANGED', enriched);
 
   try {
     await fetch('/api/branding', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(branding),
+      body: JSON.stringify(enriched),
     });
   } catch {}
 
   if (isSupabaseConfigured() && supabase) {
     try {
       await supabase.from('company_branding').upsert({
-        id: 'default_branding',
-        company_name: branding.companyName,
-        fire_department: branding.fireDepartment,
-        motto: branding.motto,
-        logo_url: branding.logoUrl,
-        primary_color: branding.primaryColor,
-        accent_color: branding.accentColor,
+        id: `branding_${targetCompanyId}`,
+        company_id: targetCompanyId,
+        company_name: enriched.companyName,
+        fire_department: enriched.fireDepartment,
+        motto: enriched.motto,
+        logo_url: enriched.logoUrl,
+        primary_color: enriched.primaryColor,
+        accent_color: enriched.accentColor,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'id' });
     } catch {}
@@ -698,7 +936,8 @@ export const subscribeToRealtimeChanges = (
   onVolunteersChange: () => void,
   onUnitsChange?: () => void,
   onBrandingChange?: () => void,
-  onUsersChange?: () => void
+  onUsersChange?: () => void,
+  onCompaniesChange?: () => void
 ) => {
   // 1. Local Broadcast Channel for instant device/tab syncing
   const localChannel = getBroadcastChannel();
@@ -715,6 +954,8 @@ export const subscribeToRealtimeChanges = (
         onBrandingChange();
       } else if (type === 'USER_CHANGED' && onUsersChange) {
         onUsersChange();
+      } else if (type === 'COMPANY_CHANGED' && onCompaniesChange) {
+        onCompaniesChange();
       }
     };
   }
@@ -727,10 +968,12 @@ export const subscribeToRealtimeChanges = (
       onVolunteersChange();
     } else if ((e.key === 'bomberos_units' || e.key === 'bomberos_unidades_v5' || e.key === 'bomberos_deleted_unit_codes') && onUnitsChange) {
       onUnitsChange();
-    } else if (e.key === 'bomberos_branding' && onBrandingChange) {
+    } else if ((e.key === 'bomberos_branding' || e.key?.startsWith('bomberos_branding_')) && onBrandingChange) {
       onBrandingChange();
     } else if ((e.key === 'bomberos_registered_users_v5' || e.key === 'bomberos_active_session_v5') && onUsersChange) {
       onUsersChange();
+    } else if (e.key === 'bomberos_companies_list' && onCompaniesChange) {
+      onCompaniesChange();
     }
   };
 
@@ -740,6 +983,7 @@ export const subscribeToRealtimeChanges = (
     if (onUnitsChange) onUnitsChange();
     if (onBrandingChange) onBrandingChange();
     if (onUsersChange) onUsersChange();
+    if (onCompaniesChange) onCompaniesChange();
   };
 
   const handleVisibilityOrFocus = () => {
@@ -768,6 +1012,7 @@ export const subscribeToRealtimeChanges = (
             onVolunteersChange();
             if (onUnitsChange) onUnitsChange();
             if (onBrandingChange) onBrandingChange();
+            if (onCompaniesChange) onCompaniesChange();
           }
           lastKnownRevision = data.revision;
         }
@@ -781,6 +1026,7 @@ export const subscribeToRealtimeChanges = (
     try {
       supabaseChannel = supabase
         .channel('schema-db-live-sync')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'companies' }, () => onCompaniesChange && onCompaniesChange())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'emergency_reports' }, () => onReportsChange())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'volunteers' }, () => onVolunteersChange())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'units' }, () => onUnitsChange && onUnitsChange())

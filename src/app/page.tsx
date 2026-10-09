@@ -8,6 +8,7 @@ import { ReportListView } from '../components/ReportListView';
 import { VolunteersManagerView } from '../components/VolunteersManagerView';
 import { UnitsManagerView } from '../components/UnitsManagerView';
 import { UsersManagerView } from '../components/UsersManagerView';
+import { CompaniesManagerView } from '../components/CompaniesManagerView';
 import { ReportFormModal } from '../components/ReportFormModal';
 import { ReportDetailModal } from '../components/ReportDetailModal';
 import { LogoManagerModal } from '../components/LogoManagerModal';
@@ -24,7 +25,10 @@ import {
   AppUser, 
   CompanyBranding, 
   ToastNotification,
-  ReportStatus
+  ReportStatus,
+  Company,
+  DEFAULT_COMPANY_ID,
+  SUPER_ADMIN_MASTER_EMAIL
 } from '../types';
 import { 
   INITIAL_VOLUNTEERS, 
@@ -44,6 +48,9 @@ import {
   deleteUnitFromDatabase,
   fetchBranding,
   saveBrandingToDatabase,
+  fetchCompanies,
+  saveCompanyToDatabase,
+  deleteCompanyFromDatabase,
   subscribeToRealtimeChanges
 } from '../services/supabaseService';
 import { 
@@ -58,9 +65,10 @@ import { exportMatrixToExcel } from '../utils/excelExport';
 import { getActiveSession, clearActiveSession, saveAppUser, fetchAppUsers, createActiveSession } from '../services/authService';
 
 const DEFAULT_BRANDING: CompanyBranding = {
+  companyId: DEFAULT_COMPANY_ID,
   companyName: '4ª COMPAÑÍA "CALLE LARGA"',
   fireDepartment: 'Cuerpo de Bomberos de Los Andes',
-  motto: 'Unión, Lealtad y Servicio • Fundada el 21 de Agosto de 1985',
+  motto: 'Honor, Disciplina y Abnegación • Fundada el 21 de Agosto de 1985',
   logoUrl: '/logo_4ta_calle_larga.png',
   primaryColor: '#8F0D0D',
   accentColor: '#B8860B',
@@ -73,10 +81,11 @@ import {
   Users, 
   Truck, 
   Shield, 
-  Plus 
+  Plus,
+  Building2
 } from 'lucide-react';
 
-const VALID_TABS = ['dashboard', 'matrix', 'reports', 'volunteers', 'units', 'users'];
+const VALID_TABS = ['dashboard', 'matrix', 'reports', 'volunteers', 'units', 'users', 'companies'];
 
 export default function Home() {
   const [activeTab, setActiveTabState] = useState<string>('dashboard');
@@ -123,6 +132,22 @@ export default function Home() {
     return false;
   });
 
+  // Multi-Company Active State
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [activeCompanyId, setActiveCompanyIdState] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('bomberos_active_company_id') || DEFAULT_COMPANY_ID;
+    }
+    return DEFAULT_COMPANY_ID;
+  });
+
+  const setActiveCompanyId = useCallback((companyId: string) => {
+    setActiveCompanyIdState(companyId);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('bomberos_active_company_id', companyId);
+    }
+  }, []);
+
   // Core Data States (Pre-loaded with official data)
   const [reports, setReports] = useState<EmergencyReport[]>(() => {
     if (typeof window !== 'undefined') return getStoredReports();
@@ -166,20 +191,43 @@ export default function Home() {
     setToasts(prev => prev.filter(t => t.id !== id));
   };
 
-  // Load Data function
-  const loadAllData = useCallback(async () => {
+  // Load Data function scoped to active company
+  const loadAllData = useCallback(async (targetCompanyId: string = activeCompanyId) => {
     try {
-      const [fetchedReports, fetchedVolunteers, fetchedUnits, fetchedUsers] = await Promise.all([
-        fetchReports(),
-        fetchVolunteers(),
-        fetchUnits(),
-        fetchAppUsers(),
+      const [fetchedReports, fetchedVolunteers, fetchedUnits, fetchedUsers, fetchedCompanies, fetchedBranding] = await Promise.all([
+        fetchReports(targetCompanyId),
+        fetchVolunteers(targetCompanyId),
+        fetchUnits(targetCompanyId),
+        fetchAppUsers(targetCompanyId),
+        fetchCompanies(),
+        fetchBranding(targetCompanyId),
       ]);
+
+      if (Array.isArray(fetchedCompanies)) {
+        setCompanies(fetchedCompanies);
+      }
 
       setReports(fetchedReports !== null ? fetchedReports : getStoredReports());
       setVolunteers(fetchedVolunteers && fetchedVolunteers.length > 0 ? fetchedVolunteers : getStoredVolunteers());
       setUnits(fetchedUnits !== null ? fetchedUnits : getStoredUnits());
       setKeys(getStoredKeys());
+
+      if (fetchedBranding) {
+        setBranding(fetchedBranding);
+      } else if (fetchedCompanies && fetchedCompanies.length > 0) {
+        const matchingCompany = fetchedCompanies.find(c => c.id === targetCompanyId);
+        if (matchingCompany) {
+          setBranding({
+            companyId: matchingCompany.id,
+            companyName: matchingCompany.name,
+            fireDepartment: matchingCompany.fireDepartment,
+            motto: matchingCompany.motto,
+            logoUrl: matchingCompany.logoUrl,
+            primaryColor: matchingCompany.primaryColor,
+            accentColor: matchingCompany.accentColor,
+          });
+        }
+      }
 
       // Live Permission & Role Refresh: sync currentUser with updated server permissions
       const session = getActiveSession();
@@ -200,13 +248,44 @@ export default function Home() {
         }
       }
     } catch (e) {
-      console.warn('Fallback to initial static data:', e);
+      console.warn('Fallback to local state:', e);
       setReports(getStoredReports());
       setVolunteers(getStoredVolunteers());
       setUnits(getStoredUnits());
       setKeys(getStoredKeys());
     }
-  }, []);
+  }, [activeCompanyId]);
+
+  // Handle switching companies dynamically
+  const handleSelectCompany = useCallback((companyId: string) => {
+    setActiveCompanyId(companyId);
+    loadAllData(companyId);
+    const selected = companies.find(c => c.id === companyId);
+    if (selected) {
+      setBranding({
+        companyId: selected.id,
+        companyName: selected.name,
+        fireDepartment: selected.fireDepartment,
+        motto: selected.motto,
+        logoUrl: selected.logoUrl,
+        primaryColor: selected.primaryColor,
+        accentColor: selected.accentColor,
+      });
+      addToast({
+        type: 'info',
+        title: 'Entorno de Compañía Cambiado',
+        message: `Ahora estás operando en el entorno de "${selected.name}".`,
+        duration: 3000,
+      });
+    } else if (companyId === 'ALL') {
+      addToast({
+        type: 'info',
+        title: 'Modo Central Multi-Compañía',
+        message: 'Visualizando registros de todas las Compañías de Bomberos.',
+        duration: 3000,
+      });
+    }
+  }, [companies, setActiveCompanyId, loadAllData, addToast]);
 
   // Initialize theme, active user session, and load data immediately on mount
   useEffect(() => {
@@ -222,6 +301,9 @@ export default function Home() {
     const session = getActiveSession();
     if (session) {
       setCurrentUser(session);
+      if (session.companyId && session.companyId !== 'ALL') {
+        setActiveCompanyId(session.companyId);
+      }
     }
     setIsSessionLoaded(true);
 
@@ -234,34 +316,34 @@ export default function Home() {
 
     // Load data immediately on page mount
     loadAllData();
-  }, [loadAllData]);
+  }, [loadAllData, setActiveCompanyId]);
 
   // Realtime cloud & local sync subscription
   useEffect(() => {
     if (currentUser) {
       const unsubscribe = subscribeToRealtimeChanges(
         () => {
-          fetchReports().then(reps => {
+          fetchReports(activeCompanyId).then(reps => {
             if (Array.isArray(reps)) setReports(reps);
           });
         },
         () => {
-          fetchVolunteers().then(vols => {
+          fetchVolunteers(activeCompanyId).then(vols => {
             if (Array.isArray(vols)) setVolunteers(vols);
           });
         },
         () => {
-          fetchUnits().then(u => {
+          fetchUnits(activeCompanyId).then(u => {
             if (Array.isArray(u)) setUnits(u);
           });
         },
         () => {
-          fetchBranding().then(b => {
+          fetchBranding(activeCompanyId).then(b => {
             if (b) setBranding(b);
           });
         },
         () => {
-          fetchAppUsers().then(users => {
+          fetchAppUsers(activeCompanyId).then(users => {
             const current = getActiveSession();
             if (current && Array.isArray(users)) {
               const fresh = users.find(
@@ -273,6 +355,11 @@ export default function Home() {
               }
             }
           });
+        },
+        () => {
+          fetchCompanies().then(comps => {
+            if (Array.isArray(comps)) setCompanies(comps);
+          });
         }
       );
 
@@ -280,7 +367,7 @@ export default function Home() {
         unsubscribe();
       };
     }
-  }, [currentUser?.id]);
+  }, [currentUser?.id, activeCompanyId]);
 
   const toggleDarkMode = () => {
     setIsDarkMode(prev => {
@@ -329,127 +416,116 @@ export default function Home() {
     setIsFormOpen(false);
     setEditingReport(null);
 
+    const targetCompanyId = reportToSave.companyId || (activeCompanyId !== 'ALL' ? activeCompanyId : DEFAULT_COMPANY_ID);
+    const enrichedReport: EmergencyReport = {
+      ...reportToSave,
+      companyId: targetCompanyId,
+    };
+
     // Optimistic UI update with strict deduplication
     setReports(prev => {
-      const key = `${reportToSave.folioYear}-${reportToSave.correlativoCompania || reportToSave.fullFolio}`;
+      const key = `${targetCompanyId}-${enrichedReport.folioYear}-${enrichedReport.correlativoCompania || enrichedReport.fullFolio}`;
       const filtered = prev.filter(r => 
-        r.id !== reportToSave.id && 
-        `${r.folioYear}-${r.correlativoCompania || r.fullFolio}` !== key
+        r.id !== enrichedReport.id && 
+        `${r.companyId || DEFAULT_COMPANY_ID}-${r.folioYear}-${r.correlativoCompania || r.fullFolio}` !== key
       );
-      return [reportToSave, ...filtered];
+      return [enrichedReport, ...filtered];
     });
 
-    const isDraft = reportToSave.status === 'BORRADOR';
+    const isDraft = enrichedReport.status === 'BORRADOR';
     addToast({
       type: isDraft ? 'info' : 'success',
       title: isDraft ? 'Borrador Guardado' : 'Parte Ingresado',
       message: isDraft 
-        ? `Borrador del Parte #${reportToSave.correlativoCompania || reportToSave.fullFolio} guardado exitosamente.`
-        : `Parte #${reportToSave.correlativoCompania || reportToSave.fullFolio} ingresado exitosamente.`,
+        ? `Borrador del Parte #${enrichedReport.correlativoCompania || enrichedReport.fullFolio} guardado exitosamente.`
+        : `Parte #${enrichedReport.correlativoCompania || enrichedReport.fullFolio} ingresado exitosamente.`,
       duration: 2500,
     });
 
-    if (viewingReport && viewingReport.id === reportToSave.id) {
-      setViewingReport(reportToSave);
-    }
-
-    // Persist to central database & server
-    await saveReportToDatabase(reportToSave);
-    const updated = await fetchReports();
-    if (Array.isArray(updated)) {
-      setReports(updated);
-      const fresh = updated.find(r => r.id === reportToSave.id);
-      if (fresh && viewingReport?.id === reportToSave.id) {
-        setViewingReport(fresh);
+    try {
+      await saveReportToDatabase(enrichedReport);
+      const updated = await fetchReports(activeCompanyId);
+      if (Array.isArray(updated)) {
+        setReports(updated);
       }
+    } catch (e) {
+      console.error('Error saving report to DB:', e);
     }
   };
 
   const handleDeleteReport = async (reportId: string) => {
     if (!currentUser?.permissions?.canDeleteReports) {
       addToast({
-        type: 'error',
+        type: 'warning',
         title: 'Permiso Denegado',
-        message: 'Solo el Mando (Super Admin / Admin) puede eliminar partes.',
+        message: 'Solo el Mando Oficial tiene facultades para anular partes.',
       });
       return;
     }
-    // Optimistic immediate removal from UI
+
     setReports(prev => prev.filter(r => r.id !== reportId));
     if (viewingReport?.id === reportId) {
       setViewingReport(null);
     }
-    await deleteReportFromDatabase(reportId);
-    const updated = await fetchReports();
-    if (Array.isArray(updated)) {
-      setReports(updated);
+
+    try {
+      await deleteReportFromDatabase(reportId);
+      const updated = await fetchReports(activeCompanyId);
+      if (Array.isArray(updated)) {
+        setReports(updated);
+      }
+      addToast({
+        type: 'warning',
+        title: 'Parte Anulado',
+        message: 'El registro ha sido eliminado del libro de novedades.',
+        duration: 2500,
+      });
+    } catch (e) {
+      console.error('Error deleting report:', e);
     }
-    addToast({
-      type: 'warning',
-      title: 'Parte Eliminado',
-      message: 'El parte ha sido retirado del libro de registro.',
-      duration: 2500,
-    });
   };
 
-  const handleSignReport = async (reportId: string, signatureData: {
-    role?: 'OBAC' | 'REVISOR';
-    signedBy: string;
-    signedByRank: string;
-    signedAt: string;
-    signatureDataUrl?: string;
-    verificationCode: string;
-    targetStatus?: ReportStatus;
-  }) => {
-    const target = reports.find(r => r.id === reportId);
-    if (!target) return;
+  const handleSignReport = async (
+    reportId: string, 
+    signatureData: any, 
+    targetStatus: ReportStatus = 'APROBADO',
+    isObac: boolean = false
+  ) => {
+    const report = reports.find(r => r.id === reportId);
+    if (!report) return;
 
-    const isObac = signatureData.role === 'OBAC';
-    const targetStatus = signatureData.targetStatus || (isObac ? (target.status === 'BORRADOR' ? 'ENVIADO' : target.status) : 'APROBADO');
+    let signedReport: EmergencyReport = { ...report };
 
-    const signedReport: EmergencyReport = {
-      ...target,
-      status: targetStatus,
-      ...(isObac ? {
-        obacSignature: {
-          signedBy: signatureData.signedBy,
-          signedByRank: signatureData.signedByRank,
-          signedAt: signatureData.signedAt,
-          signatureDataUrl: signatureData.signatureDataUrl,
-          verificationCode: signatureData.verificationCode,
-          role: 'OBAC',
-        },
-      } : {
-        approvedBy: targetStatus === 'APROBADO' ? signatureData.signedBy : (target.approvedBy || signatureData.signedBy),
-        approvedAt: targetStatus === 'APROBADO' ? signatureData.signedAt : (target.approvedAt || signatureData.signedAt),
-        captainName: signatureData.signedBy,
-        captainRank: signatureData.signedByRank,
-        reviewerSignature: {
-          signedBy: signatureData.signedBy,
-          signedByRank: signatureData.signedByRank,
-          signedAt: signatureData.signedAt,
-          signatureDataUrl: signatureData.signatureDataUrl,
-          verificationCode: signatureData.verificationCode,
-          role: 'REVISOR',
-        },
-        digitalSignature: {
-          signedBy: signatureData.signedBy,
-          signedByRank: signatureData.signedByRank,
-          signedAt: signatureData.signedAt,
-          signatureDataUrl: signatureData.signatureDataUrl,
-          verificationCode: signatureData.verificationCode,
-          role: 'REVISOR',
-        },
-      }),
-      updatedAt: new Date().toISOString(),
-    };
+    if (isObac) {
+      signedReport.obacSignature = {
+        ...signatureData,
+        role: 'OBAC',
+      };
+      signedReport.status = targetStatus;
+      signedReport.updatedAt = new Date().toISOString();
+    } else {
+      signedReport.reviewerSignature = {
+        ...signatureData,
+        role: 'REVISOR',
+      };
+      signedReport.digitalSignature = {
+        ...signatureData,
+        role: 'REVISOR',
+      };
+      signedReport.captainName = signatureData.signedBy;
+      signedReport.captainRank = signatureData.signedByRank;
+      signedReport.approvedBy = signatureData.signedBy;
+      signedReport.approvedAt = signatureData.signedAt;
+      signedReport.status = targetStatus;
+      signedReport.updatedAt = new Date().toISOString();
+    }
 
-    // Optimistic state updates across all views
+    // Optimistic local state update
     setReports(prev => prev.map(r => r.id === reportId ? signedReport : r));
     setViewingReport(signedReport);
 
     await saveReportToDatabase(signedReport);
-    const updated = await fetchReports();
+    const updated = await fetchReports(activeCompanyId);
     if (Array.isArray(updated)) {
       setReports(updated);
       const freshSigned = updated.find(r => r.id === reportId);
@@ -486,26 +562,30 @@ export default function Home() {
       });
       return;
     }
-    // Optimistic state update across all views (Dashboard, Attendance Matrix, Form, Detail, Volunteers)
+
+    const targetCompanyId = vol.companyId || (activeCompanyId !== 'ALL' ? activeCompanyId : DEFAULT_COMPANY_ID);
+    const cleanVol: Volunteer = { ...vol, companyId: targetCompanyId };
+
+    // Optimistic state update across all views
     setVolunteers(prev => {
-      const idx = prev.findIndex(v => v.id === vol.id);
+      const idx = prev.findIndex(v => v.id === cleanVol.id);
       if (idx >= 0) {
         const next = [...prev];
-        next[idx] = vol;
+        next[idx] = cleanVol;
         return next;
       }
-      return [...prev, vol];
+      return [...prev, cleanVol];
     });
 
-    await saveVolunteerToDatabase(vol);
-    const updated = await fetchVolunteers();
+    await saveVolunteerToDatabase(cleanVol);
+    const updated = await fetchVolunteers(activeCompanyId);
     if (Array.isArray(updated)) {
       setVolunteers(updated);
     }
     addToast({
       type: 'success',
       title: 'Padrón Actualizado',
-      message: `Datos del voluntario ${vol.fullName} guardados con éxito.`,
+      message: `Datos del voluntario ${cleanVol.fullName} guardados con éxito.`,
       duration: 2500,
     });
   };
@@ -522,7 +602,7 @@ export default function Home() {
     }
     setVolunteers(prev => prev.filter(v => v.id !== volId));
     await deleteVolunteerFromDatabase(volId);
-    const updated = await fetchVolunteers();
+    const updated = await fetchVolunteers(activeCompanyId);
     if (Array.isArray(updated)) {
       setVolunteers(updated);
     }
@@ -540,323 +620,347 @@ export default function Home() {
       addToast({
         type: 'warning',
         title: 'Permiso Denegado',
-        message: 'Solo los administradores o maquinistas pueden modificar el material mayor.',
+        message: 'No tienes autorización para modificar unidades bomberiles.',
       });
       return;
     }
-    await saveUnitToDatabase(unit);
-    const updated = await fetchUnits();
+    const targetCompanyId = unit.companyId || (activeCompanyId !== 'ALL' ? activeCompanyId : DEFAULT_COMPANY_ID);
+    const cleanUnit: Unit = { ...unit, companyId: targetCompanyId };
+
+    setUnits(prev => {
+      const idx = prev.findIndex(u => u.code === cleanUnit.code);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = cleanUnit;
+        return next;
+      }
+      return [...prev, cleanUnit];
+    });
+
+    await saveUnitToDatabase(cleanUnit);
+    const updated = await fetchUnits(activeCompanyId);
     if (Array.isArray(updated)) {
       setUnits(updated);
     }
     addToast({
       type: 'success',
       title: 'Material Mayor Actualizado',
-      message: `Unidad ${unit.code} guardada en la base de datos oficial.`,
+      message: `Unidad ${cleanUnit.code} actualizada.`,
       duration: 2500,
     });
   };
 
-  const handleDeleteUnit = async (unitId: string) => {
+  const handleDeleteUnit = async (unitCode: string) => {
     if (!currentUser?.permissions?.canManageUnits) {
       addToast({
         type: 'warning',
         title: 'Permiso Denegado',
-        message: 'Solo los administradores pueden dar de baja unidades.',
+        message: 'No tienes autorización para eliminar unidades de la flota.',
       });
       return;
     }
-    setUnits(prev => prev.filter(u => u.code !== unitId));
-    await deleteUnitFromDatabase(unitId);
-    const updated = await fetchUnits();
+    setUnits(prev => prev.filter(u => u.code !== unitCode));
+    await deleteUnitFromDatabase(unitCode);
+    const updated = await fetchUnits(activeCompanyId);
     if (Array.isArray(updated)) {
       setUnits(updated);
     }
     addToast({
       type: 'warning',
-      title: 'Unidad Removida',
+      title: 'Unidad Eliminada',
       message: 'La unidad ha sido retirada del inventario.',
       duration: 2500,
     });
   };
 
-  // Save Custom Branding
+  // Handlers for Multi-Company Management (SUPER_ADMIN only)
+  const handleSaveCompany = async (company: Company) => {
+    if (currentUser?.email.toLowerCase() !== SUPER_ADMIN_MASTER_EMAIL.toLowerCase() && currentUser?.role !== 'SUPER_ADMIN') {
+      addToast({
+        type: 'warning',
+        title: 'Permiso Denegado',
+        message: 'Solo el Super Administrador Central puede gestionar Compañías de Bomberos.',
+      });
+      return;
+    }
+
+    setCompanies(prev => {
+      const idx = prev.findIndex(c => c.id === company.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = company;
+        return next;
+      }
+      return [...prev, company];
+    });
+
+    await saveCompanyToDatabase(company);
+    const fresh = await fetchCompanies();
+    if (Array.isArray(fresh)) {
+      setCompanies(fresh);
+    }
+  };
+
+  const handleDeleteCompany = async (companyId: string) => {
+    if (currentUser?.email.toLowerCase() !== SUPER_ADMIN_MASTER_EMAIL.toLowerCase() && currentUser?.role !== 'SUPER_ADMIN') {
+      addToast({
+        type: 'warning',
+        title: 'Permiso Denegado',
+        message: 'Solo el Super Administrador Central puede eliminar Compañías.',
+      });
+      return;
+    }
+
+    if (companyId === DEFAULT_COMPANY_ID) {
+      addToast({
+        type: 'error',
+        title: 'Acción Bloqueada',
+        message: 'No se puede eliminar la Compañía matriz por defecto.',
+      });
+      return;
+    }
+
+    setCompanies(prev => prev.filter(c => c.id !== companyId));
+    if (activeCompanyId === companyId) {
+      handleSelectCompany(DEFAULT_COMPANY_ID);
+    }
+
+    await deleteCompanyFromDatabase(companyId);
+    const fresh = await fetchCompanies();
+    if (Array.isArray(fresh)) {
+      setCompanies(fresh);
+    }
+  };
+
+  // Branding handler
   const handleSaveBranding = async (newBranding: CompanyBranding) => {
-    setBranding(newBranding);
-    await saveBrandingToDatabase(newBranding);
+    const targetCompanyId = newBranding.companyId || (activeCompanyId !== 'ALL' ? activeCompanyId : DEFAULT_COMPANY_ID);
+    const enriched: CompanyBranding = { ...newBranding, companyId: targetCompanyId };
+    setBranding(enriched);
+    localStorage.setItem('bomberos_branding', JSON.stringify(enriched));
+    await saveBrandingToDatabase(enriched);
     addToast({
       type: 'success',
-      title: 'Escudo & Marca Actualizados',
-      message: 'Se ha guardado la nueva personalización visual de la Compañía.',
+      title: 'Identidad Institucional Guardada',
+      message: 'El escudo y membrete oficial han sido actualizados en la nube.',
+      duration: 3000,
     });
   };
 
-  // Handle Login & Logout
+  // Auth Handlers
   const handleLogin = (user: AppUser) => {
     setCurrentUser(user);
+    if (user.companyId && user.companyId !== 'ALL') {
+      setActiveCompanyId(user.companyId);
+      loadAllData(user.companyId);
+    } else {
+      loadAllData();
+    }
     addToast({
       type: 'success',
-      title: 'Sesión Oficial Iniciada',
-      message: `Bienvenido Oficial ${user.fullName} (${user.rank}).`,
+      title: 'Sesión Iniciada',
+      message: `Bienvenido(a), ${user.fullName}. Rango: ${user.rank}.`,
+      duration: 3000,
     });
   };
 
   const handleLogout = () => {
     clearActiveSession();
     setCurrentUser(null);
-    setActiveTab('dashboard');
     addToast({
       type: 'info',
-      title: 'Sesión Finalizada',
-      message: 'Has salido del sistema de forma segura.',
+      title: 'Sesión Cerrada',
+      message: 'Has salido del sistema de partes.',
+      duration: 2500,
     });
   };
 
-  const handleExportExcel = () => {
-    if (!currentUser?.permissions?.canExportReports) return;
-    exportMatrixToExcel(reports, volunteers, new Date().getFullYear());
-    addToast({
-      type: 'success',
-      title: 'Planilla Descargada',
-      message: 'El archivo Excel de asistencias ha sido generado con éxito.',
-    });
-  };
-
-  // Next Folio calculation
-  const nextFolioNumber = reports.length > 0
-    ? Math.max(...reports.map(r => r.folioNumber || 0)) + 1
-    : 1;
-
-  // 🔒 LOGIN GATE: If not logged in, render LoginScreen only!
-  if (!isSessionLoaded) {
+  // Render LoginScreen if not authenticated
+  if (isSessionLoaded && !currentUser) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">
-        <div className="w-8 h-8 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between font-sans">
+        <LoginScreen 
+          onLogin={handleLogin} 
+          branding={branding} 
+          companies={companies}
+        />
+        <ToastContainer toasts={toasts} onDismiss={dismissToast} />
       </div>
     );
   }
 
-  if (!currentUser) {
-    return <LoginScreen onLogin={handleLogin} branding={branding} />;
+  // Prevent flash while session is validating
+  if (!isSessionLoaded) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-600"></div>
+      </div>
+    );
   }
 
+  const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.email.toLowerCase() === SUPER_ADMIN_MASTER_EMAIL.toLowerCase();
+
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-[#090D16] text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200 pb-16 sm:pb-0">
-      {/* Top Header Navbar */}
-      <Header
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        onNewReport={handleOpenNewReport}
-        onLogout={handleLogout}
-        onOpenLogoManager={() => setIsLogoManagerOpen(true)}
-        reports={reports}
-        volunteers={volunteers}
-        isDarkMode={isDarkMode}
-        onToggleDarkMode={toggleDarkMode}
-        currentUser={currentUser}
-        branding={branding}
-      />
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between font-sans selection:bg-red-600 selection:text-white pb-20 sm:pb-0">
+      <div className="flex-1 flex flex-col">
+        {/* Navigation & Header with Multi-Company switcher */}
+        <Header 
+          activeTab={activeTab} 
+          setActiveTab={setActiveTab} 
+          isDarkMode={isDarkMode}
+          onToggleDarkMode={toggleDarkMode}
+          currentUser={currentUser}
+          onLogout={handleLogout}
+          onNewReport={handleOpenNewReport}
+          onOpenLogoManager={() => setIsLogoManagerOpen(true)}
+          reports={reports}
+          volunteers={volunteers}
+          branding={branding}
+          companies={companies}
+          activeCompanyId={activeCompanyId}
+          onSelectCompany={handleSelectCompany}
+        />
 
-      {/* Main Content Area */}
-      <main className={`flex-1 ${activeTab === 'dashboard' || activeTab === 'matrix' ? 'max-w-[1680px]' : 'max-w-7xl'} w-full mx-auto px-2 sm:px-4 lg:px-6 py-3 sm:py-5 pb-24 sm:pb-8 transition-all`}>
-        {activeTab === 'dashboard' && (
-          <DashboardView
-            reports={reports}
-            volunteers={volunteers}
-            keys={keys}
-            onSelectReport={(rep) => setViewingReport(rep)}
-            onNewReport={handleOpenNewReport}
-          />
-        )}
-
-        {activeTab === 'matrix' && (
-          <AttendanceMatrixView
-            reports={reports}
-            volunteers={volunteers}
-            onSelectReport={(rep) => setViewingReport(rep)}
-          />
-        )}
-
-        {activeTab === 'reports' && (
-          <ReportListView
-            reports={reports}
-            keys={keys}
-            onNewReport={handleOpenNewReport}
-            onEditReport={handleOpenEditReport}
-            onViewReport={(rep) => setViewingReport(rep)}
-            onDeleteReport={handleDeleteReport}
-            onSaveReport={handleSaveReport}
-            currentUser={currentUser}
-          />
-        )}
-
-        {activeTab === 'volunteers' && (
-          <VolunteersManagerView
-            volunteers={volunteers}
-            onSaveVolunteer={handleSaveVolunteer}
-            onDeleteVolunteer={handleDeleteVolunteer}
-            currentUser={currentUser}
-          />
-        )}
-
-        {activeTab === 'units' && (
-          <UnitsManagerView
-            units={units}
-            onSaveUnit={handleSaveUnit}
-            onDeleteUnit={handleDeleteUnit}
-            currentUser={currentUser}
-          />
-        )}
-
-        {activeTab === 'users' && (currentUser.role === 'SUPER_ADMIN' || currentUser.permissions?.canManageUsers) && (
-          <UsersManagerView
-            currentUser={currentUser}
-            volunteers={volunteers}
-            onUpdateCurrentUser={(updated) => {
-              setCurrentUser(updated);
-              createActiveSession(updated);
-            }}
-            onNotify={(type, title, message) => addToast({ type, title, message })}
-          />
-        )}
-      </main>
-
-      {/* Mobile Bottom Navigation Bar (Persistent & Perfectly Centered + Button) */}
-      <nav aria-label="Navegación Móvil" className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-xl border-t border-slate-800/90 py-1 px-1 flex items-center justify-between shadow-2xl safe-bottom">
-        {/* 1. Métricas */}
-        <button
-          onClick={() => setActiveTab('dashboard')}
-          className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all ${
-            activeTab === 'dashboard' ? 'text-red-500 scale-105 font-bold' : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <Flame className="w-4 h-4 mb-0.5" />
-          <span className="text-[9px] truncate">Métricas</span>
-        </button>
-
-        {/* 2. Matriz */}
-        <button
-          onClick={() => setActiveTab('matrix')}
-          className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all ${
-            activeTab === 'matrix' ? 'text-red-500 scale-105 font-bold' : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <Table2 className="w-4 h-4 mb-0.5" />
-          <span className="text-[9px] truncate">Matriz</span>
-        </button>
-
-        {/* 3. Partes */}
-        <button
-          onClick={() => setActiveTab('reports')}
-          className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all ${
-            activeTab === 'reports' ? 'text-red-500 scale-105 font-bold' : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <FileText className="w-4 h-4 mb-0.5" />
-          <span className="text-[9px] truncate">Partes</span>
-        </button>
-
-        {/* CENTER '+' BUTTON */}
-        {currentUser.permissions?.canCreateReports && (
-          <div className="flex items-center justify-center -mt-5 shrink-0 px-1 z-10">
-            <button
-              onClick={handleOpenNewReport}
-              className="w-12 h-12 bg-gradient-to-tr from-red-700 to-red-500 hover:from-red-800 text-white rounded-full flex items-center justify-center shadow-2xl border-2 border-slate-900 active:scale-95 transition"
-              title="Crear Nuevo Parte"
-            >
-              <Plus className="w-6 h-6 stroke-[2.5]" />
-            </button>
+        {/* Global Multi-Company Notice for Super Admin */}
+        {isSuperAdmin && activeCompanyId === 'ALL' && (
+          <div className="bg-amber-950/80 border-b border-amber-800/80 px-4 py-2 text-center text-xs font-bold text-amber-300 flex items-center justify-center gap-2">
+            <Building2 className="w-4 h-4 text-amber-400" />
+            <span>Modo Super Administrador Activo: Visualizando información consolidada de todas las Compañías.</span>
           </div>
         )}
 
-        {/* 4. Padrón */}
-        <button
-          onClick={() => setActiveTab('volunteers')}
-          className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all ${
-            activeTab === 'volunteers' ? 'text-red-500 scale-105 font-bold' : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <Users className="w-4 h-4 mb-0.5" />
-          <span className="text-[9px] truncate">Padrón</span>
-        </button>
+        {/* Main Content Area */}
+        <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 space-y-6">
+          {activeTab === 'dashboard' && (
+            <DashboardView 
+              reports={reports} 
+              volunteers={volunteers} 
+              keys={keys}
+              onSelectReport={(report) => setViewingReport(report)}
+              onNewReport={handleOpenNewReport}
+            />
+          )}
 
-        {/* 5. Carros */}
-        <button
-          onClick={() => setActiveTab('units')}
-          className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all ${
-            activeTab === 'units' ? 'text-red-500 scale-105 font-bold' : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <Truck className="w-4 h-4 mb-0.5" />
-          <span className="text-[9px] truncate">Carros</span>
-        </button>
+          {activeTab === 'matrix' && (
+            <AttendanceMatrixView 
+              reports={reports} 
+              volunteers={volunteers} 
+              keys={keys}
+              onSelectReport={(report) => setViewingReport(report)}
+            />
+          )}
 
-        {/* 6. Usuarios (o espacio simétrico) */}
-        {currentUser.role === 'SUPER_ADMIN' ? (
-          <button
-            onClick={() => setActiveTab('users')}
-            className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all ${
-              activeTab === 'users' ? 'text-amber-400 scale-105 font-bold' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Shield className="w-4 h-4 mb-0.5" />
-            <span className="text-[9px] truncate">Usuarios</span>
-          </button>
-        ) : null}
-      </nav>
+          {activeTab === 'reports' && (
+            <ReportListView 
+              reports={reports} 
+              keys={keys}
+              onNewReport={handleOpenNewReport}
+              onEditReport={handleOpenEditReport}
+              onViewReport={(report) => setViewingReport(report)}
+              onDeleteReport={handleDeleteReport}
+              onSaveReport={handleSaveReport}
+              currentUser={currentUser}
+            />
+          )}
 
-      {/* Quick Access Floating Action Button */}
-      <QuickAccessFAB
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        onNewReport={handleOpenNewReport}
-        onExportExcel={handleExportExcel}
-        onLogout={handleLogout}
-        onOpenLogoManager={() => setIsLogoManagerOpen(true)}
-        currentUser={currentUser}
-      />
+          {activeTab === 'volunteers' && (
+            <VolunteersManagerView 
+              volunteers={volunteers} 
+              onSaveVolunteer={handleSaveVolunteer}
+              onDeleteVolunteer={handleDeleteVolunteer}
+              currentUser={currentUser || undefined}
+            />
+          )}
 
-      {/* Dynamic Toast Feedback Notifications */}
-      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+          {activeTab === 'units' && (
+            <UnitsManagerView 
+              units={units} 
+              onSaveUnit={handleSaveUnit}
+              onDeleteUnit={handleDeleteUnit}
+              currentUser={currentUser || undefined}
+            />
+          )}
 
-      {/* Floating Scroll To Top Action */}
+          {activeTab === 'users' && currentUser?.permissions?.canManageUsers && (
+            <UsersManagerView 
+              volunteers={volunteers}
+              currentUser={currentUser}
+              onNotify={(type, title, message) => addToast({ type, title, message })}
+            />
+          )}
+
+          {activeTab === 'companies' && isSuperAdmin && (
+            <CompaniesManagerView
+              companies={companies}
+              activeCompanyId={activeCompanyId}
+              onSelectCompany={handleSelectCompany}
+              onSaveCompany={handleSaveCompany}
+              onDeleteCompany={handleDeleteCompany}
+              onToast={addToast}
+            />
+          )}
+        </main>
+      </div>
+
+      {/* Report Creation / Edition Modal */}
+      {isFormOpen && (
+        <ReportFormModal 
+          isOpen={isFormOpen}
+          onClose={() => {
+            setIsFormOpen(false);
+            setEditingReport(null);
+          }}
+          onSave={handleSaveReport}
+          editingReport={editingReport}
+          volunteers={volunteers}
+          units={units}
+          keys={keys}
+          nextFolioNumber={reports.length + 1}
+          currentUser={currentUser}
+        />
+      )}
+
+      {/* Report Detail Modal (with Official Print, PDF, and Digital Signatures) */}
+      {viewingReport && (
+        <ReportDetailModal 
+          report={viewingReport}
+          onClose={() => setViewingReport(null)}
+          onEdit={handleOpenEditReport}
+          volunteers={volunteers}
+          currentUser={currentUser}
+          onSign={(reportId, signatureData) => handleSignReport(reportId, signatureData, signatureData.targetStatus, signatureData.role === 'OBAC')}
+          onSave={handleSaveReport}
+        />
+      )}
+
+      {/* Branding & Crest Modal */}
+      {isLogoManagerOpen && (
+        <LogoManagerModal 
+          isOpen={isLogoManagerOpen}
+          onClose={() => setIsLogoManagerOpen(false)}
+          branding={branding}
+          onSaveBranding={handleSaveBranding}
+        />
+      )}
+
+      {/* Floating Action Button for Emergency Report */}
+      {currentUser && (
+        <QuickAccessFAB 
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          onNewReport={handleOpenNewReport}
+          onExportExcel={() => exportMatrixToExcel(reports, volunteers, new Date().getFullYear())}
+          onLogout={handleLogout}
+          onOpenLogoManager={() => setIsLogoManagerOpen(true)}
+          currentUser={currentUser}
+        />
+      )}
+
+      {/* Back to top helper */}
       <ScrollToTopButton />
 
-      {/* Modals */}
-      <ReportFormModal
-        isOpen={isFormOpen}
-        onClose={() => {
-          setIsFormOpen(false);
-          setEditingReport(null);
-        }}
-        onSave={handleSaveReport}
-        editingReport={editingReport}
-        volunteers={volunteers}
-        units={units}
-        keys={keys}
-        nextFolioNumber={nextFolioNumber}
-        currentUser={currentUser}
-      />
-
-      <ReportDetailModal
-        report={viewingReport}
-        onClose={() => setViewingReport(null)}
-        onEdit={(rep) => {
-          setViewingReport(null);
-          handleOpenEditReport(rep);
-        }}
-        volunteers={volunteers}
-        currentUser={currentUser}
-        onSign={handleSignReport}
-        onSave={handleSaveReport}
-      />
-
-      <LogoManagerModal
-        isOpen={isLogoManagerOpen}
-        onClose={() => setIsLogoManagerOpen(false)}
-        branding={branding}
-        onSaveBranding={handleSaveBranding}
-      />
+      {/* Floating System Notifications */}
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }

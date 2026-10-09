@@ -3,9 +3,11 @@ import { serverGetUnits, serverSaveUnit, serverDeleteUnit, serverGetDeletedUnitC
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const units = await serverGetUnits();
+    const { searchParams } = new URL(req.url);
+    const companyId = searchParams.get('companyId') || undefined;
+    const units = await serverGetUnits(companyId);
     const deletedCodes = serverGetDeletedUnitCodes();
     return NextResponse.json({ success: true, data: units, deletedCodes });
   } catch (error: any) {

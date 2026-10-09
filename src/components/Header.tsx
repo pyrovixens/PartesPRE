@@ -11,10 +11,12 @@ import {
   Sun, 
   Shield, 
   LogOut,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Building2,
+  ChevronDown
 } from 'lucide-react';
 import { exportMatrixToExcel } from '../utils/excelExport';
-import { EmergencyReport, Volunteer, UserProfile, CompanyBranding } from '../types';
+import { EmergencyReport, Volunteer, UserProfile, AppUser, CompanyBranding, Company, SUPER_ADMIN_MASTER_EMAIL } from '../types';
 
 interface HeaderProps {
   activeTab: string;
@@ -26,8 +28,11 @@ interface HeaderProps {
   volunteers: Volunteer[];
   isDarkMode: boolean;
   onToggleDarkMode: () => void;
-  currentUser: UserProfile;
+  currentUser?: AppUser | UserProfile | null;
   branding: CompanyBranding;
+  companies?: Company[];
+  activeCompanyId?: string;
+  onSelectCompany?: (companyId: string) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -42,12 +47,15 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleDarkMode,
   currentUser,
   branding,
+  companies = [],
+  activeCompanyId = '4cia-calle-larga',
+  onSelectCompany,
 }) => {
   const handleExportExcel = () => {
     exportMatrixToExcel(reports, volunteers, new Date().getFullYear());
   };
 
-  const isSuperAdmin = currentUser.role === 'SUPER_ADMIN';
+  const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.email?.toLowerCase() === SUPER_ADMIN_MASTER_EMAIL.toLowerCase();
 
   return (
     <header className="bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md text-white border-b border-red-800/70 shadow-lg sticky top-0 z-40 transition-colors">
@@ -82,6 +90,25 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="hidden md:inline-block bg-red-700/80 text-amber-300 text-[10px] font-black px-2 py-0.5 rounded-full border border-red-600/60 uppercase tracking-wider">
                 {branding.fireDepartment.replace('Cuerpo de Bomberos de ', 'C.B. ')}
               </span>
+
+              {/* Company Switcher Dropdown for Super Admin */}
+              {isSuperAdmin && companies.length > 0 && onSelectCompany && (
+                <div className="relative inline-flex items-center">
+                  <select
+                    value={activeCompanyId}
+                    onChange={(e) => onSelectCompany(e.target.value)}
+                    className="bg-slate-800 text-amber-300 border border-amber-500/50 rounded-xl px-2 py-0.5 text-[10px] sm:text-xs font-black appearance-none pr-5 focus:outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer shadow-sm hover:bg-slate-750"
+                  >
+                    <option value="ALL">🏢 Todas las Cías (Modo Global)</option>
+                    {companies.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.code} - {c.name}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-3 h-3 text-amber-400 absolute right-1.5 pointer-events-none" />
+                </div>
+              )}
             </div>
             <p className="text-[9px] sm:text-[11px] text-slate-300 font-medium truncate max-w-[200px] sm:max-w-none">
               {branding.motto || 'Sistema Oficial de Control de Asistencias y Partes de Emergencia'}
@@ -92,28 +119,30 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Action Buttons Right */}
         <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
           {/* User Profile Card & Role */}
-          <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-800/90 border border-slate-700/80 rounded-2xl px-2 sm:px-3 py-1 sm:py-1.5 shadow-sm">
-            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-xl bg-red-700 text-white font-black text-[10px] sm:text-xs flex items-center justify-center">
-              {currentUser.fullName.charAt(0)}
-            </div>
-            <div className="hidden sm:block text-left text-xs">
-              <p className="font-extrabold text-white text-[11px] leading-tight truncate max-w-[120px]">
-                {currentUser.fullName}
-              </p>
-              <span className="text-[9px] text-amber-400 font-bold block uppercase">
-                {currentUser.role.replace('_', ' ')}
-              </span>
-            </div>
+          {currentUser && (
+            <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-800/90 border border-slate-700/80 rounded-2xl px-2 sm:px-3 py-1 sm:py-1.5 shadow-sm">
+              <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-xl bg-red-700 text-white font-black text-[10px] sm:text-xs flex items-center justify-center">
+                {currentUser.fullName?.charAt(0) || 'U'}
+              </div>
+              <div className="hidden sm:block text-left text-xs">
+                <p className="font-extrabold text-white text-[11px] leading-tight truncate max-w-[120px]">
+                  {currentUser.fullName}
+                </p>
+                <span className="text-[9px] text-amber-400 font-bold block uppercase">
+                  {currentUser.role?.replace('_', ' ') || 'BOMBERO'}
+                </span>
+              </div>
 
-            {/* Logout Button */}
-            <button
-              onClick={onLogout}
-              className="text-slate-400 hover:text-red-400 p-1 rounded-lg transition"
-              title="Cerrar Sesión"
-            >
-              <LogOut className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </button>
-          </div>
+              {/* Logout Button */}
+              <button
+                onClick={onLogout}
+                className="text-slate-400 hover:text-red-400 p-1 rounded-lg transition"
+                title="Cerrar Sesión"
+              >
+                <LogOut className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              </button>
+            </div>
+          )}
 
           {/* Dark/Light Mode Toggle */}
           <button
@@ -125,7 +154,7 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
 
           {/* Export Excel Button */}
-          {currentUser.permissions?.canExportReports && (
+          {currentUser?.permissions?.canExportReports && (
             <button
               onClick={handleExportExcel}
               className="hidden md:flex items-center gap-1 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-3 py-1.5 rounded-2xl shadow-md transition active:scale-95 border border-emerald-600/50"
@@ -137,7 +166,7 @@ export const Header: React.FC<HeaderProps> = ({
           )}
 
           {/* New Report CTA */}
-          {currentUser.permissions?.canCreateReports && (
+          {currentUser?.permissions?.canCreateReports && (
             <button
               onClick={onNewReport}
               className="flex items-center gap-1.5 bg-gradient-to-r from-red-700 to-red-600 hover:from-red-800 hover:to-red-700 text-white text-xs sm:text-sm font-black px-2.5 sm:px-3.5 py-1.5 rounded-2xl shadow-md transition active:scale-95 border border-red-500/50"
@@ -152,6 +181,21 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Navigation Tabs Bar - Horizontal Touch Scrollable */}
       <div className="bg-slate-950/90 border-t border-slate-800 px-2 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto flex items-center gap-1.5 overflow-x-auto py-2 text-xs no-scrollbar scroll-smooth">
+          {/* Multi-Company Management Tab (Super Admin Only) */}
+          {isSuperAdmin && (
+            <button
+              onClick={() => setActiveTab('companies')}
+              className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition whitespace-nowrap ${
+                activeTab === 'companies'
+                  ? 'bg-amber-600 text-white shadow-md'
+                  : 'text-amber-300 bg-amber-950/30 hover:bg-amber-950/70 border border-amber-700/50'
+              }`}
+            >
+              <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-300 shrink-0" />
+              <span>🏢 Compañías ({companies.length})</span>
+            </button>
+          )}
+
           <button
             onClick={() => setActiveTab('dashboard')}
             className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition whitespace-nowrap ${
@@ -213,7 +257,7 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
 
           {/* Users Management & Branding Tab */}
-          {(isSuperAdmin || currentUser.permissions?.canManageUsers) && (
+          {(isSuperAdmin || currentUser?.permissions?.canManageUsers) && (
             <>
               <button
                 onClick={() => setActiveTab('users')}

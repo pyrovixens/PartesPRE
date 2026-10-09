@@ -27,6 +27,7 @@ export type VolunteerRank =
 
 export interface Volunteer {
   id: string;
+  companyId?: string; // Tenant reference (e.g. "4cia-calle-larga")
   rut: string;
   registrationNumber: string; // e.g. "VOL-001"
   fullName: string;
@@ -44,6 +45,7 @@ export interface Volunteer {
 
 export interface Unit {
   code: string; // "B-4", "BX-4", "R-4", "K-4", "Z-4"
+  companyId?: string; // Tenant reference (e.g. "4cia-calle-larga")
   name: string; // "Bomba Urbana Mayor"
   plate: string;
   brand?: string;
@@ -93,6 +95,7 @@ export interface DigitalSignatureInfo {
 
 export interface EmergencyReport {
   id: string;
+  companyId?: string; // Tenant reference (e.g. "4cia-calle-larga")
   folioYear: number;
   folioNumber: number;
   fullFolio: string; // e.g. "2026-001"
@@ -182,6 +185,26 @@ export interface StatsSummary {
 }
 
 // -------------------------------------------------------------
+// SISTEMA DE COMPAÑÍAS (MULTI-TENANT ARCHITECTURE)
+// -------------------------------------------------------------
+export interface Company {
+  id: string; // Slug único: ej. "4cia-calle-larga", "1cia-los-andes"
+  code: string; // Código institucional: ej. "4CIA", "1CIA"
+  name: string; // Nombre: ej. '4ª Compañía "Bomba Calle Larga"'
+  fireDepartment: string; // Cuerpo de Bomberos
+  motto: string; // Lema
+  logoUrl: string; // URL o base64
+  primaryColor: string; // HEX primario
+  accentColor: string; // HEX secundario
+  isActive: boolean;
+  adminEmail?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export const DEFAULT_COMPANY_ID = '4cia-calle-larga';
+
+// -------------------------------------------------------------
 // SISTEMA DE USUARIOS, ROLES Y PERMISOS
 // -------------------------------------------------------------
 export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'OFICIAL' | 'VOLUNTARIO';
@@ -201,6 +224,7 @@ export interface UserPermissions {
 
 export interface AppUser {
   id: string;
+  companyId?: string; // Tenant reference (e.g. "4cia-calle-larga" or "ALL" for Super Admin)
   email: string;
   fullName: string;
   volunteerId?: string;
@@ -221,6 +245,7 @@ export interface AppUser {
 
 export interface UserInvitation {
   id: string;
+  companyId?: string;
   email: string;
   fullName: string;
   volunteerId?: string;
@@ -246,6 +271,7 @@ export interface ToastNotification {
 }
 
 export interface CompanyBranding {
+  companyId?: string;
   companyName: string;
   fireDepartment: string;
   motto: string;
@@ -253,3 +279,6 @@ export interface CompanyBranding {
   primaryColor: string;
   accentColor: string;
 }
+
+export const SUPER_ADMIN_MASTER_EMAIL = 'gnunezgonzalez@icloud.com';
+

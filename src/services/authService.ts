@@ -120,6 +120,7 @@ export const getDefaultPermissions = (role: UserRole): UserPermissions => {
 // ----------------------------------------------------------------------
 export const SUPER_ADMIN_USER: AppUser = {
   id: 'usr-superadmin-01',
+  companyId: 'ALL',
   email: 'gnunezgonzalez@icloud.com',
   fullName: 'Gustavo Núñez González',
   rank: 'Super Administrador General',
@@ -168,12 +169,15 @@ export const saveStoredUsers = (users: AppUser[]): void => {
   }
 };
 
-export const fetchAppUsers = async (): Promise<AppUser[]> => {
+export const fetchAppUsers = async (companyId?: string): Promise<AppUser[]> => {
   let serverUsers: AppUser[] = [];
 
   // 1. Online API endpoint
   try {
-    const res = await fetch('/api/users', { cache: 'no-store' });
+    const url = companyId && companyId !== 'ALL'
+      ? `/api/users?companyId=${encodeURIComponent(companyId)}`
+      : '/api/users';
+    const res = await fetch(url, { cache: 'no-store' });
     if (res.ok) {
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
@@ -187,20 +191,27 @@ export const fetchAppUsers = async (): Promise<AppUser[]> => {
   // 2. Direct Supabase if server response was empty
   if (serverUsers.length === 0 && isSupabaseConfigured() && supabase) {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('app_users')
         .select('*')
         .order('created_at', { ascending: true });
 
+      if (companyId && companyId !== 'ALL') {
+        query = query.or(`company_id.eq.${companyId},company_id.eq.ALL`);
+      }
+
+      const { data, error } = await query;
+
       if (!error && data && data.length > 0) {
         serverUsers = data.map((d: any) => ({
           id: d.id,
+          companyId: d.email?.toLowerCase() === 'gnunezgonzalez@icloud.com' ? 'ALL' : (d.company_id || '4cia-calle-larga'),
           email: d.email,
           fullName: d.full_name,
           volunteerId: d.volunteer_id,
-          rank: d.rank,
-          registrationNumber: d.registration_number,
-          role: d.role,
+          rank: d.email?.toLowerCase() === 'gnunezgonzalez@icloud.com' ? 'Super Administrador General' : d.rank,
+          registrationNumber: d.email?.toLowerCase() === 'gnunezgonzalez@icloud.com' ? 'SUP-001' : d.registration_number,
+          role: d.email?.toLowerCase() === 'gnunezgonzalez@icloud.com' ? 'SUPER_ADMIN' : d.role,
           status: d.status,
           permissions: typeof d.permissions === 'string' ? JSON.parse(d.permissions) : (d.permissions || getDefaultPermissions(d.role)),
           password: d.password,
@@ -223,6 +234,9 @@ export const fetchAppUsers = async (): Promise<AppUser[]> => {
   const finalUsers = hasSuperAdmin ? baseUsers : [SUPER_ADMIN_USER, ...baseUsers];
 
   saveStoredUsers(finalUsers);
+  if (companyId && companyId !== 'ALL') {
+    return finalUsers.filter(u => u.companyId === 'ALL' || u.companyId === companyId);
+  }
   return finalUsers;
 };
 
@@ -574,6 +588,7 @@ export const fetchInvitations = async (): Promise<UserInvitation[]> => {
 };
 
 export const createInvitation = async (params: {
+  companyId?: string;
   email: string;
   fullName: string;
   volunteerId?: string;
@@ -587,9 +602,11 @@ export const createInvitation = async (params: {
   const token = `inv_${Math.random().toString(36).substring(2, 10)}_${Date.now()}`;
   const now = new Date();
   const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  const targetCompanyId = params.companyId || '4cia-calle-larga';
 
   const newInvitation: UserInvitation = {
     id: `inv-${Date.now()}`,
+    companyId: targetCompanyId,
     email: cleanEmail,
     fullName: params.fullName.trim(),
     volunteerId: params.volunteerId,
@@ -622,6 +639,7 @@ export const createInvitation = async (params: {
   if (isSupabaseConfigured() && supabase) {
     try {
       await supabase.from('user_invitations').upsert({
+        company_id: targetCompanyId,
         email: newInvitation.email,
         full_name: newInvitation.fullName,
         role: newInvitation.role,
